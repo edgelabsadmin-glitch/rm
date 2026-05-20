@@ -39,6 +39,10 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
 
+    from api.admin.kill_switch import router as kill_switch_router
+
+    app.include_router(kill_switch_router)
+
     return app
 
 
