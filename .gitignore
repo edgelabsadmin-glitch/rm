@@ -1,0 +1,69 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*_credentials.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Node / JS
+node_modules/
+.next/
+dist/
+build/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Claude Code local settings (machine-specific tooling state)
+.claude/
+
+# Spike scratch
+00_research/spikes/*/scratch/
+00_research/spikes/*/.env
+
+# Local data caches (kept by rm-intelligence-agent at folder level)
+*.sqlite
+*.db
+
+# ── Phase 4: keep the Pulse repo lean ──────────────────────────────
+# External clones (each has its own upstream git; never commit into Pulse)
+00_research/reference_repos/
+
+# Prior-work folders — separate codebases Pulse builds *on*, not *in*.
+# Their source is referenced (paths in specs) but not vendored here.
+b2b-sdr-agent-template-main/
+SDRbot-main/
+opportunity-tracker/
+rm-intelligence-agent/
+
+# Large prior-work data artifacts (if any path slips through)
+*.jsonl
+*_raw.json
+
+# Kuzu embedded DB + scratch
+*.kuzu
+03_build/**/scratch/
+
+# Build outputs / caches
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Brand asset (large binary; referenced not committed)
+logo.jpeg

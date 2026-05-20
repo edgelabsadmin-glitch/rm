@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Pulse — Alive-Presence Variant 3: Account-Card Ambient Ring</title>
+<style>
+  /* ── Tier-0 tokens ──────────────────────────────────────────────────── */
+  :root {
+    --brand:           #6B46C1;
+    --brand-hover:     #5B35B1;
+    --brand-deep:      #4B2E91;
+    --brand-muted:     rgba(107, 70, 193, 0.10);
+    --brand-ghost:     rgba(107, 70, 193, 0.07);
+    --brand-soft:      rgba(107, 70, 193, 0.15);
+    --brand-edge:      rgba(107, 70, 193, 0.25);
+    --brand-glow:      rgba(107, 70, 193, 0.20);
+    --surface-page:    #FAFAFA;
+    --surface-chrome:  #F5F5F7;
+    --surface-card:    #FFFFFF;
+    --surface-sidebar: rgba(248, 250, 252, 0.80);
+    --surface-track:   rgb(241, 245, 249);
+    --text-primary:    rgb(2, 6, 23);
+    --text-secondary:  rgb(100, 116, 139);
+    --text-muted:      rgb(148, 163, 184);
+    --border-subtle:   rgb(241, 245, 249);
+    --border-strong:   rgb(226, 232, 240);
+    --font-sans:       "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px;
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px; line-height: 1.4;
+  }
+  h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; }
+  .doc-intro { color: var(--text-secondary); max-width: 720px; margin-bottom: 32px; }
+  .doc-intro strong { color: var(--text-primary); }
+  .scene-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 48px; }
+  .scene {
+    background: var(--surface-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 24px;
+    padding: 16px;
+  }
+  .scene-label {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .scene-label .eyebrow {
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--text-secondary); font-weight: 600;
+  }
+  .scene-label .state-name {
+    font-size: 13px; font-weight: 600; color: var(--brand);
+  }
+  .scene-caption {
+    margin-top: 10px; font-size: 11.5px;
+    color: var(--text-secondary); line-height: 1.5;
+  }
+
+  /* ── Mini Pulse shell ──────────────────────────────────────────────── */
+  .pulse-shell {
+    position: relative;
+    background: var(--surface-chrome);
+    border: 1px solid var(--border-strong);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .ps-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .ps-brand { display: flex; align-items: center; gap: 8px; }
+  .ps-mark {
+    width: 28px; height: 28px;
+    background: var(--brand); border-radius: 8px;
+    display: grid; place-items: center; color: white;
+    box-shadow: 0 4px 8px var(--brand-glow);
+  }
+  .ps-mark svg { width: 14px; height: 14px; }
+  .ps-brand-name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+  .ps-brand-tag  { font-size: 9.5px; color: var(--text-secondary); }
+  .ps-search {
+    flex: 0 0 38%;
+    background: var(--surface-track);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 10px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ps-search svg { width: 10px; height: 10px; opacity: 0.7; }
+  .ps-actions { display: flex; align-items: center; gap: 8px; }
+  .ps-queue-btn {
+    border: 1px solid var(--brand-edge); background: transparent;
+    color: var(--brand); border-radius: 999px;
+    padding: 4px 10px; font-size: 10px; font-weight: 500;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .ps-queue-btn svg { width: 10px; height: 10px; }
+  .ps-avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgb(15, 23, 42); color: white;
+    display: grid; place-items: center;
+    font-size: 9px; font-weight: 600;
+  }
+
+  /* Body */
+  .ps-body {
+    display: grid; grid-template-columns: 30% 1fr 30%;
+    min-height: 220px;
+  }
+  .ps-rail {
+    background: var(--surface-sidebar);
+    padding: 12px;
+    border-right: 1px solid var(--border-subtle);
+  }
+  .ps-rail-right { border-right: none; border-left: 1px solid var(--border-subtle); }
+  .ps-rail-h {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-secondary);
+    margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .ps-pill {
+    border-radius: 999px; border: 1px solid var(--brand-edge);
+    background: var(--brand-muted); color: var(--brand);
+    padding: 1px 7px; font-size: 9px; font-weight: 500;
+  }
+  .ps-pill.neutral { border-color: var(--border-strong); background: white; color: var(--text-secondary); }
+
+  /* ★ THE ACCOUNT CARD — the alive-presence indicator ★ */
+  .ps-acct {
+    position: relative;
+    background: white; border: 1px solid var(--brand-edge);
+    border-radius: 16px; padding: 10px;
+    box-shadow: 0 8px 16px rgba(226, 232, 240, 0.7);
+    margin-bottom: 8px;
+  }
+  .ps-acct.processing {
+    box-shadow:
+      0 0 0 2px rgba(107, 70, 193, 0.25),
+      0 0 16px 4px rgba(107, 70, 193, 0.18),
+      0 8px 16px rgba(226, 232, 240, 0.7);
+    animation: ring-breathe 1.8s ease-in-out infinite;
+  }
+  .ps-acct.ready {
+    box-shadow:
+      0 0 0 2px rgba(107, 70, 193, 0.55),
+      0 0 18px 6px rgba(107, 70, 193, 0.25),
+      0 8px 16px rgba(226, 232, 240, 0.7);
+    animation: ring-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes ring-breathe {
+    0%, 100% {
+      box-shadow:
+        0 0 0 2px rgba(107, 70, 193, 0.15),
+        0 0 12px 2px rgba(107, 70, 193, 0.12),
+        0 8px 16px rgba(226, 232, 240, 0.7);
+    }
+    50% {
+      box-shadow:
+        0 0 0 3px rgba(107, 70, 193, 0.35),
+        0 0 22px 6px rgba(107, 70, 193, 0.22),
+        0 8px 16px rgba(226, 232, 240, 0.7);
+    }
+  }
+  @keyframes ring-pulse {
+    0%, 100% {
+      box-shadow:
+        0 0 0 2px rgba(107, 70, 193, 0.50),
+        0 0 16px 4px rgba(107, 70, 193, 0.25),
+        0 8px 16px rgba(226, 232, 240, 0.7);
+    }
+    50% {
+      box-shadow:
+        0 0 0 3px rgba(107, 70, 193, 0.80),
+        0 0 28px 8px rgba(107, 70, 193, 0.40),
+        0 8px 16px rgba(226, 232, 240, 0.7);
+    }
+  }
+
+  /* Per-card "new" badge for action-ready state */
+  .ps-acct-badge {
+    position: absolute;
+    top: -6px; right: -6px;
+    background: var(--brand); color: white;
+    font-size: 9px; font-weight: 700;
+    border-radius: 999px;
+    width: 16px; height: 16px;
+    display: grid; place-items: center;
+    box-shadow: 0 4px 10px var(--brand-glow);
+  }
+
+  .ps-acct-name { font-size: 11px; font-weight: 600; letter-spacing: -0.01em; }
+  .ps-acct-meta { font-size: 9px; color: var(--text-secondary); margin-top: 3px; }
+  .ps-acct-bar-track { height: 4px; background: var(--surface-track); border-radius: 999px; margin-top: 8px; }
+  .ps-acct-bar-fill { height: 4px; background: var(--brand); border-radius: 999px; }
+  .ps-acct-faint {
+    background: rgba(255, 255, 255, 0.7); border: 1px solid transparent;
+    border-radius: 16px; padding: 10px; margin-bottom: 6px;
+  }
+  .ps-acct-faint .ps-acct-name { color: var(--text-primary); }
+  .ps-acct-faint .ps-acct-meta { color: var(--text-muted); }
+
+  .ps-main { padding: 12px; }
+  .ps-hero {
+    background: var(--brand); color: white;
+    border-radius: 20px; padding: 14px;
+    box-shadow: 0 12px 20px var(--brand-glow);
+  }
+  .ps-hero-eyebrow {
+    font-size: 9.5px; opacity: 0.8;
+    display: flex; align-items: center; gap: 5px; margin-bottom: 5px;
+  }
+  .ps-hero-eyebrow svg { width: 10px; height: 10px; }
+  .ps-hero-name { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .ps-hero-sub {
+    font-size: 10px; opacity: 0.85; line-height: 1.5;
+    margin-top: 5px; max-width: 70%;
+  }
+  .ps-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .ps-ring-wrap { background: rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 7px; }
+  .ps-ring-outer {
+    width: 52px; height: 52px; border-radius: 999px;
+    display: grid; place-items: center;
+    background: conic-gradient(white 173deg, rgba(255,255,255,0.18) 0deg);
+  }
+  .ps-ring-inner {
+    width: 38px; height: 38px; border-radius: 999px;
+    background: var(--brand-deep);
+    display: grid; place-items: center; text-align: center;
+  }
+  .ps-ring-num { font-size: 12px; font-weight: 700; line-height: 1; }
+  .ps-ring-lbl {
+    font-size: 6.5px; letter-spacing: 0.16em; text-transform: uppercase;
+    opacity: 0.65; margin-top: 1px;
+  }
+  .ps-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .ps-fact {
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.10);
+    border-radius: 10px; padding: 5px 7px;
+    font-size: 8.5px; opacity: 0.85;
+  }
+
+  .ps-action {
+    background: white; border: 1px solid var(--border-subtle);
+    border-radius: 16px; padding: 10px; margin-bottom: 8px;
+  }
+  .ps-action-top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .ps-action-icon {
+    width: 22px; height: 22px; background: var(--brand-muted);
+    border-radius: 8px; color: var(--brand);
+    display: grid; place-items: center;
+  }
+  .ps-action-icon svg { width: 11px; height: 11px; }
+  .ps-action-chev { color: var(--text-muted); }
+  .ps-action-chev svg { width: 11px; height: 11px; }
+  .ps-action-title { font-size: 10px; font-weight: 600; line-height: 1.35; }
+  .ps-action-detail { font-size: 9px; color: var(--text-secondary); line-height: 1.5; margin-top: 4px; }
+  .ps-action-foot {
+    display: flex; align-items: center; justify-content: space-between; margin-top: 8px;
+  }
+  .ps-action-foot .ps-pill { font-size: 8.5px; }
+  .ps-review { color: var(--brand); font-size: 9px; font-weight: 500; }
+
+  .rationale {
+    background: white; border: 1px solid var(--border-strong);
+    border-radius: 24px; padding: 24px; max-width: 880px;
+  }
+  .rationale h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
+  .rationale .rat-row {
+    display: grid; grid-template-columns: 130px 1fr; gap: 12px;
+    padding: 10px 0; border-top: 1px solid var(--border-subtle);
+  }
+  .rationale .rat-row:first-of-type { border-top: none; }
+  .rationale .rat-label {
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--text-secondary); font-weight: 600; padding-top: 2px;
+  }
+  .rationale .rat-body {
+    font-size: 13.5px; color: var(--text-primary); line-height: 1.55;
+  }
+</style>
+</head>
+<body>
+
+<h1>Alive-Presence Variant 3 — The Account-Card Ambient Ring</h1>
+<p class="doc-intro">
+  <strong>Each account card in the left rail carries an ambient Edge-Purple
+  ring. The ring activates per-account when the agent is doing work for
+  that specific account.</strong> At rest the cards look exactly as in the
+  React preview. When Pulse is ingesting a new signal for Helix, the Helix
+  card's ring breathes softly. When a new action is ready specifically for
+  that account, the ring brightens and a "+1" badge appears on the card.
+  The presence is <em>localized</em> — the user sees not just <em>that</em>
+  the agent is working but <em>where</em>.
+</p>
+
+<div class="scene-row">
+
+  <!-- STATE 1: IDLE -->
+  <div class="scene">
+    <div class="scene-label">
+      <span class="eyebrow">State 1</span>
+      <span class="state-name">Idle · at rest</span>
+    </div>
+
+    <div class="pulse-shell">
+      <header class="ps-header">
+        <div class="ps-brand">
+          <div class="ps-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div>
+            <div class="ps-brand-name">Pulse</div>
+            <div class="ps-brand-tag">Relationship intelligence</div>
+          </div>
+        </div>
+        <div class="ps-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          Ask: "Prep me for Helix renewal"
+        </div>
+        <div class="ps-actions">
+          <button class="ps-queue-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            Queue
+          </button>
+          <div class="ps-avatar">DZ</div>
+        </div>
+      </header>
+      <div class="ps-body">
+        <aside class="ps-rail">
+          <div class="ps-rail-h">Accounts <span class="ps-pill">Today</span></div>
+          <div class="ps-acct">
+            <div class="ps-acct-name">Helix Labs</div>
+            <div class="ps-acct-meta">Renewal sync · 3 days</div>
+            <div class="ps-acct-bar-track"><div class="ps-acct-bar-fill" style="width:64%"></div></div>
+          </div>
+          <div class="ps-acct-faint">
+            <div class="ps-acct-name">Mendota Health</div>
+            <div class="ps-acct-meta">EBR tomorrow</div>
+          </div>
+          <div class="ps-acct-faint">
+            <div class="ps-acct-name">Vertex Group</div>
+            <div class="ps-acct-meta">No meeting scheduled</div>
+          </div>
+        </aside>
+        <section class="ps-main">
+          <div class="ps-hero">
+            <div class="ps-hero-top">
+              <div>
+                <div class="ps-hero-eyebrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                  AI briefing
+                </div>
+                <div class="ps-hero-name">Helix Labs</div>
+                <p class="ps-hero-sub">Prioritizing evidence, next best action, stakeholder context.</p>
+              </div>
+              <div class="ps-ring-wrap">
+                <div class="ps-ring-outer">
+                  <div class="ps-ring-inner">
+                    <div>
+                      <div class="ps-ring-num">6.4</div>
+                      <div class="ps-ring-lbl">Health</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ps-facts">
+              <div class="ps-fact">Temporal memory</div>
+              <div class="ps-fact">Evidence-backed</div>
+            </div>
+          </div>
+        </section>
+        <aside class="ps-rail ps-rail-right">
+          <div class="ps-rail-h">Action Queue <span class="ps-pill">3 pending</span></div>
+          <div class="ps-action">
+            <div class="ps-action-top">
+              <div class="ps-action-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="ps-action-chev">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </div>
+            <div class="ps-action-title">Send renewal-risk note to Helix sponsor</div>
+            <div class="ps-action-detail">References 3 verified signals from Chorus, RM outreach, talent.</div>
+            <div class="ps-action-foot">
+              <span class="ps-pill neutral">RM approval</span>
+              <span class="ps-review">Review</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="scene-caption">
+      Selected account (Helix) is the white card with the slate shadow from
+      the React preview. No ring. Pulse is at rest.
+    </div>
+  </div>
+
+  <!-- STATE 2: PROCESSING -->
+  <div class="scene">
+    <div class="scene-label">
+      <span class="eyebrow">State 2</span>
+      <span class="state-name">Processing · this account</span>
+    </div>
+
+    <div class="pulse-shell">
+      <header class="ps-header">
+        <div class="ps-brand">
+          <div class="ps-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div>
+            <div class="ps-brand-name">Pulse</div>
+            <div class="ps-brand-tag">Relationship intelligence</div>
+          </div>
+        </div>
+        <div class="ps-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          Ask: "Prep me for Helix renewal"
+        </div>
+        <div class="ps-actions">
+          <button class="ps-queue-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            Queue
+          </button>
+          <div class="ps-avatar">DZ</div>
+        </div>
+      </header>
+      <div class="ps-body">
+        <aside class="ps-rail">
+          <div class="ps-rail-h">Accounts <span class="ps-pill">Today</span></div>
+          <div class="ps-acct processing">
+            <div class="ps-acct-name">Helix Labs</div>
+            <div class="ps-acct-meta">Renewal sync · 3 days</div>
+            <div class="ps-acct-bar-track"><div class="ps-acct-bar-fill" style="width:64%"></div></div>
+          </div>
+          <div class="ps-acct-faint">
+            <div class="ps-acct-name">Mendota Health</div>
+            <div class="ps-acct-meta">EBR tomorrow</div>
+          </div>
+          <div class="ps-acct-faint">
+            <div class="ps-acct-name">Vertex Group</div>
+            <div class="ps-acct-meta">No meeting scheduled</div>
+          </div>
+        </aside>
+        <section class="ps-main">
+          <div class="ps-hero">
+            <div class="ps-hero-top">
+              <div>
+                <div class="ps-hero-eyebrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                  AI briefing
+                </div>
+                <div class="ps-hero-name">Helix Labs</div>
+                <p class="ps-hero-sub">Prioritizing evidence, next best action, stakeholder context.</p>
+              </div>
+              <div class="ps-ring-wrap">
+                <div class="ps-ring-outer">
+                  <div class="ps-ring-inner">
+                    <div>
+                      <div class="ps-ring-num">6.4</div>
+                      <div class="ps-ring-lbl">Health</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ps-facts">
+              <div class="ps-fact">Temporal memory</div>
+              <div class="ps-fact">Evidence-backed</div>
+            </div>
+          </div>
+        </section>
+        <aside class="ps-rail ps-rail-right">
+          <div class="ps-rail-h">Action Queue <span class="ps-pill">3 pending</span></div>
+          <div class="ps-action">
+            <div class="ps-action-top">
+              <div class="ps-action-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="ps-action-chev">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </div>
+            <div class="ps-action-title">Send renewal-risk note to Helix sponsor</div>
+            <div class="ps-action-detail">References 3 verified signals from Chorus, RM outreach, talent.</div>
+            <div class="ps-action-foot">
+              <span class="ps-pill neutral">RM approval</span>
+              <span class="ps-review">Review</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="scene-caption">
+      Helix card breathes softly: outer ring + outer glow, 1.8s cycle.
+      The other accounts are unchanged. Pulse is working specifically on Helix.
+    </div>
+  </div>
+
+  <!-- STATE 3: ACTION READY -->
+  <div class="scene">
+    <div class="scene-label">
+      <span class="eyebrow">State 3</span>
+      <span class="state-name">Action ready · this account</span>
+    </div>
+
+    <div class="pulse-shell">
+      <header class="ps-header">
+        <div class="ps-brand">
+          <div class="ps-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div>
+            <div class="ps-brand-name">Pulse</div>
+            <div class="ps-brand-tag">Relationship intelligence</div>
+          </div>
+        </div>
+        <div class="ps-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          Ask: "Prep me for Helix renewal"
+        </div>
+        <div class="ps-actions">
+          <button class="ps-queue-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            Queue
+          </button>
+          <div class="ps-avatar">DZ</div>
+        </div>
+      </header>
+      <div class="ps-body">
+        <aside class="ps-rail">
+          <div class="ps-rail-h">Accounts <span class="ps-pill">Today</span></div>
+          <div class="ps-acct ready">
+            <div class="ps-acct-badge">1</div>
+            <div class="ps-acct-name">Helix Labs</div>
+            <div class="ps-acct-meta">Renewal sync · 3 days</div>
+            <div class="ps-acct-bar-track"><div class="ps-acct-bar-fill" style="width:64%"></div></div>
+          </div>
+          <div class="ps-acct-faint">
+            <div class="ps-acct-name">Mendota Health</div>
+            <div class="ps-acct-meta">EBR tomorrow</div>
+          </div>
+          <div class="ps-acct-faint">
+            <div class="ps-acct-name">Vertex Group</div>
+            <div class="ps-acct-meta">No meeting scheduled</div>
+          </div>
+        </aside>
+        <section class="ps-main">
+          <div class="ps-hero">
+            <div class="ps-hero-top">
+              <div>
+                <div class="ps-hero-eyebrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                  AI briefing
+                </div>
+                <div class="ps-hero-name">Helix Labs</div>
+                <p class="ps-hero-sub">Prioritizing evidence, next best action, stakeholder context.</p>
+              </div>
+              <div class="ps-ring-wrap">
+                <div class="ps-ring-outer">
+                  <div class="ps-ring-inner">
+                    <div>
+                      <div class="ps-ring-num">6.4</div>
+                      <div class="ps-ring-lbl">Health</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ps-facts">
+              <div class="ps-fact">Temporal memory</div>
+              <div class="ps-fact">Evidence-backed</div>
+            </div>
+          </div>
+        </section>
+        <aside class="ps-rail ps-rail-right">
+          <div class="ps-rail-h">Action Queue <span class="ps-pill">4 pending</span></div>
+          <div class="ps-action">
+            <div class="ps-action-top">
+              <div class="ps-action-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="ps-action-chev">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </div>
+            <div class="ps-action-title">New: Burnout pattern across Helix dental cohort</div>
+            <div class="ps-action-detail">3 talent flagged the same theme in calls this week.</div>
+            <div class="ps-action-foot">
+              <span class="ps-pill neutral">RM approval</span>
+              <span class="ps-review">Review</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="scene-caption">
+      Helix card has a brighter ring (pulsing at 1.2s) and a "+1" badge.
+      The eye goes: card glow → badge → queue. Pulse is showing both
+      <em>that</em> and <em>where</em>.
+    </div>
+  </div>
+
+</div>
+
+<div class="rationale">
+  <h2>What this variant says about Pulse</h2>
+
+  <div class="rat-row">
+    <div class="rat-label">Amplifies</div>
+    <div class="rat-body">
+      Pulse is <em>relational</em>, not <em>monolithic</em>. The product's whole
+      purpose is per-account understanding; the alive-presence layer mirrors
+      that. The user can tell at a glance not just "Pulse is doing work" but
+      "Pulse is doing work <em>about Helix</em>." When the burnout pattern
+      surfaces, the user sees the cause and the destination in the same look.
+      This is the only variant that <em>names what the agent is working on</em>.
+    </div>
+  </div>
+
+  <div class="rat-row">
+    <div class="rat-label">Sacrifices</div>
+    <div class="rat-body">
+      Highest visual complexity of the three. The left rail becomes a
+      "weather report" that changes through the day. If 4 cards are processing
+      at once, the rail starts to feel busy — a risk to the calm-whitespace
+      discipline (§6 design rule 18). Mitigation: cap concurrent rings to
+      1–2 at a time; queue further work invisibly. Also more implementation
+      surface in Phase 4 (per-card state subscription vs. one global signal).
+    </div>
+  </div>
+
+  <div class="rat-row">
+    <div class="rat-label">Says about Pulse</div>
+    <div class="rat-body">
+      "I'm working on your relationships — and you can see which one." Best
+      fit if the CEO and the RM both value the dual-axis "Pulse is here AND
+      is doing X." Worst fit if the user is bothered by motion in their
+      peripheral vision; the rail will demand discipline in throttling.
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

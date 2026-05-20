@@ -1,0 +1,23 @@
+# SPEC-001 / ADR-002 — Fly.io config for the Pulse FastAPI service.
+# Operator runs `flyctl deploy` from 03_build/ after setting secrets. Region TBD (Q148, US East lean).
+app = "pulse-api"
+primary_region = "iad"   # US East; confirm Q148 Week 1
+
+[build]
+  dockerfile = "deploy/Dockerfile.api"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false   # do NOT sleep — scheduled flows hit this
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# Secrets (set via `flyctl secrets set`, never committed):
+#   ANTHROPIC_API_KEY, OPENAI_API_KEY, DATABASE_URL, CHORUS_API_TOKEN,
+#   LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY,
+#   PULSE_INTERNAL_API_TOKEN, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET
