@@ -71,6 +71,7 @@ async def submit_action(ctx: SkillContext, action: SuggestedAction) -> PolicyDec
         source_episodes=action.source_episodes,
         action_id=action.action_id,
         customer_id=action.customer_id or ctx.customer_id,
+        talent_id=action.talent_id or ctx.talent_id,
         skill_id=action.skill_id,
         tier_class=ctx.tier,
         reasoning_text=action.why_detail,
@@ -85,3 +86,31 @@ async def submit_action(ctx: SkillContext, action: SuggestedAction) -> PolicyDec
             action_card=action.body,
         )
     )
+
+
+async def recently_actioned(
+    skill_id: str,
+    *,
+    talent_id: str | None = None,
+    customer_id: str | None = None,
+    within_days: int = 30,
+) -> bool:
+    """True if this skill already proposed an action for this talent/customer
+    within `within_days` (rate-limit, computed from the event log)."""
+    from datetime import UTC, datetime, timedelta
+
+    from core.db import get_pool
+
+    cutoff = datetime.now(UTC) - timedelta(days=within_days)
+    field, value = ("talent_id", talent_id) if talent_id else ("customer_id", customer_id)
+    if not value:
+        return False
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                f"SELECT 1 FROM pulse.events WHERE event_type = 'action-suggested' "
+                f"AND skill_id = %s AND {field} = %s AND occurred_at >= %s LIMIT 1;",
+                (skill_id, value, cutoff),
+            )
+            return await cur.fetchone() is not None
