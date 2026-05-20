@@ -40,20 +40,27 @@ async def complete(
     *,
     system: str = "",
     max_tokens: int | None = None,
-    temperature: float = 0.0,
+    temperature: float | None = None,
 ) -> str:
     """Return the text completion for a single user prompt, bounded by the
-    per-model timeout (ADR-001)."""
+    per-model timeout (ADR-001).
+
+    `temperature` defaults to None and is omitted from the request: newer Opus
+    models reject the parameter ("temperature is deprecated for this model"), and
+    omitting it is accepted by every pinned model. Pass an explicit value only
+    for a model known to accept it.
+    """
     budget = _MODEL_DEFAULTS.get(model, {"max_tokens": 4096})["max_tokens"]
+    kwargs: dict = {
+        "model": model,
+        "max_tokens": max_tokens or budget,
+        "system": system,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if temperature is not None:
+        kwargs["temperature"] = temperature
     resp = await asyncio.wait_for(
-        _get_client().messages.create(
-            model=model,
-            max_tokens=max_tokens or budget,
-            temperature=temperature,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        ),
-        timeout=timeout_for(model),
+        _get_client().messages.create(**kwargs), timeout=timeout_for(model)
     )
     return "".join(getattr(b, "text", "") for b in resp.content)
 

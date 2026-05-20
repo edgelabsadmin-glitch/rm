@@ -40,8 +40,10 @@ def create_app() -> FastAPI:
         return {"status": "ok", "version": __version__}
 
     from api.admin.kill_switch import router as kill_switch_router
+    from api.profiles import router as profiles_router
 
     app.include_router(kill_switch_router)
+    app.include_router(profiles_router)
 
     return app
 

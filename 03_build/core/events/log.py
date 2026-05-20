@@ -433,6 +433,31 @@ async def emit_signal_evaluated(
     )
 
 
+async def emit_profile_regenerated(
+    profile_type: str, entity_id: str, content_hash: str, remerge_needed: bool = False, **cols
+) -> UUID:
+    return await emit_event(
+        "profile-regenerated",
+        {
+            "profile_type": profile_type,
+            "entity_id": entity_id,
+            "content_hash": content_hash,
+            "remerge_needed": remerge_needed,
+        },
+        **cols,
+    )
+
+
+async def emit_profile_edited(
+    profile_type: str, entity_id: str, editor_id: str | None = None, **cols
+) -> UUID:
+    return await emit_event(
+        "profile-edited",
+        {"profile_type": profile_type, "entity_id": entity_id, "editor_id": editor_id},
+        **cols,
+    )
+
+
 # Column order for the bulk COPY path (must match _COPY_SQL below).
 _BULK_COLUMNS = (
     "event_id, event_type, event_version, occurred_at, "

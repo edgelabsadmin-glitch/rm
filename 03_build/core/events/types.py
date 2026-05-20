@@ -46,6 +46,9 @@ EventType = Literal[
     # Signal evaluation (spec 017) — additive 21st type beyond Design 04's
     # Phase-1 enum; Layer 8 Mechanism 1 (spec 044) reads these for signal metrics.
     "signal-evaluated",
+    # Per-Profile Markdown lifecycle (spec 029) — additive (Design 06).
+    "profile-regenerated",
+    "profile-edited",
 ]
 
 EVENT_TYPES: tuple[str, ...] = get_args(EventType)
@@ -199,6 +202,19 @@ class SignalEvaluated(_Payload):
     detection_type: str | None = None
 
 
+class ProfileRegenerated(_Payload):
+    profile_type: str  # customer | talent | rm
+    entity_id: str
+    content_hash: str
+    remerge_needed: bool = False
+
+
+class ProfileEdited(_Payload):
+    profile_type: str
+    entity_id: str
+    editor_id: str | None = None
+
+
 # event_type -> payload model. The emitter looks the model up here to validate.
 PAYLOAD_MODELS: dict[str, type[_Payload]] = {
     "signal-received": SignalReceived,
@@ -222,4 +238,6 @@ PAYLOAD_MODELS: dict[str, type[_Payload]] = {
     "policy-decision": PolicyDecision,
     "kill-switch-flipped": KillSwitchFlipped,
     "signal-evaluated": SignalEvaluated,
+    "profile-regenerated": ProfileRegenerated,
+    "profile-edited": ProfileEdited,
 }
