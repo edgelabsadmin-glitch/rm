@@ -17,11 +17,13 @@ so the demo's named anchors (e.g. "Acrisure") resolve.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from langfuse import observe
 
+from core.memory.denylist import assert_theme_allowed
 from core.memory.graph import DEFAULT_NAMESPACE
 
 if TYPE_CHECKING:
@@ -265,3 +267,69 @@ async def get_rm_context(
 ) -> ContextBundle:
     """Context bundle for an RM (their book of business; no skill bindings)."""
     return await _build_bundle(rm_id, as_of=as_of, include_skills=False, graphiti=graphiti)
+
+
+# ── SPEC-007: cross-account retriever (Skill 10 dependency) ──────────────────
+@dataclass
+class CrossAccountMatch:
+    """One customer's appearance alongside a cross-account theme."""
+
+    customer_id: str  # graph node uuid in Phase 1 (id_map → SFDC Account.Id later)
+    customer_name: str
+    episode_id: str
+    quote: str
+    date: datetime | None
+
+
+@observe(name="retriever_find_pattern_across_customers")
+async def find_pattern_across_customers(
+    theme: str,
+    time_window_days: int = 30,
+    min_support: int = 3,
+    *,
+    graphiti: Graphiti | None = None,
+    namespace: str = DEFAULT_NAMESPACE,
+) -> list[CrossAccountMatch]:
+    """Find Customers connected to a theme's Topic node within the time window.
+
+    Phase 1 (Q77): exact Topic-node name match — no embedding similarity. Returns
+    one CrossAccountMatch per (customer, supporting episode). `min_support` is
+    informational only (Skill 10 decides what counts as a pattern); this retriever
+    never filters on it. A protected-class theme raises ValueError (denylist).
+    """
+    assert_theme_allowed(theme)
+    if graphiti is None:
+        from core.memory.graph import get_shared_graphiti
+
+        graphiti = await get_shared_graphiti()
+
+    topic = await _resolve_entity(graphiti, theme, namespace)
+    if topic is None:
+        return []
+
+    cutoff = datetime.now(UTC) - timedelta(days=time_window_days)
+    # Episodes that mention the Topic AND a Customer-labelled entity, within the
+    # window. Co-mention in one episode is the cross-account signal.
+    rows = _rows(
+        await graphiti.driver.execute_query(
+            "MATCH (ep:Episodic)-[:MENTIONS]->(topic:Entity), "
+            "(ep)-[:MENTIONS]->(cust:Entity) "
+            "WHERE topic.uuid = $t AND cust.uuid <> $t AND ep.group_id = $g "
+            "AND list_contains(cust.labels, 'Customer') AND ep.valid_at >= $cutoff "
+            "RETURN DISTINCT cust.uuid AS customer_id, cust.name AS customer_name, "
+            "ep.uuid AS episode_id, ep.content AS quote, ep.valid_at AS date",
+            t=topic["uuid"],
+            g=namespace,
+            cutoff=cutoff,
+        )
+    )
+    return [
+        CrossAccountMatch(
+            customer_id=str(r.get("customer_id") or ""),
+            customer_name=r.get("customer_name") or "",
+            episode_id=str(r.get("episode_id") or ""),
+            quote=r.get("quote") or "",
+            date=r.get("date"),
+        )
+        for r in rows
+    ]
