@@ -30,11 +30,21 @@ def database_url() -> str:
 
 
 async def get_pool() -> AsyncConnectionPool[Any]:
-    """Return the process-wide async connection pool, opening it on first use."""
+    """Return the process-wide async connection pool, opening it on first use.
+
+    `prepare_threshold=None` disables server-side prepared statements: Supabase's
+    transaction pooler (pgbouncer transaction mode, :6543) reuses server
+    connections across clients and does not support session-scoped prepared
+    statements. Harmless on a direct connection too.
+    """
     global _pool
     if _pool is None:
         pool: AsyncConnectionPool[Any] = AsyncConnectionPool(
-            conninfo=database_url(), min_size=1, max_size=10, open=False
+            conninfo=database_url(),
+            min_size=1,
+            max_size=10,
+            open=False,
+            kwargs={"prepare_threshold": None},
         )
         await pool.open(wait=True, timeout=10)
         _pool = pool

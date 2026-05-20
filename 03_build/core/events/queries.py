@@ -34,12 +34,13 @@ async def action_history(action_id: str | UUID) -> list[dict[str, Any]]:
 
 
 async def customer_recent_actions(customer_id: str, since: datetime) -> list[dict[str, Any]]:
-    """Every action-related event for a customer since `since`, newest first."""
+    """Every action proposed/dispatched/outcome'd for a customer (Design 04 #2),
+    newest first — i.e. both action-* and outcome-* events."""
     return await _fetch(
         "SELECT event_type, occurred_at, action_id, skill_id, payload "
         "FROM pulse.events "
         "WHERE customer_id = %(customer_id)s AND occurred_at >= %(since)s "
-        "AND event_type LIKE 'action-%%' "
+        "AND (event_type LIKE 'action-%%' OR event_type LIKE 'outcome-%%') "
         "ORDER BY occurred_at DESC;",
         {"customer_id": customer_id, "since": since},
     )

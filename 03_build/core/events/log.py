@@ -41,7 +41,15 @@ INSERT INTO pulse.events (
 
 
 def _current_trace_id() -> str | None:
-    """Best-effort Langfuse trace id; None when not inside an @observe() context."""
+    """Best-effort Langfuse trace id; None when not inside an @observe() context.
+
+    Skips entirely when Langfuse isn't configured (no keys) so we don't spam the
+    logs with client-init warnings on every emit (ADR-003 is opt-in per env).
+    """
+    import os
+
+    if not os.environ.get("LANGFUSE_PUBLIC_KEY"):
+        return None
     try:  # langfuse 3.x
         from langfuse import get_client
 
@@ -404,48 +412,60 @@ async def emit_kill_switch_flipped(user_id: str, scope: str, on_or_off: bool, **
     )
 
 
+# Column order for the bulk COPY path (must match _COPY_SQL below).
+_BULK_COLUMNS = (
+    "event_id, event_type, event_version, occurred_at, "
+    "customer_id, talent_id, rm_id, case_id, action_id, episode_id, skill_id, "
+    "payload, tier_class, urgency, correlation_id, actor, "
+    "reasoning_text, reasoning_tags, trace_id"
+)
+_COPY_SQL = f"COPY pulse.events ({_BULK_COLUMNS}) FROM STDIN"
+
+
 async def emit_events_bulk(events: list[dict]) -> list[UUID]:
-    """Validate and append many events in one round trip (executemany).
+    """Validate and append many events in one streamed COPY (the burst path).
 
     Each item is a kwargs dict accepted by emit_event ({"event_type", "payload",
-    ...}). Used by adapters/backfills and the burst path; payloads are validated
-    up front so a single bad item raises before any insert.
+    ...}). Payloads are validated up front so a single bad item raises before any
+    write. COPY streams all rows in one batch — far faster than per-row inserts
+    and round-trip-bound only once (Design 04 perf target: 1000 events < 2s).
     """
-    rows: list[dict] = []
     ids: list[UUID] = []
+    rows: list[tuple] = []
     now = datetime.now(UTC)
     for ev in events:
-        et = ev["event_type"]
-        clean = validate_payload(et, ev["payload"])
+        clean = validate_payload(ev["event_type"], ev["payload"])
         eid = uuid4()
         ids.append(eid)
         rows.append(
-            {
-                "event_id": eid,
-                "event_type": et,
-                "event_version": ev.get("event_version", 1),
-                "occurred_at": ev.get("occurred_at") or now,
-                "customer_id": ev.get("customer_id"),
-                "talent_id": ev.get("talent_id"),
-                "rm_id": ev.get("rm_id"),
-                "case_id": ev.get("case_id"),
-                "action_id": str(ev["action_id"]) if ev.get("action_id") else None,
-                "episode_id": str(ev["episode_id"]) if ev.get("episode_id") else None,
-                "skill_id": ev.get("skill_id"),
-                "payload": Jsonb(clean),
-                "tier_class": ev.get("tier_class"),
-                "urgency": ev.get("urgency"),
-                "correlation_id": str(ev["correlation_id"]) if ev.get("correlation_id") else None,
-                "actor": ev.get("actor", "system"),
-                "reasoning_text": ev.get("reasoning_text"),
-                "reasoning_tags": ev.get("reasoning_tags"),
-                "trace_id": str(ev["trace_id"]) if ev.get("trace_id") else None,
-            }
+            (
+                eid,
+                ev["event_type"],
+                ev.get("event_version", 1),
+                ev.get("occurred_at") or now,
+                ev.get("customer_id"),
+                ev.get("talent_id"),
+                ev.get("rm_id"),
+                ev.get("case_id"),
+                str(ev["action_id"]) if ev.get("action_id") else None,
+                str(ev["episode_id"]) if ev.get("episode_id") else None,
+                ev.get("skill_id"),
+                Jsonb(clean),
+                ev.get("tier_class"),
+                ev.get("urgency"),
+                str(ev["correlation_id"]) if ev.get("correlation_id") else None,
+                ev.get("actor", "system"),
+                ev.get("reasoning_text"),
+                ev.get("reasoning_tags"),
+                str(ev["trace_id"]) if ev.get("trace_id") else None,
+            )
         )
     pool = await get_pool()
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
-            await cur.executemany(_INSERT, rows)
+            async with cur.copy(_COPY_SQL) as copy:
+                for row in rows:
+                    await copy.write_row(row)
     return ids
 
 
