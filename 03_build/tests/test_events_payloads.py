@@ -15,9 +15,10 @@ from core.events import log
 from core.events.types import EVENT_TYPES, PAYLOAD_MODELS
 
 
-def test_twenty_event_types_locked():
-    # Design 04 enumerates 20 event types across the six lifecycle stages.
-    assert len(EVENT_TYPES) == 20
+def test_event_types_locked():
+    # Design 04's 20 Phase-1 types + signal-evaluated (spec 017, additive 21st).
+    assert len(EVENT_TYPES) == 21
+    assert "signal-evaluated" in EVENT_TYPES
     assert set(EVENT_TYPES) == set(PAYLOAD_MODELS)
 
 
@@ -64,8 +65,8 @@ def test_one_emit_helper_per_event_type():
         for name, fn in inspect.getmembers(log, inspect.iscoroutinefunction)
         if name.startswith("emit_") and name not in generic
     }
-    assert len(helpers) == 20, (
-        f"expected 20 emit_* helpers, found {len(helpers)}: {sorted(helpers)}"
+    assert len(helpers) == 21, (
+        f"expected 21 emit_* helpers, found {len(helpers)}: {sorted(helpers)}"
     )
 
 

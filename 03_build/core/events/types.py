@@ -43,6 +43,9 @@ EventType = Literal[
     # Policy / kill switch (specs 009 / 010)
     "policy-decision",
     "kill-switch-flipped",
+    # Signal evaluation (spec 017) — additive 21st type beyond Design 04's
+    # Phase-1 enum; Layer 8 Mechanism 1 (spec 044) reads these for signal metrics.
+    "signal-evaluated",
 ]
 
 EVENT_TYPES: tuple[str, ...] = get_args(EventType)
@@ -188,6 +191,14 @@ class KillSwitchFlipped(_Payload):
     on_or_off: bool
 
 
+class SignalEvaluated(_Payload):
+    signal_id: str
+    fired: bool
+    severity: str | None = None
+    evidence_count: int = 0
+    detection_type: str | None = None
+
+
 # event_type -> payload model. The emitter looks the model up here to validate.
 PAYLOAD_MODELS: dict[str, type[_Payload]] = {
     "signal-received": SignalReceived,
@@ -210,4 +221,5 @@ PAYLOAD_MODELS: dict[str, type[_Payload]] = {
     "outcome-missing": OutcomeMissing,
     "policy-decision": PolicyDecision,
     "kill-switch-flipped": KillSwitchFlipped,
+    "signal-evaluated": SignalEvaluated,
 }

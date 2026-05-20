@@ -412,6 +412,27 @@ async def emit_kill_switch_flipped(user_id: str, scope: str, on_or_off: bool, **
     )
 
 
+async def emit_signal_evaluated(
+    signal_id: str,
+    fired: bool,
+    severity: str | None = None,
+    evidence_count: int = 0,
+    detection_type: str | None = None,
+    **cols,
+) -> UUID:
+    return await emit_event(
+        "signal-evaluated",
+        {
+            "signal_id": signal_id,
+            "fired": fired,
+            "severity": severity,
+            "evidence_count": evidence_count,
+            "detection_type": detection_type,
+        },
+        **cols,
+    )
+
+
 # Column order for the bulk COPY path (must match _COPY_SQL below).
 _BULK_COLUMNS = (
     "event_id, event_type, event_version, occurred_at, "
