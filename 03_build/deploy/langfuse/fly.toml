@@ -1,0 +1,26 @@
+# SPEC-001 / ADR-003 — Fly.io config for Langfuse (Pulse LLM observability).
+# Self-hosted single Machine, Singapore (co-located with the Supabase pooler).
+# Shares the Supabase Postgres via the `langfuse` schema (Prisma `?schema=`).
+# Operator runs `flyctl launch --copy-config`, sets secrets, `flyctl deploy`.
+app = "pulse-langfuse"
+primary_region = "sin"   # Singapore — same region as the Supabase pooler
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 3000          # Langfuse (Next.js) serves on :3000
+  force_https = true
+  auto_stop_machines = false    # stay up to receive traces from pulse-api
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+# Non-secret config (secrets via `flyctl secrets set` — see README).
+[env]
+  NEXTAUTH_URL = "https://pulse-langfuse.fly.dev"
+  TELEMETRY_ENABLED = "false"
+  HOSTNAME = "0.0.0.0"
