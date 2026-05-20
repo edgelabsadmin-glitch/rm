@@ -936,6 +936,12 @@ The numbering convention continues from Q20. Q21–Q113 below correspond to item
 **Recommended path / fix:** Use the modern FastAPI `Annotated` form — `caller: Annotated[Caller, Depends(require_caller)]` — which is B008-clean and the FastAPI-recommended style. Applied throughout `api/actions.py` and `api/dispatch.py`. **Future-team note:** prefer `Annotated[T, Depends(...)]` for all DI params (not just custom-class ones) to avoid the foot-gun; do NOT reach for `# noqa: B008` or add `fastapi.Depends` to `extend-immutable-calls` (the existing primitive-annotated routes in `api/admin/kill_switch.py` rely on the built-in exemption and need no config change).
 **Status:** Resolved (informational finding; no action needed beyond the Annotated convention).
 
+## Q153: SFDC read-latency SLO — `sf` CLI per-query floor vs <500ms target
+**Raised during:** spec 012 all-8-objects verification (Spike 6, Gate-2 deliverable)
+**Question/finding:** The all-8-objects benchmark (`03_build/scripts/sfdc_bench.py`, N=10/object against production) verified reachability **PASS (8/8)** but measured per-query **p95 ≈ 2.5s** (p50 ≈ 1.5s) — ~3–5× over the <500ms target. Root-cause isolated: a 1-row query costs ~1.8s while `sf --version` boots in ~0.2s, so the ~1.5s floor is **per-invocation org-auth + JSForce connection setup inside `sf data query`**, not Salesforce API compute or result-set size. No SOQL tuning can bring the `sf`-subprocess path under 500ms.
+**Recommended path:** Accept for Phase 1 — the 500ms SLO does not apply to the SFDC poll path. Production ingestion is the Activepieces `sfdc_poll_changes` 5-min cron (latency-insensitive; ~12s/cycle for all 8 objects ≪ 5-min budget); the latency-sensitive `/webhooks/sfdc` → ingest hop never calls `sf`. For any future **interactive/real-time** SFDC read, replace the per-query `sf` subprocess with a persistent authenticated REST client (reuse one access token + an `httpx` pool, or `simple-salesforce`) to drop the ~1.5s setup. **v1.5+ optimization; no Phase-1 code change.**
+**Status:** Open (informational; remedy deferred to v1.5+ interactive-read work). See `00_research/spikes/06_sfdc_all_objects_verification.md`.
+
 ---
 
 ## Resolved
