@@ -17,6 +17,8 @@ repos:
       - id: spec-id-commit-guard
         name: commit message references a spec id ([SPEC-NNN])
         # Enforces §4.13. Runs at commit-msg stage.
-        entry: bash -c 'grep -Eq "\[SPEC-[0-9]{3}[a-z]?\]" "$1" || (echo "commit message must reference a spec id, e.g. [SPEC-012]"; exit 1)'
+        # `--` makes the appended commit-msg filepath land in $1 (not $0):
+        # `bash -c SCRIPT name [args]` assigns the first token to $0.
+        entry: bash -c 'grep -Eq "\[SPEC-[0-9]{3}[a-z]?\]" "$1" || (echo "commit message must reference a spec id, e.g. [SPEC-012]"; exit 1)' --
         language: system
         stages: [commit-msg]

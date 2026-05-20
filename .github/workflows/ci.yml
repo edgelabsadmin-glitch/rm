@@ -35,8 +35,10 @@ jobs:
 
   graphiti-harness:
     # Spike 3 harness re-execution — gated on LLM secrets (real API calls).
+    # NOTE: the `secrets` context is NOT available in a job-level `if:`, so we
+    # surface the key as a job env var and gate each real-work step on it.
+    # When the secret is unset the job runs but its steps no-op (still green).
     runs-on: ubuntu-latest
-    if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -46,6 +48,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install graphiti + harness deps
+        if: env.ANTHROPIC_API_KEY != ''
         run: pip install "graphiti-core[kuzu,anthropic]>=0.29" openai python-dotenv
       - name: Run Spike 3 harness (FTS bootstrap regression)
+        if: env.ANTHROPIC_API_KEY != ''
         run: python 00_research/spikes/03_graphiti/spike.py
