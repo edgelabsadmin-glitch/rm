@@ -49,7 +49,7 @@ select = ["E", "F", "I", "ASYNC", "B", "UP"]
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
-include = ["api", "core", "scripts"]
+include = ["api", "core", "scripts", "skills"]
 exclude = ["**/__pycache__", "**/.venv"]
 # No venvPath here: CI installs into the ambient runner Python (no .venv dir).
 # For local runs use the project venv explicitly:
@@ -74,4 +74,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 # Flat layout: ship the runtime packages only (tests/ is not an installed package).
-include = ["api*", "core*"]
+include = ["api*", "core*", "skills*"]
