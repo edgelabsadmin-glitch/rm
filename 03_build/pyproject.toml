@@ -58,6 +58,14 @@ exclude = ["**/__pycache__", "**/.venv"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Real-LLM end-to-end tests are opt-in: excluded by default so the always-on
+# `lint-and-test` CI job (no LLM secrets) stays fast and green. The CI
+# `graphiti-harness` job exercises the same end-to-end path via the script.
+# Run them locally with:  pytest -m integration
+addopts = "-m 'not integration'"
+markers = [
+    "integration: real-LLM end-to-end test (needs ANTHROPIC_API_KEY + OPENAI_API_KEY)",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

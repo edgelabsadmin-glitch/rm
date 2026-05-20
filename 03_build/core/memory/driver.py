@@ -44,6 +44,16 @@ class PulseKuzuDriver(KuzuDriver):
         # Base __init__ creates self.db (kuzu.Database) and runs setup_schema()
         # which creates the node tables. FTS indices are NOT created there.
         super().__init__(db=db, max_concurrent_queries=max_concurrent_queries)
+        # Q150 (filed during the spec-005 harness run): Graphiti 0.29's
+        # add_episode does `if group_id != self.driver._database` whenever a
+        # group_id is passed, but KuzuDriver.__init__ never sets `_database`
+        # (it is only a class annotation on GraphDriver) -> AttributeError.
+        # Kuzu is single-file: namespace/group isolation is done via the
+        # `group_id` column on every node/edge (clone() is a no-op for Kuzu),
+        # not via separate physical databases. Initialise `_database` to Kuzu's
+        # default group id ("") so the comparison resolves and group_id-based
+        # partitioning (Design 01 multi-RM isolation) works.
+        self._database = ""
         self._bootstrap_fts()
 
     def _bootstrap_fts(self) -> None:
