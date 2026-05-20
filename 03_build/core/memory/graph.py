@@ -16,7 +16,9 @@ identity scheme").
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from graphiti_core import Graphiti
@@ -33,6 +35,11 @@ if TYPE_CHECKING:
 
 # Default namespace when a caller does not scope to a specific RM/partition.
 DEFAULT_NAMESPACE = "pulse"
+
+# Default on-disk Kuzu location (Design 01 §"Physical home"); override via env.
+_DEFAULT_KUZU_PATH = str(Path.home() / ".pulse" / "state" / "kuzu.db")
+
+_shared: Graphiti | None = None
 
 
 def make_graphiti(db_path: str = ":memory:") -> Graphiti:
@@ -83,3 +90,20 @@ async def add_pulse_episode(
         edge_types=EDGE_TYPES,
         edge_type_map=EDGE_TYPE_MAP,
     )
+
+
+async def get_shared_graphiti() -> Graphiti:
+    """Process-wide Graphiti over the on-disk Kuzu store, built + indexed once.
+
+    Path comes from PULSE_KUZU_PATH (else ~/.pulse/state/kuzu.db). The ingest
+    pipeline (spec 011) uses this when a caller doesn't inject its own instance;
+    tests inject a fresh in-memory instance instead.
+    """
+    global _shared
+    if _shared is None:
+        db_path = os.environ.get("PULSE_KUZU_PATH", _DEFAULT_KUZU_PATH)
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        graphiti = make_graphiti(db_path)
+        await graphiti.build_indices_and_constraints()
+        _shared = graphiti
+    return _shared
