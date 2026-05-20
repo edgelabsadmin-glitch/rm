@@ -28,7 +28,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
-    "ruff>=0.6",
+    "ruff==0.15.13",  # pinned exact — must match .pre-commit-config.yaml ruff rev (CI/hook parity)
     "pyright>=1.1.380",
     "pre-commit>=3.8",
 ]

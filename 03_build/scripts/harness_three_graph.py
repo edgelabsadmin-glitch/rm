@@ -199,9 +199,9 @@ async def check_golden_trace(graphiti) -> None:
     from core.memory.types import EDGE_TYPES
 
     allowed = set(EDGE_TYPES)
-    assert any(
-        e in allowed for e in edge_names
-    ), f"no Pulse-typed edges extracted; saw {sorted(set(edge_names))}"
+    assert any(e in allowed for e in edge_names), (
+        f"no Pulse-typed edges extracted; saw {sorted(set(edge_names))}"
+    )
     print("[golden-trace] PASS")
 
 
@@ -282,9 +282,9 @@ async def check_bitemporal(graphiti) -> None:
         )
     )
     print(f"[bitemporal] valid as_of(before latest)={n_before}  as_of(after latest)={n_after}")
-    assert (
-        n_after > n_before
-    ), "as-of after the latest valid_at should reveal at least one more edge"
+    assert n_after > n_before, (
+        "as-of after the latest valid_at should reveal at least one more edge"
+    )
     print("[bitemporal] PASS")
 
 

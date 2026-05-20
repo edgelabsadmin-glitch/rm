@@ -1,7 +1,10 @@
 # SPEC-001 — pre-commit hooks. Run `pre-commit install` from 03_build/.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    # Keep this rev in lock-step with the pinned `ruff==` in pyproject [dev]:
+    # a version skew formats files differently in the hook vs CI and breaks the
+    # `ruff format --check` gate (observed: hook 0.6.9 vs CI 0.15.13).
+    rev: v0.15.13
     hooks:
       - id: ruff
         args: [--fix]
