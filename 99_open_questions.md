@@ -930,6 +930,12 @@ The numbering convention continues from Q20. Q21–Q113 below correspond to item
 **Recommended path:** PM picks at spec-author time post-Week-4 exploration.
 **Status:** Open.
 
+## Q152: ruff B008 FastAPI exemption breaks on type-annotated `Depends()`
+**Raised during:** spec 031 (Action Queue API)
+**Question/finding:** ruff's `flake8-bugbear` B008 ("do not call functions in argument defaults") special-cases FastAPI's `Depends`/`Query`/`Header` so the standard `param = Depends(fn)` default doesn't trip the lint — but ONLY when the parameter is annotated with a primitive type (`str`, `int`, …). When the dependency is annotated with a **custom class** (e.g. `caller: Caller = Depends(require_caller)`), ruff fails to recognize it as a FastAPI dependency and raises B008 on every such route. Bisected and reproduced (a `str`-annotated `Depends` passes; the same call annotated `Caller` fails). `Query`/`Header` are unaffected.
+**Recommended path / fix:** Use the modern FastAPI `Annotated` form — `caller: Annotated[Caller, Depends(require_caller)]` — which is B008-clean and the FastAPI-recommended style. Applied throughout `api/actions.py` and `api/dispatch.py`. **Future-team note:** prefer `Annotated[T, Depends(...)]` for all DI params (not just custom-class ones) to avoid the foot-gun; do NOT reach for `# noqa: B008` or add `fastapi.Depends` to `extend-immutable-calls` (the existing primitive-annotated routes in `api/admin/kill_switch.py` rely on the built-in exemption and need no config change).
+**Status:** Resolved (informational finding; no action needed beyond the Annotated convention).
+
 ---
 
 ## Resolved
