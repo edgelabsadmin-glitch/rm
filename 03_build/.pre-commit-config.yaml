@@ -10,7 +10,11 @@ repos:
     hooks:
       - id: pyright
         name: pyright
-        entry: pyright
+        # pre-commit runs hooks from the git root (ai-rm/), but the Python
+        # project + its config + venv live in 03_build/. cd in and point pyright
+        # at the project venv interpreter so imports resolve (matches CI, which
+        # runs pyright with working-directory: 03_build).
+        entry: bash -c 'cd 03_build && exec .venv/bin/pyright --pythonpath .venv/bin/python'
         language: system
         types: [python]
         pass_filenames: false
