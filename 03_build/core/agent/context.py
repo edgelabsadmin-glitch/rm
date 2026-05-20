@@ -69,9 +69,11 @@ async def submit_action(ctx: SkillContext, action: SuggestedAction) -> PolicyDec
         urgency=action.urgency,
         why_detail=action.why_detail,
         source_episodes=action.source_episodes,
+        modifiable_fields=action.modifiable_fields,
         action_id=action.action_id,
         customer_id=action.customer_id or ctx.customer_id,
         talent_id=action.talent_id or ctx.talent_id,
+        rm_id=ctx.rm_id,  # owning RM — drives Action Queue scope (spec 031)
         skill_id=action.skill_id,
         tier_class=ctx.tier,
         reasoning_text=action.why_detail,

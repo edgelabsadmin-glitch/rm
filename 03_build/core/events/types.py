@@ -127,6 +127,9 @@ class ActionSuggested(_Payload):
     why_detail: str | None = None
     urgency: str
     source_episodes: list[str] = []
+    # Which action_card fields the RM may edit before approval (Design 03 / spec
+    # 031 modify flow). Empty = nothing editable.
+    modifiable_fields: list[str] = []
 
 
 # ── Approval ─────────────────────────────────────────────────────────────────

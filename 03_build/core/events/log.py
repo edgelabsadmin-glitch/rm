@@ -253,7 +253,13 @@ async def emit_reasoning_completed(
 
 
 async def emit_action_suggested(
-    action_card: dict, why_oneline: str, urgency: str, why_detail=None, source_episodes=None, **cols
+    action_card: dict,
+    why_oneline: str,
+    urgency: str,
+    why_detail=None,
+    source_episodes=None,
+    modifiable_fields=None,
+    **cols,
 ) -> UUID:
     return await emit_event(
         "action-suggested",
@@ -263,6 +269,7 @@ async def emit_action_suggested(
             "why_detail": why_detail,
             "urgency": urgency,
             "source_episodes": source_episodes or [],
+            "modifiable_fields": modifiable_fields or [],
         },
         urgency=urgency,
         **cols,
