@@ -458,6 +458,16 @@ async def emit_profile_edited(
     )
 
 
+async def emit_health_tier_changed(
+    from_tier: str | None, to_tier: str, composite_score: float, **cols
+) -> UUID:
+    return await emit_event(
+        "health-tier-changed",
+        {"from_tier": from_tier, "to_tier": to_tier, "composite_score": composite_score},
+        **cols,
+    )
+
+
 # Column order for the bulk COPY path (must match _COPY_SQL below).
 _BULK_COLUMNS = (
     "event_id, event_type, event_version, occurred_at, "

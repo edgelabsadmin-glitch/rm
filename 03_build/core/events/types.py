@@ -49,6 +49,8 @@ EventType = Literal[
     # Per-Profile Markdown lifecycle (spec 029) — additive (Design 06).
     "profile-regenerated",
     "profile-edited",
+    # Dual-sided account health (spec 030) — additive (Design 07).
+    "health-tier-changed",
 ]
 
 EVENT_TYPES: tuple[str, ...] = get_args(EventType)
@@ -215,6 +217,12 @@ class ProfileEdited(_Payload):
     editor_id: str | None = None
 
 
+class HealthTierChanged(_Payload):
+    from_tier: str | None
+    to_tier: str
+    composite_score: float
+
+
 # event_type -> payload model. The emitter looks the model up here to validate.
 PAYLOAD_MODELS: dict[str, type[_Payload]] = {
     "signal-received": SignalReceived,
@@ -240,4 +248,5 @@ PAYLOAD_MODELS: dict[str, type[_Payload]] = {
     "signal-evaluated": SignalEvaluated,
     "profile-regenerated": ProfileRegenerated,
     "profile-edited": ProfileEdited,
+    "health-tier-changed": HealthTierChanged,
 }
