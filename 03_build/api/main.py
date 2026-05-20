@@ -41,11 +41,13 @@ def create_app() -> FastAPI:
 
     from api.actions import router as actions_router
     from api.admin.kill_switch import router as kill_switch_router
+    from api.dispatch import router as dispatch_router
     from api.profiles import router as profiles_router
 
     app.include_router(kill_switch_router)
     app.include_router(profiles_router)
     app.include_router(actions_router)
+    app.include_router(dispatch_router)
 
     return app
 
