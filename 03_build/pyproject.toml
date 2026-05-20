@@ -15,7 +15,7 @@ dependencies = [
     "anthropic>=0.49",
     "openai>=1.91",          # embeddings only (text-embedding-3-small per Spike 3 §C)
     # Data
-    "psycopg[binary]>=3.2",  # Supabase Postgres
+    "psycopg[binary,pool]>=3.2",  # Supabase Postgres (+ async connection pool)
     # Observability (ADR-003)
     "langfuse>=2.0",
     # Env
@@ -62,9 +62,10 @@ testpaths = ["tests"]
 # `lint-and-test` CI job (no LLM secrets) stays fast and green. The CI
 # `graphiti-harness` job exercises the same end-to-end path via the script.
 # Run them locally with:  pytest -m integration
-addopts = "-m 'not integration'"
+addopts = "-m 'not integration and not db'"
 markers = [
     "integration: real-LLM end-to-end test (needs ANTHROPIC_API_KEY + OPENAI_API_KEY)",
+    "db: needs a reachable Postgres (DATABASE_URL); skipped when unreachable",
 ]
 
 [build-system]

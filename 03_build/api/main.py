@@ -21,11 +21,14 @@ __version__ = "0.1.0"
 async def lifespan(app: FastAPI):
     # Startup: load env with override=True (Q116). Later specs add:
     #   - Graphiti × PulseKuzuDriver init (spec 005)
-    #   - Postgres pool (spec 008)
     #   - Langfuse client (ADR-003)
+    # The Postgres pool (spec 008) opens lazily on first use; close it here.
     load_env()
     yield
-    # Shutdown: later specs close pools / flush traces.
+    # Shutdown: close the Postgres pool (spec 008); later specs flush traces.
+    from core.db import close_pool
+
+    await close_pool()
 
 
 def create_app() -> FastAPI:
