@@ -11,6 +11,7 @@
 import { Sparkles } from "lucide-react";
 import { CompositeHealthRing } from "@/components/CompositeHealthRing";
 import { FadeLift } from "@/components/FadeLift";
+import { accountARR, formatARR } from "@/fixtures/demo_characters";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { getAccountHealthFixture, PULSE_FACTS } from "./fixtures";
 
@@ -39,7 +40,7 @@ export function SituationalHero() {
           </div>
         </div>
 
-        {/* Bottom: 4 Pulse-fact pills, full content width below the donut. */}
+        {/* Bottom: 4 explainability Pulse-fact pills + a 5th concrete-stat ARR pill. */}
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           {PULSE_FACTS.map((fact) => (
             <div
@@ -49,6 +50,12 @@ export function SituationalHero() {
               {fact}
             </div>
           ))}
+          <div className="rounded-2xl border border-surface-glass-border bg-surface-glass-light px-3 py-3 text-xs text-ink-on-brand-strip">
+            <span className="text-ink-on-brand-faint">Book value</span>{" "}
+            <span className="font-mono font-semibold text-ink-on-brand">
+              {formatARR(accountARR(account.account_id))}
+            </span>
+          </div>
         </div>
       </div>
     </FadeLift>

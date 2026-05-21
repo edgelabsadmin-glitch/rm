@@ -9,7 +9,40 @@
  */
 import type { MutableRefObject } from "react";
 import ForceGraph2D from "react-force-graph-2d";
+import {
+  accountARR,
+  bookARR,
+  DEMO_ACCOUNTS,
+  DEMO_RMS,
+  formatARR,
+  managerBookARR,
+  rmBookARR,
+} from "@/fixtures/demo_characters";
 import type { ConstellationGraph, ConstellationLink, ConstellationNode } from "./fixtures";
+
+// Hover tooltip text per node type, carrying ARR via the revenue heuristic helpers
+// (SPEC-041 Step-4 revenue enrichment). Globe = total book; manager/RM = aggregate
+// book + span; account = book value + owning RM. Talent keeps the plain name.
+function nodeTooltip(n: ConstellationNode): string {
+  switch (n.type) {
+    case "globe":
+      return `EDGE Pulse · ${formatARR(bookARR())} total book`;
+    case "manager": {
+      const rms = DEMO_RMS.filter((r) => r.managerId === n.id).length;
+      return `${n.label} · ${formatARR(managerBookARR(n.id))} book · ${rms} RMs`;
+    }
+    case "rm": {
+      const accounts = DEMO_ACCOUNTS.filter((a) => a.rmId === n.id).length;
+      return `${n.label} · ${formatARR(rmBookARR(n.id))} book · ${accounts} account${accounts === 1 ? "" : "s"}`;
+    }
+    case "account": {
+      const rmName = DEMO_RMS.find((r) => r.id === n.rm_id)?.name;
+      return `${n.label} · ${formatARR(accountARR(n.id))}${rmName ? ` · ${rmName}` : ""}`;
+    }
+    default:
+      return n.label;
+  }
+}
 
 // Resolve Tier-0 tokens from CSS once (canvas needs concrete colors).
 function cssVar(name: string, fallback: string): string {
@@ -107,7 +140,7 @@ export function ForceGraph({
       height={height}
       graphData={graph}
       nodeId="id"
-      nodeLabel={(n: ConstellationNode) => (n.type === "globe" ? "" : n.label)}
+      nodeLabel={(n: ConstellationNode) => nodeTooltip(n)}
       nodeCanvasObject={(n: ConstellationNode, ctx: CanvasRenderingContext2D) => drawNode(n, ctx)}
       nodePointerAreaPaint={(n: ConstellationNode, color: string, ctx: CanvasRenderingContext2D) => {
         const x = (n as { x?: number }).x ?? 0;

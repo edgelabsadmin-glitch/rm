@@ -6,6 +6,7 @@
  */
 import { CalendarDays } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
+import { accountARR, formatARR } from "@/fixtures/demo_characters";
 import { getAccountSummaries } from "@/features/hero/fixtures";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { cn } from "@/lib/utils";
@@ -47,7 +48,12 @@ export function AccountListColumn() {
                     <CalendarDays className="h-3.5 w-3.5" /> {account.meeting}
                   </div>
                 </div>
-                <RiskBadge level={account.risk} />
+                <div className="flex flex-col items-end gap-1">
+                  <RiskBadge level={account.risk} />
+                  <span className="font-mono text-xs text-ink-muted">
+                    {formatARR(accountARR(account.account_id))}
+                  </span>
+                </div>
               </div>
               <div className="mt-4 flex items-center justify-between text-xs">
                 <span className="text-ink-secondary">Composite health</span>

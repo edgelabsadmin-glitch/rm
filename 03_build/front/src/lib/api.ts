@@ -62,10 +62,27 @@ function qs(params: Record<string, string | number | undefined>): string {
 }
 
 export const api = {
-  listActions: (
+  listActions: async (
     session: Session,
     params: Record<string, string | number | undefined> = {},
-  ) => request<import("@/features/queue/types").ActionsResponse>(`/actions${qs(params)}`, session),
+  ) => {
+    type ActionsResponse = import("@/features/queue/types").ActionsResponse;
+    try {
+      return await request<ActionsResponse>(`/actions${qs(params)}`, session);
+    } catch (err) {
+      // DEV-only: with no FastAPI behind the /api proxy, serve the Phase-1 demo
+      // fixture so the queue renders. Prod surfaces the error (Week-4 live wiring).
+      if (import.meta.env.DEV) {
+        const { filterDemoActions } = await import("@/features/queue/demo_actions");
+        return filterDemoActions({
+          rm_id: params.rm_id as string | undefined,
+          tier: params.tier as string | undefined,
+          customer_id: params.customer_id as string | undefined,
+        });
+      }
+      throw err;
+    }
+  },
 
   getAction: (session: Session, id: string) =>
     request<import("@/features/queue/types").ActionDTO>(`/actions/${id}`, session),
