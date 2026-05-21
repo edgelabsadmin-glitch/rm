@@ -10,8 +10,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
+import { DEMO_ACCOUNTS } from "@/fixtures/demo_characters";
+import {
+  composeCapacityImbalance,
+  type CapacityImbalanceCard,
+} from "./composers/rm_capacity_composer";
 import { clusterCentroid, DEMO_PATTERNS, type PatternCard } from "./demo_patterns";
 import { ClusterPatternOverlay } from "./overlays/ClusterPatternOverlay";
+import { RmCapacityImbalanceOverlay } from "./overlays/RmCapacityImbalanceOverlay";
 import {
   buildConstellationGraph,
   buildTalentFor,
@@ -20,6 +26,8 @@ import {
 } from "./fixtures";
 
 const BASE = buildConstellationGraph();
+// Composer output is pure + deterministic over the canonical fixture — compute once.
+const CAPACITY_CARDS = composeCapacityImbalance();
 
 declare global {
   interface Window {
@@ -42,6 +50,9 @@ export function Constellation() {
   // Step-5: screen positions for the cluster-pattern overlays (centroid of each
   // pattern's support accounts, in screen px). Recomputed on engine tick + zoom/pan.
   const [overlays, setOverlays] = useState<{ pattern: PatternCard; x: number; y: number }[]>([]);
+  const [capacityOverlays, setCapacityOverlays] = useState<
+    { card: CapacityImbalanceCard; x: number; y: number }[]
+  >([]);
 
   // Compose the rendered graph = base + (talent for the expanded account).
   const graph: ConstellationGraph = useMemo(() => {
@@ -123,10 +134,33 @@ export function Constellation() {
       }
       return next;
     });
+
+    // Step-6: capacity-imbalance overlays, anchored at the top-loaded RM's account cluster.
+    const cap: { card: CapacityImbalanceCard; x: number; y: number }[] = [];
+    for (const card of CAPACITY_CARDS) {
+      const ids = DEMO_ACCOUNTS.filter((a) => a.rmId === card.topLoadedRmId).map((a) => a.id);
+      const c = clusterCentroid(ids, graph.nodes);
+      if (!c) continue;
+      const s = fg.graph2ScreenCoords(c.x, c.y);
+      cap.push({ card, x: s.x, y: s.y });
+    }
+    setCapacityOverlays((prev) => {
+      if (
+        prev.length === cap.length &&
+        prev.every((p, i) => Math.abs(p.x - cap[i].x) < 0.5 && Math.abs(p.y - cap[i].y) < 0.5)
+      ) {
+        return prev;
+      }
+      return cap;
+    });
   }, [graph]);
 
   function handleInvestigate(pattern: PatternCard) {
     navigate(`/actions?pattern=${encodeURIComponent(pattern.id)}`);
+  }
+
+  function handleInvestigateCapacity(card: CapacityImbalanceCard) {
+    navigate(`/actions?rm=${encodeURIComponent(card.topLoadedRmId)}`);
   }
 
   function handleNodeClick(n: ConstellationNode, event: MouseEvent) {
@@ -185,6 +219,17 @@ export function Constellation() {
           x={x}
           y={y}
           onInvestigate={handleInvestigate}
+        />
+      ))}
+
+      {/* Step-6: RM capacity-imbalance overlays. */}
+      {capacityOverlays.map(({ card, x, y }) => (
+        <RmCapacityImbalanceOverlay
+          key={card.id}
+          card={card}
+          x={x}
+          y={y}
+          onInvestigate={handleInvestigateCapacity}
         />
       ))}
     </div>
