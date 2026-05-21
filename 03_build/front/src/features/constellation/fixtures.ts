@@ -4,9 +4,12 @@
  * Enterprise), varied health + link states. Links: account→RM, RM→manager,
  * manager→globe. Deterministic (seeded) so benchmark runs are comparable.
  */
-export type NodeType = "globe" | "manager" | "rm" | "account";
+export type NodeType = "globe" | "manager" | "rm" | "account" | "talent";
 export type LinkState = "active" | "inactive" | "churn";
 export type Tier = "SMB" | "Mid-Market" | "Enterprise";
+
+// Phase-1 cap (audit Dim 10): a typical EDGE account has ~20-30 placed talent.
+export const MAX_TALENT_PER_ACCOUNT = 30;
 
 export interface ConstellationNode {
   id: string;
@@ -115,4 +118,30 @@ export function buildBenchmarkGraph(
   }
 
   return { nodes, links };
+}
+
+/** Inline talent drill-down (option c): small talent nodes orbiting one account.
+ * Capped at MAX_TALENT_PER_ACCOUNT; `clamped` flags when the cap was hit. */
+export function buildTalentFor(
+  account: ConstellationNode,
+  requested = 18,
+): { nodes: ConstellationNode[]; links: ConstellationLink[]; clamped: boolean } {
+  const n = Math.min(requested, MAX_TALENT_PER_ACCOUNT);
+  const ax = (account as { x?: number }).x ?? account.fx ?? 0;
+  const ay = (account as { y?: number }).y ?? account.fy ?? 0;
+  const nodes: ConstellationNode[] = [];
+  const links: ConstellationLink[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 2 * Math.PI;
+    nodes.push({
+      id: `tal-${account.id}-${i}`,
+      type: "talent",
+      label: `Talent ${i + 1}`,
+      size: 1.4,
+      x: ax + Math.cos(a) * 14, // seed on a small ring → settles into orbit fast
+      y: ay + Math.sin(a) * 14,
+    } as ConstellationNode);
+    links.push({ source: `tal-${account.id}-${i}`, target: account.id, state: "active" });
+  }
+  return { nodes, links, clamped: requested > MAX_TALENT_PER_ACCOUNT };
 }

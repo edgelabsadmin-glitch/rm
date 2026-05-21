@@ -63,7 +63,7 @@ function drawNode(n: ConstellationNode, ctx: CanvasRenderingContext2D, scale: nu
   ctx.fillStyle = n.type === "manager" ? BRAND_DEEP : BRAND;
   ctx.fill();
   // Labels for managers/RMs only above a zoom threshold (LOD — keeps the galaxy calm).
-  if (n.type !== "account" && scale > 1.5) {
+  if ((n.type === "manager" || n.type === "rm") && scale > 1.5) {
     ctx.fillStyle = BRAND_DEEP;
     ctx.font = "4px Inter, sans-serif";
     ctx.textAlign = "center";
@@ -75,12 +75,20 @@ export interface ForceGraphProps {
   graph: ConstellationGraph;
   width: number;
   height: number;
-  onNodeClick?: (n: ConstellationNode) => void;
+  onNodeClick?: (n: ConstellationNode, event: MouseEvent) => void;
+  onBackgroundClick?: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fgRef?: MutableRefObject<any>;
 }
 
-export function ForceGraph({ graph, width, height, onNodeClick, fgRef }: ForceGraphProps) {
+export function ForceGraph({
+  graph,
+  width,
+  height,
+  onNodeClick,
+  onBackgroundClick,
+  fgRef,
+}: ForceGraphProps) {
   return (
     <ForceGraph2D
       ref={fgRef}
@@ -112,7 +120,8 @@ export function ForceGraph({ graph, width, height, onNodeClick, fgRef }: ForceGr
       linkDirectionalParticleWidth={2}
       linkDirectionalParticleColor={() => LINK_COLOR.churn}
       cooldownTicks={120}
-      onNodeClick={(n: ConstellationNode) => onNodeClick?.(n)}
+      onNodeClick={(n: ConstellationNode, event: MouseEvent) => onNodeClick?.(n, event)}
+      onBackgroundClick={() => onBackgroundClick?.()}
     />
   );
 }
