@@ -7,7 +7,7 @@
  */
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
-import { SituationalHero } from "@/features/hero/SituationalHero";
+import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { QueueList } from "@/features/queue/QueueList";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
@@ -16,17 +16,8 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<div className="p-6"><SituationalHero /></div>} />
-        <Route
-          path="/accounts"
-          element={
-            <Placeholder
-              spec="Specs 035-037"
-              title="Accounts"
-              blurb="The account list + situational hero + per-account deep view land here. Select an account to open its hero, signal vector, verified themes, and meeting brief."
-            />
-          }
-        />
+        <Route index element={<AccountWorkspace />} />
+        <Route path="/accounts" element={<AccountWorkspace />} />
         <Route
           path="/accounts/:id"
           element={
