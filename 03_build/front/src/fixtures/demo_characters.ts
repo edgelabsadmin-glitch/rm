@@ -8,12 +8,12 @@
  * healthState (locked ruling #4): Healthy→healthy; Neutral/50%→churn-signal;
  * At-Risk-Escalated/90%→churn-signal; "–" (no data)→at-risk (default-to-attention).
  *
- * Managers (locked ruling): per SFDC — Sajjal Shaheedi→Hira Wahla, Sidra Zia→Sarah
- * Hooper; the 4 RMs with null ManagerId (Akash, Ameer, Mubeen, Yozeline) bucket under
- * VP-CS Eddy Chen as their effective manager. Eddy is dual-role (VP-CS recipient +
- * a manager node in the Constellation) — intentional, no conflict.
- * NOTE: this manager mapping follows the explicit ruling (SFDC SOQL + Eddy bucket);
- * it intentionally differs from the .md files' interim "Muhammad Ibrahim" mapping.
+ * Managers (operator ground truth, Session 19): Sarah Hooper manages Sajjal Shaheedi,
+ * Sidra Zia, Yozeline Candia; Muhammad Ibrahim manages Ameer Ali, Mubeen Sohail, Akash
+ * Tahir. Every RM has a real intermediate manager, so no VP-CS rollup is needed — Eddy
+ * Chen stays VP-CS only (DEMO_VP_CS), NOT a manager. (SFDC User.ManagerId returned stale
+ * data — Hira/Sarah/Eddy/null mix; the operator-verified .md files are canonical. SFDC
+ * staleness = Watched Concern #16, post-demo cleanup, out of Pulse-build scope.)
  *
  * Talent: real Active-stage names, deduped to current placement (ruling #1), from
  * demo_talent_names.ts (auto-generated). 269 active across the 14 accounts. DHR
@@ -41,18 +41,17 @@ export type DemoAccount = {
 export type DemoTalent = { id: string; name: string; accountId: string; stage: "Active" };
 
 export const DEMO_MANAGERS: ReadonlyArray<DemoManager> = [
-  { id: "hira-wahla", name: "Hira Wahla" },
   { id: "sarah-hooper", name: "Sarah Hooper" },
-  { id: "eddy-chen", name: "Eddy Chen" }, // VP-CS, effective manager for the 4 unmanaged RMs
+  { id: "muhammad-ibrahim", name: "Muhammad Ibrahim" },
 ];
 
 export const DEMO_RMS: ReadonlyArray<DemoRM> = [
-  { id: "sajjal-shaheedi", name: "Sajjal Shaheedi", managerId: "hira-wahla" },
+  { id: "sajjal-shaheedi", name: "Sajjal Shaheedi", managerId: "sarah-hooper" },
   { id: "sidra-zia", name: "Sidra Zia", managerId: "sarah-hooper" },
-  { id: "akash-tahir", name: "Akash Tahir", managerId: "eddy-chen" },
-  { id: "ameer-ali", name: "Ameer Ali", managerId: "eddy-chen" },
-  { id: "mubeen-sohail", name: "Mubeen Sohail", managerId: "eddy-chen" },
-  { id: "yozeline-candia", name: "Yozeline Candia", managerId: "eddy-chen" },
+  { id: "yozeline-candia", name: "Yozeline Candia", managerId: "sarah-hooper" },
+  { id: "ameer-ali", name: "Ameer Ali", managerId: "muhammad-ibrahim" },
+  { id: "mubeen-sohail", name: "Mubeen Sohail", managerId: "muhammad-ibrahim" },
+  { id: "akash-tahir", name: "Akash Tahir", managerId: "muhammad-ibrahim" },
 ];
 
 export const DEMO_ACCOUNTS: ReadonlyArray<DemoAccount> = [
