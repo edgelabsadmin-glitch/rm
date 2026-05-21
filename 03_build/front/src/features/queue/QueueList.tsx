@@ -1,14 +1,16 @@
 /*
- * SPEC-035 — Action Queue list. Ranked cards from GET /actions (server ranks by
- * the Design-03 composite score; we render in returned order). Scope + tier filter
- * chips (persisted in localStorage, Q36). Fade-and-lift entrance + AnimatePresence
- * exit so a decided card animates out (Tier-0 §7; first surface to need exit motion).
+ * SPEC-035/038 — Action Queue list. Ranked pending cards from GET /actions (10s
+ * polling via useActions). Bucket selector (Design 03 §"Left-rail navigation"):
+ * My Queue / Overall (pending) + Approved / Dispatched. Tier filter chips. Selections
+ * persisted in localStorage (Q36). Fade-and-lift entrance + AnimatePresence exit.
  *
- * Scope note: GET /actions is pending-only, so "Approved"/"Dispatched" buckets from
- * Design 03 need a status filter on the spec-031 API (flagged) — Phase-1 ships the
- * My-Queue/Overall scope + tier filter that the API supports today.
+ * Buckets note (option-b, spec 038 req 4): GET /actions is pending-only, so the
+ * Approved/Dispatched buckets render a flagged empty state — wiring them needs a
+ * `status` filter param on the spec-031 API (Week-4 follow-up). My Queue/Overall
+ * work today.
  */
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { useSession } from "@/session/useSession";
 import { useLocalStorage } from "@/lib/useLocalStorage";
@@ -17,7 +19,14 @@ import { useActions } from "./hooks";
 import { QueueCard } from "./QueueCard";
 import type { QueueFilters } from "./types";
 
-type Scope = "mine" | "overall";
+type View = "mine" | "overall" | "approved" | "dispatched";
+const VIEWS: { id: View; label: string }[] = [
+  { id: "mine", label: "My Queue" },
+  { id: "overall", label: "Overall" },
+  { id: "approved", label: "Approved" },
+  { id: "dispatched", label: "Dispatched" },
+];
+const PENDING_VIEWS: View[] = ["mine", "overall"];
 const TIERS = ["SMB", "Mid-Market", "Enterprise"] as const;
 
 function Chip({
@@ -48,15 +57,16 @@ function Chip({
 export function QueueList() {
   const session = useSession();
   const reduce = useReducedMotion();
-  const [scope, setScope] = useLocalStorage<Scope>("pulse.queue.scope", "mine");
+  const [view, setView] = useLocalStorage<View>("pulse.queue.view", "mine");
   const [tier, setTier] = useLocalStorage<string | null>("pulse.queue.tier", null);
+  const isPendingView = PENDING_VIEWS.includes(view);
 
   const filters: QueueFilters = useMemo(
     () => ({
-      rm_id: scope === "mine" ? session.id : undefined,
+      rm_id: view === "mine" ? session.id : undefined,
       tier: tier ?? undefined,
     }),
-    [scope, tier, session.id],
+    [view, tier, session.id],
   );
 
   const { data, isLoading, isError, error } = useActions(filters);
@@ -68,52 +78,69 @@ export function QueueList() {
         <h1 className="text-lg font-semibold uppercase tracking-[0.18em] text-ink-secondary">
           Action Queue
         </h1>
-        <span className="text-xs text-ink-secondary">{actions.length} pending</span>
+        {isPendingView && <span className="text-xs text-ink-secondary">{actions.length} pending</span>}
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Chip active={scope === "mine"} onClick={() => setScope("mine")}>
-          My Queue
-        </Chip>
-        <Chip active={scope === "overall"} onClick={() => setScope("overall")}>
-          Overall
-        </Chip>
-        <span className="mx-1 h-4 w-px bg-line-strong" />
-        {TIERS.map((t) => (
-          <Chip key={t} active={tier === t} onClick={() => setTier(tier === t ? null : t)}>
-            {t}
+        {VIEWS.map((v) => (
+          <Chip key={v.id} active={view === v.id} onClick={() => setView(v.id)}>
+            {v.label}
           </Chip>
         ))}
+        {isPendingView && (
+          <>
+            <span className="mx-1 h-4 w-px bg-line-strong" />
+            {TIERS.map((t) => (
+              <Chip key={t} active={tier === t} onClick={() => setTier(tier === t ? null : t)}>
+                {t}
+              </Chip>
+            ))}
+          </>
+        )}
       </div>
 
-      {isLoading && <p className="text-sm text-ink-secondary">Loading queue…</p>}
-      {isError && (
-        <p className="text-sm text-risk-high-fg">
-          Couldn’t load the queue: {(error as Error)?.message ?? "unknown error"}
-        </p>
-      )}
-      {!isLoading && !isError && actions.length === 0 && (
-        <p className="text-sm text-ink-secondary">
-          Nothing waiting on you. Pulse will surface actions here as signals land.
+      {/* Approved/Dispatched buckets: API status filter is a Week-4 follow-up. */}
+      {!isPendingView && (
+        <p className="text-sm leading-6 text-ink-secondary">
+          {view === "approved" ? "Approved" : "Dispatched"} history wires in Week 4 — it needs a{" "}
+          <span className="font-mono">status</span> filter on{" "}
+          <span className="font-mono">GET /actions</span> (currently pending-only).
         </p>
       )}
 
-      <div className="space-y-3">
-        <AnimatePresence initial={false}>
-          {actions.map((a) => (
-            <motion.div
-              key={a.action_id}
-              layout
-              initial={reduce ? false : { opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <QueueCard action={a} isAdmin={session.role === "admin"} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      {isPendingView && (
+        <>
+          {isLoading && <p className="text-sm text-ink-secondary">Loading queue…</p>}
+          {isError && (
+            <p className="text-sm text-risk-high-fg">
+              Couldn’t load the queue: {(error as Error)?.message ?? "unknown error"}
+            </p>
+          )}
+          {!isLoading && !isError && actions.length === 0 && (
+            <div className="flex items-center gap-2 rounded-3xl bg-surface-tinted-row p-4 text-sm text-ink-secondary">
+              <Sparkles className="h-4 w-4 text-brand" />
+              All clear — Pulse will surface new actions here.
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <AnimatePresence initial={false}>
+              {actions.map((a) => (
+                <motion.div
+                  key={a.action_id}
+                  layout
+                  initial={reduce ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <QueueCard action={a} isAdmin={session.role === "admin"} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </>
+      )}
     </div>
   );
 }
