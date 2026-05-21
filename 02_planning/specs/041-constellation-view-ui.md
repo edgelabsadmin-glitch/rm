@@ -99,3 +99,39 @@ A dedicated `/constellation` nav surface: a **galactic map of the whole book of 
 - Not auto-acting on capacity reassignments or escalations — both are proposals requiring approval (§6 rule 3).
 - Not on the demo critical path (disposition D4 — teaser only for 2026-06-30; revisit Scene-3 upgrade post-perf). The Constellation demo storyboard scene is drafted as part of **specs 046/047 (demo prep)**, not in spec 041 itself.
 - Not a separate 041.1 — the overlay composer is a back-end section of this spec.
+
+## Step-9 close-out — SPEC 041 CLOSED (2026-05-22)
+
+Steps 0–9 complete. Built on branch `dz-001` (operator branch discipline, Session 19 late
+stream). Build green, **65/65 vitest**, perf gate passed (Step 2). Closure does NOT trigger
+merge to `main` — that needs explicit two-step operator authorization.
+
+### DoD verification
+- [x] Center globe + 3-tier radial hierarchy (managers inner / RMs mid / accounts outer). *Accounts free-float beyond the RM ring rather than pinned to a fixed ring — by Amendment-5 force design.*
+- [x] Brand-purple all tiers; node size = composite-health × activity (Amendment 5).
+- [x] Rounded squares for managers/RMs/accounts/talent; center globe circular (Amendment 6); spacing tuned (charge −55 / link 36).
+- [x] Link-state token colors; churn links animated (directional particles).
+- [x] Account click → `selectedAccountId` + per-account nav; full click→destination matrix (Dim 9).
+- [x] Inline orbital talent drill-down (cap 30; side-panel documented as fallback).
+- [x] All 3 overlays render + route. ⚠️ **Deviation:** overlays route to existing surfaces (cluster→`/actions?pattern=`, capacity→`/actions?rm=`, escalation→`/accounts/<id>`) rather than pre-filled reassignment/email *drafts*. Drafts require the pulse-api composers — Week-4 wiring. Phase-1 routing is the honest proxy.
+- [x] Performance: Step-2 gate passed (≥30fps at ~610 nodes, <200MB/5min). 
+- [~] RBAC scope: **stubbed Phase-1** (all accounts visible) + `accountScope` prop interface ready. Server-side RM/Manager/Admin enforcement is **spec-042 (Week 4)**.
+- [x] Pulse Bar at top (AppShell singleton, present on `/constellation`).
+- [x] Empty / loading / error / RBAC-subset states (Step 8).
+- [~] Graceful-degradation floor: **not separately implemented** — the perf gate passed at 610 nodes so the floor was never triggered; manager/RM nodes are pinned (fx/fy) and click-nav works independent of the force sim, so navigation survives a force failure in practice. Explicit static-fallback toggle deferred (no trigger).
+- [x] Tokens-only (canvas reads Tier-0 vars via getComputedStyle, with hex fallbacks only when a var is unavailable). Build + vitest green.
+
+### Watched concerns carried forward
+- **#24** — capacity-imbalance threshold is marginal on demo data (Sajjal 2.76 vs 2× median 2.71); re-evaluate the heuristic at Phase-2 production scale.
+- **#25** — tier-jump overlay uses a live 48h window; bump `demo_tier_jump_events.ts` `occurredAt` on the morning of the 2026-06-30 demo (PM follow-up).
+- **#26** — overlay composers read full `DEMO_ACCOUNTS`, not `accountScope`; spec-042 (Week 4) must extend the composers to honor RBAC scope.
+- **#27** — dev instrumentation chip ("N nodes · N fps") is visible on `/constellation`; gate behind `import.meta.env.DEV` or remove before the demo (low-priority polish).
+
+### Storyboard alignment (Amendment 4)
+The built Constellation (interactive graph + 3 overlays + hover ARR) can support the Session-13
+storyboard "Scene 6/7 (cuttable)" Constellation teaser. Scene drafting remains in specs 046/047
+per Amendment 4 — nothing here precludes it.
+
+### Pending coordination
+Spec-042 RBAC (Week 4): extend `buildConstellationGraph` consumers + overlay composers to honor
+`accountScope`; wire server-side scope. Awaits operator authorization.
