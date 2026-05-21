@@ -5,14 +5,19 @@
  * lands (035-045). Login is pre-shell (no Pulse Bar) — stubbed in spec 034, real
  * OAuth in spec 043.
  */
+import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { CeoView } from "@/features/ceo/CeoView";
-import { Constellation } from "@/features/constellation/Constellation";
 import { QueueList } from "@/features/queue/QueueList";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
+
+// Code-split: react-force-graph + d3 (~200kB gz) load only when /constellation opens.
+const Constellation = lazy(() =>
+  import("@/features/constellation/Constellation").then((m) => ({ default: m.Constellation })),
+);
 
 export default function App() {
   return (
@@ -31,7 +36,14 @@ export default function App() {
           }
         />
         <Route path="/actions" element={<QueueList />} />
-        <Route path="/constellation" element={<Constellation />} />
+        <Route
+          path="/constellation"
+          element={
+            <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
+              <Constellation />
+            </Suspense>
+          }
+        />
         <Route path="/ceo" element={<CeoView />} />
         <Route
           path="/submit"

@@ -17,6 +17,9 @@ export interface ConstellationNode {
   size: number;
   rm_id?: string;
   manager_id?: string;
+  activity?: number; // 0..1 recent signal volume
+  fx?: number; // pinned x (globe/managers/RMs form the orbital rings)
+  fy?: number; // pinned y
 }
 
 export interface ConstellationLink {
@@ -58,13 +61,21 @@ export function buildBenchmarkGraph(
   const nodes: ConstellationNode[] = [];
   const links: ConstellationLink[] = [];
 
-  nodes.push({ id: "globe", type: "globe", label: "EDGE Pulse", size: 24 });
+  // Globe pinned at center; managers on an inner ring; RMs on a mid ring (the
+  // orbital hierarchy — accounts free-float on the outside via charge/link forces).
+  const R_MGR = 160;
+  const R_RM = 340;
+  nodes.push({ id: "globe", type: "globe", label: "EDGE Pulse", size: 26, fx: 0, fy: 0 });
 
   const managerIds: string[] = [];
   for (let m = 0; m < managers; m++) {
     const id = `mgr-${m}`;
+    const a = (m / managers) * 2 * Math.PI;
     managerIds.push(id);
-    nodes.push({ id, type: "manager", label: `Manager ${m + 1}`, size: 14 });
+    nodes.push({
+      id, type: "manager", label: `Manager ${m + 1}`, size: 15,
+      fx: Math.cos(a) * R_MGR, fy: Math.sin(a) * R_MGR,
+    });
     links.push({ source: id, target: "globe", state: "active" });
   }
 
@@ -72,8 +83,12 @@ export function buildBenchmarkGraph(
   for (let i = 0; i < rmsPerBook; i++) {
     const id = `rm-${i}`;
     const manager_id = managerIds[i % managers];
+    const a = (i / rmsPerBook) * 2 * Math.PI;
     rmIds.push(id);
-    nodes.push({ id, type: "rm", label: `RM ${i + 1}`, size: 10, manager_id });
+    nodes.push({
+      id, type: "rm", label: `RM ${i + 1}`, size: 11, manager_id,
+      fx: Math.cos(a) * R_RM, fy: Math.sin(a) * R_RM,
+    });
     links.push({ source: id, target: manager_id, state: "active" });
   }
 
@@ -86,18 +101,17 @@ export function buildBenchmarkGraph(
     const id = `acct-${a}`;
     const rm_id = rmIds[a % rmIds.length];
     const manager_id = nodes.find((n) => n.id === rm_id)?.manager_id;
+    const state = LINK_STATES[Math.floor(r() * LINK_STATES.length)];
+    // Activity loosely tracks link state (active→high, churn→low) for coherence.
+    const activity = state === "active" ? 0.6 + r() * 0.4 : state === "inactive" ? 0.2 + r() * 0.3 : r() * 0.2;
     const health = Math.round(r() * 100) / 10; // 0..10
+    // Amendment 5: node size = composite-health × activity (single dimension).
+    const size = 2 + (health / 10) * activity * 9;
     nodes.push({
-      id,
-      type: "account",
-      label: `Account ${a + 1}`,
-      tier: tiers[a],
-      health,
-      size: 3 + Math.round(r() * 5),
-      rm_id,
-      manager_id,
+      id, type: "account", label: `Account ${a + 1}`, tier: tiers[a],
+      health, activity, size, rm_id, manager_id,
     });
-    links.push({ source: id, target: rm_id, state: LINK_STATES[Math.floor(r() * LINK_STATES.length)] });
+    links.push({ source: id, target: rm_id, state });
   }
 
   return { nodes, links };

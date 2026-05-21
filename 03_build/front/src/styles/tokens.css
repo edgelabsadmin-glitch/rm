@@ -40,6 +40,11 @@
   --color-text-quote:           rgb(51, 65, 85);          /* slate-700 — §10 inline <quote> voice (not in §2 palette; added to realize §10) */
   --color-ring-track:           rgba(255, 255, 255, 0.18); /* §8.8 conic health-ring unfilled arc (translucent white over the purple hero) */
 
+  /* ─── Constellation link-state (SPEC-041 disposition D2; §22-justified) ───── */
+  --color-link-active:          var(--color-brand-primary);   /* active customer engagement */
+  --color-link-inactive:        rgba(148, 163, 184, 0.35);    /* no recent signal — dimmed slate */
+  --color-link-churn:           var(--color-risk-high-fg);    /* silent-churn signal — the urgent failing connection (animated) */
+
   /* ─── Borders (§2) ────────────────────────────────────────────── */
   --color-border-subtle:        rgb(241, 245, 249);
   --color-border-strong:        rgb(226, 232, 240);
