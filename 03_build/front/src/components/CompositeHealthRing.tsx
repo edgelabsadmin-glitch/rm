@@ -17,7 +17,7 @@ export function scoreToAngle(score: number): number {
   return (clamped / SCORE_MAX) * ARC_MAX_DEG;
 }
 
-export function CompositeHealthRing({ score }: { score: number }) {
+export function CompositeHealthRing({ score, label = "Health" }: { score: number; label?: string }) {
   const angle = scoreToAngle(score);
   return (
     <div
@@ -31,7 +31,7 @@ export function CompositeHealthRing({ score }: { score: number }) {
       <div className="grid h-20 w-20 place-items-center rounded-full bg-brand-deep">
         <div className="text-center">
           <div className="text-2xl font-bold text-ink-on-brand">{score}</div>
-          <div className="text-2xs uppercase tracking-widest text-ink-on-brand-faint">Health</div>
+          <div className="text-2xs uppercase tracking-widest text-ink-on-brand-faint">{label}</div>
         </div>
       </div>
     </div>
