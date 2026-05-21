@@ -45,6 +45,21 @@
   --color-link-inactive:        rgba(148, 163, 184, 0.35);    /* no recent signal — dimmed slate */
   --color-link-churn:           var(--color-risk-high-fg);    /* silent-churn signal — the urgent failing connection (animated) */
 
+  /* ─── Chip semantic tokens — Session-19 mockup-approved hex (SPEC-040) ─────── */
+  --color-chip-risk-bg:         #FCEBEB;
+  --color-chip-risk-text:       #791F1F;
+  --color-chip-opportunity-bg:  #EAF3DE;
+  --color-chip-opportunity-text:#27500A;
+  --color-chip-warning-bg:      #FAEEDA;
+  --color-chip-warning-text:    #633806;
+  --color-chip-reference-bg:    #EEEDFE;
+  --color-chip-reference-text:  #3C3489;
+
+  /* ─── Stat number colors — book-in-numbers strip + ARR displays ───────────── */
+  --color-stat-risk:            #A32D2D;
+  --color-stat-warning:         #BA7517;
+  --color-stat-opportunity:     #639922;
+
   /* ─── Borders (§2) ────────────────────────────────────────────── */
   --color-border-subtle:        rgb(241, 245, 249);
   --color-border-strong:        rgb(226, 232, 240);
