@@ -14,6 +14,7 @@
  * + preview use 0..10. UI-side mapping is (score + 100) / 20. Back-end shape stays as-is.
  */
 import type { RiskLevel } from "@/components/RiskBadge";
+import { DEMO_ACCOUNTS, type DemoAccount } from "@/fixtures/demo_characters";
 
 export interface AccountSummary {
   account_id: string;
@@ -58,46 +59,58 @@ function vectorFor(score: number): SignalAxis[] {
   }));
 }
 
-// Phase-1 demo accounts — match the React preview / Image 1 left rail.
-const ACCOUNTS: AccountHealth[] = [
-  {
-    account_id: "helix-labs",
-    name: "Helix Labs",
-    composite_health: 6.4,
-    risk: "High",
-    meeting: "Renewal sync in 3 days",
-    tier: "Watch",
+// Per-account demo health derived from the canonical demo characters
+// (src/fixtures/demo_characters.ts) — single source of truth, real account names.
+const HEALTH_SCORE: Record<DemoAccount["healthState"], number> = {
+  healthy: 8.5,
+  "churn-signal": 5.2,
+  "at-risk": 4.0,
+};
+const HEALTH_RISK: Record<DemoAccount["healthState"], RiskLevel> = {
+  healthy: "Low",
+  "churn-signal": "High",
+  "at-risk": "Medium",
+};
+const HEALTH_TIER: Record<DemoAccount["healthState"], string> = {
+  healthy: "Healthy",
+  "churn-signal": "Watch",
+  "at-risk": "At-Risk",
+};
+const HEALTH_THEMES: Record<DemoAccount["healthState"], string[]> = {
+  healthy: ["Strong ambassador pool", "Adoption rising", "Positive performer feedback"],
+  "churn-signal": [
+    "<bad>Vendor-consolidation</bad> mentioned in recent calls",
+    "Replacement rate elevated this quarter",
+    "Champion engagement dropping",
+  ],
+  "at-risk": [
+    "<em>Renewal window approaching</em>",
+    "Open escalation case",
+    "<bad>Pay-concern signal</bad> from senior talent",
+  ],
+};
+// A few anchor accounts get a concrete next event; the rest are quiet.
+const MEETINGS: Record<string, string> = {
+  "dhr-health-clinics": "Renewal sync in 3 days",
+  "mendota-insurance": "EBR tomorrow, 10:30 AM",
+  cirventis: "Renewal sync in 5 days",
+  "manhattan-restorative": "Escalation review Friday",
+};
+
+const ACCOUNTS: AccountHealth[] = DEMO_ACCOUNTS.map((a) => {
+  const score = HEALTH_SCORE[a.healthState];
+  return {
+    account_id: a.id,
+    name: a.name,
+    composite_health: score,
+    risk: HEALTH_RISK[a.healthState],
+    meeting: MEETINGS[a.id] ?? "No meeting scheduled",
+    tier: HEALTH_TIER[a.healthState],
     positioning: AI_RM_POSITIONING,
-    signal_vector: vectorFor(6.4),
-    themes: [
-      "AI displacement concern",
-      "Pay concern from senior talent",
-      "Champion quiet for 21 days",
-    ],
-  },
-  {
-    account_id: "mendota-health",
-    name: "Mendota Health",
-    composite_health: 7.8,
-    risk: "Medium",
-    meeting: "EBR tomorrow, 10:30 AM",
-    tier: "Stable",
-    positioning: AI_RM_POSITIONING,
-    signal_vector: vectorFor(7.8),
-    themes: ["Burnout mentions easing", "Recognition gap still recurring", "2 open case themes"],
-  },
-  {
-    account_id: "vertex-group",
-    name: "Vertex Group",
-    composite_health: 8.9,
-    risk: "Low",
-    meeting: "No meeting scheduled",
-    tier: "Healthy",
-    positioning: AI_RM_POSITIONING,
-    signal_vector: vectorFor(8.9),
-    themes: ["Strong ambassador pool", "Positive performer feedback", "Adoption rising"],
-  },
-];
+    signal_vector: vectorFor(score),
+    themes: HEALTH_THEMES[a.healthState],
+  };
+});
 
 export function getAccountSummaries(): AccountSummary[] {
   return ACCOUNTS.map(({ account_id, name, composite_health, risk, meeting }) => ({

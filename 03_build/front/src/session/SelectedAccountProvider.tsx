@@ -9,7 +9,7 @@
  */
 import { createContext, useContext, useMemo, useState } from "react";
 
-export const DEFAULT_ACCOUNT_ID = "helix-labs";
+export const DEFAULT_ACCOUNT_ID = "dhr-health-clinics"; // churn-signal anchor (real account)
 
 interface SelectedAccountValue {
   selectedAccountId: string;

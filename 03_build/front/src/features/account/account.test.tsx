@@ -31,16 +31,16 @@ describe("AccountListColumn (account switch)", () => {
         <AccountListColumn />
       </SelectedAccountProvider>,
     );
-    // Helix Labs is the default (aria-current=true).
-    const helix = screen.getByRole("button", { name: /Helix Labs/i });
-    expect(helix.getAttribute("aria-current")).toBe("true");
-    expect(DEFAULT_ACCOUNT_ID).toBe("helix-labs");
+    // DHR Health Clinics is the default (aria-current=true).
+    const dflt = screen.getByRole("button", { name: /DHR Health Clinics/i });
+    expect(dflt.getAttribute("aria-current")).toBe("true");
+    expect(DEFAULT_ACCOUNT_ID).toBe("dhr-health-clinics");
 
-    const vertex = screen.getByRole("button", { name: /Vertex Group/i });
-    expect(vertex.getAttribute("aria-current")).toBe("false");
+    const other = screen.getByRole("button", { name: /ReminderMedia/i });
+    expect(other.getAttribute("aria-current")).toBe("false");
 
-    fireEvent.click(vertex);
-    expect(vertex.getAttribute("aria-current")).toBe("true");
-    expect(helix.getAttribute("aria-current")).toBe("false");
+    fireEvent.click(other);
+    expect(other.getAttribute("aria-current")).toBe("true");
+    expect(dflt.getAttribute("aria-current")).toBe("false");
   });
 });

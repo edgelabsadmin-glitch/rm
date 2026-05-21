@@ -27,44 +27,43 @@ export interface CeoWeekly {
   signal_sources_count: number;
 }
 
-// Phase-1 demo week — reuses the spec-037 accounts (Helix / Mendota / Vertex).
+// Phase-1 demo week — real accounts/RMs/talent from demo_characters.ts.
 export const CEO_WEEKLY: CeoWeekly = {
   week_of: "May 17 → 23, 2026",
-  recipients: ["Eddy · CEO", "VP · Client Success"],
+  recipients: ["Iffi Wahla · CEO", "Eddy Chen · VP Client Success"],
   lead:
-    "The one to watch this week is <em>Helix Labs</em> — their renewal lands in " +
-    "<num>3</num> days and the signals are mixed. We delivered a replacement on time, " +
-    "but a <bad>senior-talent pay concern</bad> surfaced and the champion has gone " +
-    "quiet for <num>21</num> days. I'd rather we walk in Thursday with a plan than a hope.",
+    "The one to watch this week is <em>DHR Health Clinics</em> — our largest book at " +
+    "<num>76</num> active placements, and churn risk just crossed <num>50%</num>. Sidra " +
+    "has held the relationship well, but a <bad>vendor-consolidation</bad> signal is now " +
+    "showing across two accounts. I'd rather we get ahead of it than react to a renewal note.",
   emerging: [
-    "<bad>Vendor-consolidation</bad> language is spreading — <num>2</num> accounts " +
-      "raised it this month (Helix Labs, Mendota Health). Individually it's noise; " +
-      "together it looks like a market signal worth a Sales positioning play.",
-    "Vertex Group keeps getting healthier — <good>adoption rising and a strong " +
-      "ambassador pool</good>. Priya R. has built real trust there; it's our cleanest " +
-      "reference-ask candidate this quarter.",
+    "<bad>Vendor-consolidation</bad> language surfaced at <num>2</num> accounts this month — " +
+      "DHR Health Clinics and Mendota Insurance. Individually it's noise; together it reads " +
+      "like a market signal worth a short Sales positioning play.",
+    "Mubeen's book is our quiet win — <good>NAVADERM holding healthy at 14 active placements</good>, " +
+      "no escalations. It's our cleanest reference-ask candidate this quarter.",
   ],
   talent_matters: [
     {
-      talent: "Senior coder cohort",
-      account: "Helix Labs",
+      talent: "Senior placement cohort",
+      account: "DHR Health Clinics",
       note:
-        "<bad>Pay concern raised by senior talent</bad> — this is the human signal " +
-        "underneath Helix's renewal risk, not a separate issue. Worth naming directly Thursday.",
+        "<bad>Replacement rate elevated</bad> across the <num>76</num> active placements — this is " +
+        "the human signal underneath the churn number, not a separate issue. Sidra should name it directly.",
     },
     {
-      talent: "Placed RNs",
-      account: "Mendota Health",
+      talent: "Placed associates",
+      account: "Manhattan Restorative",
       note:
-        "<good>Burnout mentions easing</good> since the schedule change — Jordan's work " +
-        "is landing. The recurring recognition gap is the one item still on watch.",
+        "<bad>Escalated to 90% churn</bad> on Yozeline's book — <num>10</num> active placements still " +
+        "in play. The escalation is open; this is the one I'd watch alongside DHR.",
     },
   ],
   asks: [
-    "<num>2</num> minutes on Helix Labs before Thursday: do we escalate the pay-concern " +
-      "signal into a retention play, or hold and listen at the renewal?",
-    "A read on the <bad>vendor-consolidation</bad> pattern — should we run a short Sales " +
-      "play across the <num>2</num> accounts in the next 30 days?",
+    "<num>2</num> minutes on DHR Health Clinics before the renewal: do we escalate the " +
+      "vendor-consolidation signal into a retention play, or hold and listen?",
+    "A read on the <bad>vendor-consolidation</bad> pattern — should we run a short Sales play " +
+      "across the <num>2</num> accounts in the next 30 days?",
   ],
   signal_sources_count: 14,
 };
