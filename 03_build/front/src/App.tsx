@@ -8,6 +8,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
+import { CeoView } from "@/features/ceo/CeoView";
 import { QueueList } from "@/features/queue/QueueList";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
@@ -39,16 +40,7 @@ export default function App() {
             />
           }
         />
-        <Route
-          path="/ceo"
-          element={
-            <Placeholder
-              spec="Spec 040"
-              title="CEO View"
-              blurb="The weekly Pulse-to-leadership narrative — the highest brand-moment surface, in the AI-RM first-person voice."
-            />
-          }
-        />
+        <Route path="/ceo" element={<CeoView />} />
         <Route
           path="/submit"
           element={
