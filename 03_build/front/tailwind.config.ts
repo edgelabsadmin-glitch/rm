@@ -42,6 +42,7 @@ const config: Config = {
           "on-brand-soft": "var(--color-text-on-brand-soft)",
           "on-brand-faint": "var(--color-text-on-brand-faint)",
           "on-brand-strip": "var(--color-text-on-brand-strip)",
+          quote: "var(--color-text-quote)",
         },
         line: {
           subtle: "var(--color-border-subtle)",
