@@ -942,6 +942,12 @@ The numbering convention continues from Q20. Q21–Q113 below correspond to item
 **Recommended path:** Accept for Phase 1 — the 500ms SLO does not apply to the SFDC poll path. Production ingestion is the Activepieces `sfdc_poll_changes` 5-min cron (latency-insensitive; ~12s/cycle for all 8 objects ≪ 5-min budget); the latency-sensitive `/webhooks/sfdc` → ingest hop never calls `sf`. For any future **interactive/real-time** SFDC read, replace the per-query `sf` subprocess with a persistent authenticated REST client (reuse one access token + an `httpx` pool, or `simple-salesforce`) to drop the ~1.5s setup. **v1.5+ optimization; no Phase-1 code change.**
 **Status:** Open (informational; remedy deferred to v1.5+ interactive-read work). See `00_research/spikes/06_sfdc_all_objects_verification.md`.
 
+## Q154: opportunity-tracker repo adoption — DEdge-max (gone) → Pulse-owned sibling
+**Raised during:** Session 16 (Phase-4 Week 4-5 follow-up)
+**Question/finding:** The upstream `DEdge-max/opportunity-tracker` repo became unreachable (account/mailbox shut down) and its production daily scan stopped running. Pulse depends on opportunity-tracker as an expansion-signal source (specs 015/016), but the last-known-good code existed only as a local working copy (`ai-rm/opportunity-tracker/`, a clone of the now-dead origin) — with uncommitted local edits, so it needed careful adoption rather than a blind push.
+**Recommended path / resolution:** Adopt the code into a Pulse-owned sibling repo **`edgelabsadmin-glitch/pulse-opp-tracker`** with fresh `[INIT]` history (acknowledges origin, claims no continuity). Landed on that repo's `main`: SPEC-004 SFDC-write safety guard (`[OPP-001]`) and SPEC-015 mirror-write into `pulse.expansion_intent_signals` (`[OPP-015]`), plus a Fly.io deploy bundle (`[OPP-001]`) that **supersedes Decision 39** — the daily job moves from GitHub Actions to a Fly cron worker (`pulse-opp-tracker.fly.dev`, app `pulse-opp-tracker`, region `sin`). **SPEC-016 matcher precision fix is NOT yet applied** (the prepared patch was absent from the adopted code; deferred — see spec 016 note). A stray uncommitted default-password edit in `dashboard/app.py` was dropped, not carried forward. Push to GitHub and the Fly deploy are operator steps (the authenticated `gh` account lacks access to the target repo).
+**Status:** Resolved (Session 16, 2026-05-21).
+
 ---
 
 ## Resolved
