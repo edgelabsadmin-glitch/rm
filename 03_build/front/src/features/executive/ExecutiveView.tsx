@@ -15,11 +15,13 @@ import { FadeLift } from "@/components/FadeLift";
 import { Card, CardContent } from "@/components/ui/card";
 import { InlineTags } from "@/lib/inline_tags";
 import {
+  accountARR,
   bookARR,
   churnExposureARR,
   DEMO_ACCOUNTS,
   DEMO_ACTIVE_TALENT_TOTAL,
   formatARR,
+  REVENUE_PER_SEAT_USD,
 } from "@/fixtures/demo_characters";
 
 type Severity = "risk" | "warning" | "opportunity" | "reference";
@@ -44,6 +46,13 @@ const atRisk = DEMO_ACCOUNTS.filter(
   (a) => a.healthState === "at-risk" || a.healthState === "churn-signal",
 );
 
+// All figures DERIVED from the canonical demo data (real-data integrity, Session 19):
+// active placements via the $10K/seat heuristic; tier + churn counts from the account
+// states. Nothing hand-asserted — the displayed numbers always match demo_characters.ts.
+const seats = (id: string) => accountARR(id) / REVENUE_PER_SEAT_USD;
+const strategicCount = DEMO_ACCOUNTS.filter((a) => a.tier === "Strategic").length;
+const churnCount = DEMO_ACCOUNTS.filter((a) => a.healthState === "churn-signal").length;
+
 const WEEK_OF = "May 17 → 23, 2026";
 const BOOK_HEALTH = 7.2; // Phase-1 stub (avg composite across non-churn accounts; wires Week 4)
 
@@ -58,8 +67,8 @@ const LEAD =
 const PULSE_FACTS: [string, string][] = [
   ["Accounts", String(DEMO_ACCOUNTS.length)],
   ["Active placements", String(DEMO_ACTIVE_TALENT_TOTAL)],
-  ["Renewals 30d", "4"],
-  ["Open opportunities", "7"],
+  ["Strategic accounts", String(strategicCount)],
+  ["Churn signals", String(churnCount)],
 ];
 
 const ASKS = [
@@ -111,12 +120,15 @@ export function ExecutiveView() {
             </div>
             <ul className="space-y-2">
               <li className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-ink-primary">DHR Health Clinics · Sidra · 76 placements</span>
+                <span className="text-ink-primary">
+                  DHR Health Clinics · Sidra Zia · {seats("dhr-health-clinics")} placements
+                </span>
                 <Chip severity="risk">50%</Chip>
               </li>
               <li className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-ink-primary">Manhattan Restorative · Yozeline · 10 placements</span>
-                <Chip severity="risk">90%</Chip>
+                <span className="text-ink-primary">
+                  Manhattan Restorative · Yozeline Candia · {seats("manhattan-restorative")} placements
+                </span>
               </li>
             </ul>
           </StatCard>
@@ -168,17 +180,19 @@ export function ExecutiveView() {
             >
               5
             </div>
-            <div className="text-sm text-ink-secondary">accounts with expansion signals</div>
-            <div className="mt-1 text-sm text-ink-secondary">2 ready to push · 3 in early stage</div>
+            <div className="text-sm text-ink-secondary">accounts with healthy engagement</div>
             <div className="my-3 h-px bg-line-subtle" />
-            <div className="mb-2 text-xs font-medium text-ink-secondary">Ready to push</div>
+            <div className="mb-2 text-xs font-medium text-ink-secondary">Healthy book</div>
             <ul className="space-y-2">
               <li className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-ink-primary">Bayhealth · Ameer · +12 nurses</span>
-                <Chip severity="warning">+12</Chip>
+                <span className="text-ink-primary">
+                  Bayhealth · Ameer Ali · {seats("bayhealth")} placements
+                </span>
               </li>
               <li className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-ink-primary">NAVADERM · Mubeen · reference-ask</span>
+                <span className="text-ink-primary">
+                  NAVADERM · Mubeen Sohail · {seats("navaderm")} placements
+                </span>
                 <Chip severity="reference">REF</Chip>
               </li>
             </ul>
