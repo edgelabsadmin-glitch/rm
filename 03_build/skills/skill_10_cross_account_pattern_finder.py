@@ -11,7 +11,7 @@ pattern variant (Decision 36) by accepting that theme like any other.
 
 from __future__ import annotations
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.agent.context import SkillContext, SuggestedAction, submit_action
 

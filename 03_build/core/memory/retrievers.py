@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.memory.denylist import assert_theme_allowed
 from core.memory.graph import DEFAULT_NAMESPACE

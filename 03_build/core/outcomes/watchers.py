@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 # Outcome windows by expected outcome type (Q45). EBR aligns to the meeting date
 # when known; this is the fallback when it isn't.

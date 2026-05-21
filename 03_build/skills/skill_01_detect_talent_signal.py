@@ -22,7 +22,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.llm import client
 from core.llm.config import ANTHROPIC_HAIKU

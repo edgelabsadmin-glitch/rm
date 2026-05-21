@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 # Tier-dependent composition weights (Design 07).
 ALPHA_BETA = {
