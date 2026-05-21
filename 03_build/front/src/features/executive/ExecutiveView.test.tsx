@@ -26,7 +26,11 @@ describe("ExecutiveView (spec-040 three-column agentic workspace)", () => {
 
   it("renders inline-tag prose as styled spans (not raw tags)", () => {
     const { container } = render(<ExecutiveView />);
-    expect(container.querySelector("span.text-risk-high-fg")).toBeTruthy(); // <bad>
-    expect(container.innerHTML).not.toContain("<bad>");
+    // Real-data integrity (Session 19): the lead no longer asserts a <bad> qualitative
+    // signal — it carries verifiable <num> figures + an <em> account name instead.
+    expect(container.querySelector("span.font-mono")).toBeTruthy(); // <num>
+    expect(container.querySelector("span.italic")).toBeTruthy(); // <em>
+    expect(container.innerHTML).not.toContain("<num>");
+    expect(container.innerHTML).not.toContain("<em>");
   });
 });

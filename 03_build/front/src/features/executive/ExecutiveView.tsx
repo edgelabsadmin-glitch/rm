@@ -47,9 +47,13 @@ const atRisk = DEMO_ACCOUNTS.filter(
 const WEEK_OF = "May 17 → 23, 2026";
 const BOOK_HEALTH = 7.2; // Phase-1 stub (avg composite across non-churn accounts; wires Week 4)
 
+// Real-data integrity (Session 19 operator review): the lead asserts only verifiable
+// figures (placement count + composite churn %). The prior "vendor-consolidation talk"
+// line was a fabricated qualitative signal — it needs live Chorus extraction (Week-4
+// pulse-api cutover) before it can be stated.
 const LEAD =
-  "<em>DHR Health Clinics</em> is the one to watch — largest book, churn crossed " +
-  "<num>50%</num>. Two of your accounts are seeing <bad>vendor-consolidation</bad> talk.";
+  "<em>DHR Health Clinics</em> is the one to watch — largest book at <num>76</num> " +
+  "placements, churn signal crossed <num>50%</num>.";
 
 const PULSE_FACTS: [string, string][] = [
   ["Accounts", String(DEMO_ACCOUNTS.length)],
@@ -62,20 +66,20 @@ const ASKS = [
   {
     icon: AlertTriangle,
     severity: "risk" as Severity,
-    ask: "Escalate DHR Health Clinics renewal — Sidra needs air cover.",
-    why: "Pulse will draft talking points + book Thursday slot · 76 placements / $760K at stake.",
+    ask: "Review DHR Health Clinics churn signal",
+    why: "50% churn risk crossed · 76 placements / $760K at stake · Owning RM Sidra Zia",
   },
   {
     icon: TrendingUp,
     severity: "warning" as Severity,
-    ask: "Route Bayhealth expansion to Eddy — 12 nurses identified.",
-    why: "Ameer surfaced a 12-nurse need; ready for VP-CS framing.",
+    ask: "Review Bayhealth expansion opportunity",
+    why: "6 active placements · expansion signal surfaced via opp-tracker · Owning RM Ameer Ali",
   },
   {
     icon: MessageSquare,
     severity: "opportunity" as Severity,
-    ask: "Make NAVADERM the Q3 reference customer.",
-    why: "14 healthy placements, no escalations — Mubeen's quiet win.",
+    ask: "Consider NAVADERM as Q3 reference customer",
+    why: "14 healthy placements, no escalations · Owning RM Mubeen Sohail",
   },
 ];
 

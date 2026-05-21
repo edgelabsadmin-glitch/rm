@@ -15,27 +15,29 @@ import { STUB_SESSION } from "@/session/useSession";
 import type { ActionDTO, ActionsResponse, QueueFilters } from "./types";
 
 const rmName = (id: string) => DEMO_RMS.find((r) => r.id === id)?.name ?? id;
+const seats = (id: string) => accountARR(id) / REVENUE_PER_SEAT_USD; // verifiable active placements
 
 const DHR_ARR = formatARR(accountARR("dhr-health-clinics")); // $760K
-const NAVADERM_ARR = formatARR(accountARR("navaderm"));
-const BAYHEALTH_EXPANSION = formatARR(12 * REVENUE_PER_SEAT_USD); // +$120K incremental
 
+// Real-data integrity (Session 19 operator review): narrative content carries ONLY
+// figures verifiable against the rm-intelligence-agent data (active-placement counts +
+// the $10K/seat ARR heuristic). Qualitative signals that need live Chorus extraction
+// (e.g. "vendor-consolidation talk") are NOT asserted until the Week-4 pulse-api cutover.
 export const DEMO_ACTIONS: ActionDTO[] = [
   {
-    action_id: "demo-dhr-escalation",
+    action_id: "demo-dhr-churn",
     customer_id: "dhr-health-clinics",
     talent_id: null,
     rm_id: "sidra-zia",
     tier_class: "Enterprise",
     urgency: "high",
-    action_card: { headline: "Escalate DHR Health Clinics renewal", action_type: "escalation" },
-    why_oneline: `Churn crossed 50% — ${DHR_ARR} at stake. ${rmName("sidra-zia")} needs air cover.`,
+    action_card: { headline: "Churn signal flagged for DHR Health Clinics", action_type: "escalation" },
+    why_oneline: `Composite churn risk crossed 50% — ${seats("dhr-health-clinics")} active placements, ${DHR_ARR} book.`,
     why_detail:
-      `<bad>Vendor-consolidation</bad> surfaced across two recent calls and the replacement rate ` +
-      `is up this quarter. <num>${DHR_ARR}</num> ARR is at stake on the renewal. Pulse drafted ` +
-      `talking points and can hold a Thursday slot so <em>${rmName("sidra-zia")}</em> gets VP-CS air cover.`,
-    modifiable_fields: ["headline", "talking_points", "meeting_time"],
-    source_episodes: ["chorus:dhr-2026-05-19", "sfdc:case-dhr-escalation"],
+      `<bad>50% churn risk</bad> detected across <num>${seats("dhr-health-clinics")} active placements</num>. ` +
+      `Composite signal escalation in progress. Owning RM: ${rmName("sidra-zia")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["sfdc:dhr-placements", "sfdc:case-dhr-escalation"],
     proposed_at: "2026-05-20T15:10:00Z",
     status: "pending",
     rank_score: 0.97,
@@ -48,14 +50,13 @@ export const DEMO_ACTIONS: ActionDTO[] = [
     rm_id: "ameer-ali",
     tier_class: "Mid-Market",
     urgency: "medium",
-    action_card: { headline: "Route Bayhealth expansion to VP-CS", action_type: "expansion" },
-    why_oneline: `12-nurse need identified — ${BAYHEALTH_EXPANSION} ARR potential.`,
+    action_card: { headline: "Expansion signal at Bayhealth", action_type: "expansion" },
+    why_oneline: `Current book at ${seats("bayhealth")} active placements — expansion opportunity identified.`,
     why_detail:
-      `<em>${rmName("ameer-ali")}</em> surfaced a 12-nurse expansion need at Bayhealth — roughly ` +
-      `<good>+${BAYHEALTH_EXPANSION} ARR</good> (<num>${BAYHEALTH_EXPANSION}</num>) on top of the ` +
-      `current book. Ready for VP-CS framing.`,
+      `Bayhealth currently at <num>${seats("bayhealth")} active placements</num> with healthy engagement ` +
+      `signal. Expansion opportunity surfaced through opp-tracker. Owning RM: ${rmName("ameer-ali")}.`,
     modifiable_fields: ["headline", "summary"],
-    source_episodes: ["opp-tracker:bayhealth-postings", "chorus:bayhealth-2026-05-18"],
+    source_episodes: ["opp-tracker:bayhealth-postings", "sfdc:bayhealth-placements"],
     proposed_at: "2026-05-20T16:02:00Z",
     status: "pending",
     rank_score: 0.81,
@@ -68,14 +69,13 @@ export const DEMO_ACTIONS: ActionDTO[] = [
     rm_id: "mubeen-sohail",
     tier_class: "SMB",
     urgency: "medium-low",
-    action_card: { headline: "Make NAVADERM the Q3 reference customer", action_type: "reference" },
-    why_oneline: `14 healthy placements, no escalations — ${NAVADERM_ARR} book.`,
+    action_card: { headline: "Reference candidate: NAVADERM", action_type: "reference" },
+    why_oneline: `${seats("navaderm")} healthy placements, no escalations — strong reference profile.`,
     why_detail:
-      `NAVADERM has <good>14 healthy placements</good> and zero escalations this quarter — a ` +
-      `<num>${NAVADERM_ARR}</num> book that's <em>${rmName("mubeen-sohail")}</em>'s quiet win. ` +
-      `Strong Q3 reference candidate.`,
+      `NAVADERM at <good>${seats("navaderm")} active placements</good> with no escalations or churn signals. ` +
+      `<good>Healthy engagement pattern.</good> Owning RM: ${rmName("mubeen-sohail")}.`,
     modifiable_fields: ["headline", "summary"],
-    source_episodes: ["sfdc:navaderm-csat", "chorus:navaderm-2026-05-15"],
+    source_episodes: ["sfdc:navaderm-placements", "sfdc:navaderm-csat"],
     proposed_at: "2026-05-20T16:40:00Z",
     status: "pending",
     rank_score: 0.64,
