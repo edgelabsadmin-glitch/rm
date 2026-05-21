@@ -87,3 +87,50 @@ export const DEMO_TALENT: ReadonlyArray<DemoTalent> = DEMO_ACCOUNTS.flatMap((a) 
 );
 
 export const DEMO_ACTIVE_TALENT_TOTAL = DEMO_TALENT.length; // 269 across 14 accounts
+
+/**
+ * Phase-1 demo revenue heuristic: $10K per active placement seat. Replaces the real
+ * Opportunity > Account ARR roll-up at the Week-4 pulse-api cutover. Single source of
+ * truth — every surface consumes ARR via these helpers (PM_CONTEXT §6 #41).
+ */
+export const REVENUE_PER_SEAT_USD = 10_000;
+
+function activeTalentCount(accountId: string): number {
+  return DEMO_TALENT.reduce(
+    (n, t) => (t.accountId === accountId && t.stage === "Active" ? n + 1 : n),
+    0,
+  );
+}
+
+export function accountARR(accountId: string): number {
+  return activeTalentCount(accountId) * REVENUE_PER_SEAT_USD;
+}
+
+export function bookARR(): number {
+  return DEMO_TALENT.filter((t) => t.stage === "Active").length * REVENUE_PER_SEAT_USD;
+}
+
+export function rmBookARR(rmId: string): number {
+  return DEMO_ACCOUNTS.filter((a) => a.rmId === rmId).reduce((s, a) => s + accountARR(a.id), 0);
+}
+
+export function managerBookARR(managerId: string): number {
+  return DEMO_RMS.filter((r) => r.managerId === managerId).reduce(
+    (s, r) => s + rmBookARR(r.id),
+    0,
+  );
+}
+
+/** Sum of ARR across accounts in at-risk + churn-signal states. */
+export function churnExposureARR(): number {
+  return DEMO_ACCOUNTS.filter(
+    (a) => a.healthState === "at-risk" || a.healthState === "churn-signal",
+  ).reduce((s, a) => s + accountARR(a.id), 0);
+}
+
+/** Compact currency: $760K, $1.5M, $2.69M. Consistent across surfaces. */
+export function formatARR(usd: number): string {
+  if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(2).replace(/\.?0+$/, "")}M`;
+  if (usd >= 1_000) return `$${Math.round(usd / 1_000)}K`;
+  return `$${usd.toLocaleString()}`;
+}
