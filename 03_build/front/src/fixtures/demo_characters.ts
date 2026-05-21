@@ -60,7 +60,9 @@ export const DEMO_ACCOUNTS: ReadonlyArray<DemoAccount> = [
   { id: "remindermedia", name: "ReminderMedia", tier: "Strategic", rmId: "ameer-ali", healthState: "healthy" },
   { id: "dhr-health-hospital", name: "DHR Health Hospital", tier: "Strategic", rmId: "sidra-zia", healthState: "healthy" },
   // Growth (was Mid-Market)
-  { id: "mendota-insurance", name: "Mendota Insurance", tier: "Growth", rmId: "sajjal-shaheedi", healthState: "at-risk" },
+  // Mendota: operator-classified Strategic (Session 19) despite mid-market size — a
+  // named strategic account; healthState stays at-risk (drives churn exposure unchanged).
+  { id: "mendota-insurance", name: "Mendota Insurance", tier: "Strategic", rmId: "sajjal-shaheedi", healthState: "at-risk" },
   { id: "bayhealth", name: "Bayhealth, Inc", tier: "Growth", rmId: "ameer-ali", healthState: "healthy" },
   { id: "denver-wellness", name: "Denver Wellness Associates", tier: "Growth", rmId: "ameer-ali", healthState: "churn-signal" },
   { id: "dr-dental", name: "Dr. Dental", tier: "Growth", rmId: "ameer-ali", healthState: "healthy" },
