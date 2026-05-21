@@ -7,6 +7,7 @@
  */
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
+import { QueueList } from "@/features/queue/QueueList";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
 
@@ -35,16 +36,7 @@ export default function App() {
             />
           }
         />
-        <Route
-          path="/actions"
-          element={
-            <Placeholder
-              spec="Spec 035"
-              title="Action Queue"
-              blurb="The hero surface — next-best-actions with two-layer explainability and the tier-aware approval matrix (approve / modify / reject). Nothing auto-sends."
-            />
-          }
-        />
+        <Route path="/actions" element={<QueueList />} />
         <Route
           path="/constellation"
           element={
