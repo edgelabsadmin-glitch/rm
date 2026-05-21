@@ -52,10 +52,14 @@ function drawNode(n: ConstellationNode, ctx: CanvasRenderingContext2D, scale: nu
     ctx.fillText("⚡", x, y + 0.5); // ⚡
     return;
   }
-  // Managers/RMs/accounts: all brand purple (Amendment 5). Managers slightly deeper
-  // for a subtle tier read; never health-colored.
+  // Managers/RMs/accounts/talent: brand-purple ROUNDED SQUARES (Amendment 6 —
+  // resolves the clustered-circles trypophobia trigger + matches Pulse's tile/card
+  // vocabulary). Corner radius ≈ 25% of side. Managers slightly deeper for tier read.
+  const r = radius(n);
+  const side = r * 2;
+  const cr = side * 0.25;
   ctx.beginPath();
-  ctx.arc(x, y, radius(n), 0, 2 * Math.PI);
+  ctx.roundRect(x - r, y - r, side, side, cr);
   ctx.fillStyle = n.type === "manager" ? BRAND_DEEP : BRAND;
   ctx.fill();
   // Labels for managers/RMs only above a zoom threshold (LOD — keeps the galaxy calm).
@@ -93,7 +97,12 @@ export function ForceGraph({ graph, width, height, onNodeClick, fgRef }: ForceGr
         const y = (n as { y?: number }).y ?? 0;
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(x, y, n.type === "globe" ? 16 : radius(n), 0, 2 * Math.PI);
+        if (n.type === "globe") {
+          ctx.arc(x, y, 16, 0, 2 * Math.PI);
+        } else {
+          const r = radius(n);
+          ctx.roundRect(x - r, y - r, r * 2, r * 2, r * 0.5);
+        }
         ctx.fill();
       }}
       linkColor={(l: ConstellationLink) => LINK_COLOR[l.state] ?? LINK_COLOR.inactive}

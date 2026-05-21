@@ -37,6 +37,16 @@ export function Constellation() {
     return () => ro.disconnect();
   }, []);
 
+  // Amendment 6 — slightly more spacing for breathing room (charge repulsion +
+  // link distance), enough to de-densify the cluster without breaking the galaxy.
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg?.d3Force) return;
+    fg.d3Force("charge")?.strength(-55);
+    fg.d3Force("link")?.distance(36);
+    fg.d3ReheatSimulation?.();
+  }, []);
+
   // FPS sampler (rolling 1s) + window export for the benchmark harness.
   useEffect(() => {
     window.__fg = fgRef.current;
