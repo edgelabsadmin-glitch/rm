@@ -20,6 +20,7 @@ function cssVar(name: string, fallback: string): string {
 const BRAND = cssVar("--color-brand-primary", "#6B46C1");
 const BRAND_DEEP = cssVar("--color-brand-primary-deep", "#4B2E91");
 const BRAND_GLOW = cssVar("--color-brand-primary-glow", "rgba(107,70,193,0.2)");
+const INK_SECONDARY = cssVar("--color-text-secondary", "rgb(100,116,139)");
 const LINK_COLOR: Record<string, string> = {
   active: cssVar("--color-link-active", BRAND),
   inactive: cssVar("--color-link-inactive", "rgba(148,163,184,0.35)"),
@@ -31,7 +32,7 @@ function radius(n: ConstellationNode): number {
   return Math.max(2, Math.sqrt(n.size) * 1.6);
 }
 
-function drawNode(n: ConstellationNode, ctx: CanvasRenderingContext2D, scale: number) {
+function drawNode(n: ConstellationNode, ctx: CanvasRenderingContext2D) {
   const x = (n as { x?: number }).x ?? 0;
   const y = (n as { y?: number }).y ?? 0;
   if (n.type === "globe") {
@@ -58,16 +59,26 @@ function drawNode(n: ConstellationNode, ctx: CanvasRenderingContext2D, scale: nu
   const r = radius(n);
   const side = r * 2;
   const cr = side * 0.25;
+  // Step-5: Active talent get a subtle brand-purple glow (all demo talent are Active;
+  // terminated → greyed, no glow, v1.5+ #29). Glow via canvas shadow before the fill.
+  if (n.type === "talent") {
+    ctx.save();
+    ctx.shadowColor = BRAND;
+    ctx.shadowBlur = 6;
+  }
   ctx.beginPath();
   ctx.roundRect(x - r, y - r, side, side, cr);
   ctx.fillStyle = n.type === "manager" ? BRAND_DEEP : BRAND;
   ctx.fill();
-  // Labels for managers/RMs only above a zoom threshold (LOD — keeps the galaxy calm).
-  if ((n.type === "manager" || n.type === "rm") && scale > 1.5) {
-    ctx.fillStyle = BRAND_DEEP;
+  if (n.type === "talent") ctx.restore();
+  // Step-7 labels: managers + RMs always show their name BELOW the node (small,
+  // ink-secondary). Accounts/talent use the hover pill (nodeLabel); globe has none.
+  if (n.type === "manager" || n.type === "rm") {
+    ctx.fillStyle = INK_SECONDARY;
     ctx.font = "4px Inter, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(n.label, x, y - radius(n) - 2);
+    ctx.textBaseline = "top";
+    ctx.fillText(n.label, x, y + r + 2);
   }
 }
 
@@ -96,10 +107,8 @@ export function ForceGraph({
       height={height}
       graphData={graph}
       nodeId="id"
-      nodeLabel={(n: ConstellationNode) => n.label}
-      nodeCanvasObject={(n: ConstellationNode, ctx: CanvasRenderingContext2D, scale: number) =>
-        drawNode(n, ctx, scale)
-      }
+      nodeLabel={(n: ConstellationNode) => (n.type === "globe" ? "" : n.label)}
+      nodeCanvasObject={(n: ConstellationNode, ctx: CanvasRenderingContext2D) => drawNode(n, ctx)}
       nodePointerAreaPaint={(n: ConstellationNode, color: string, ctx: CanvasRenderingContext2D) => {
         const x = (n as { x?: number }).x ?? 0;
         const y = (n as { y?: number }).y ?? 0;
