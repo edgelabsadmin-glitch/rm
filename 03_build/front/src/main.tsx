@@ -11,6 +11,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "@/App";
 import { PulseStateProvider } from "@/components/PulseStateProvider";
 import { queryClient } from "@/lib/queryClient";
+import { SelectedAccountProvider } from "@/session/SelectedAccountProvider";
 import { SessionContext, STUB_SESSION } from "@/session/useSession";
 import "@/index.css";
 
@@ -18,11 +19,13 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <SessionContext.Provider value={STUB_SESSION}>
-        <PulseStateProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </PulseStateProvider>
+        <SelectedAccountProvider>
+          <PulseStateProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </PulseStateProvider>
+        </SelectedAccountProvider>
       </SessionContext.Provider>
     </QueryClientProvider>
   </StrictMode>,

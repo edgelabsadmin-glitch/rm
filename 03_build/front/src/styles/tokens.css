@@ -38,6 +38,7 @@
   --color-text-on-brand-faint:  rgba(255, 255, 255, 0.65);
   --color-text-on-brand-strip:  rgba(255, 255, 255, 0.80);
   --color-text-quote:           rgb(51, 65, 85);          /* slate-700 — §10 inline <quote> voice (not in §2 palette; added to realize §10) */
+  --color-ring-track:           rgba(255, 255, 255, 0.18); /* §8.8 conic health-ring unfilled arc (translucent white over the purple hero) */
 
   /* ─── Borders (§2) ────────────────────────────────────────────── */
   --color-border-subtle:        rgb(241, 245, 249);

@@ -65,6 +65,10 @@ const config: Config = {
         sans: ["Inter Variable", "Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
         mono: ["JetBrains Mono", "SF Mono", "Menlo", "Monaco", "monospace"],
       },
+      fontSize: {
+        // Tier-0 §3 "Eyebrow-tiny" (the "HEALTH" label inside the conic ring).
+        "2xs": ["0.625rem", { lineHeight: "1" }],
+      },
       borderRadius: {
         "2.5xl": "1.25rem",
         "4xl": "2rem", // hero card + outer shell (rounded-[2rem])
