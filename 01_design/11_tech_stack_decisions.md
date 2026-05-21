@@ -16,7 +16,7 @@ Decisions already locked in PM_CONTEXT §8 are not re-litigated; they're referen
 
 ## ADR-001 — Workflow engine: Activepieces (recommend) vs. self-hosted n8n
 
-**Status:** PM recommendation; user-decisive call pending.
+**Status:** ⚠️ **SUPERSEDED — resolved to Activepieces (Session 11).** The user-decisive call landed on **Activepieces**, not n8n; the deployment topology Phase 4 builds against is documented in `02_planning/architecture_decisions/ADR-002-workflow-engine.md`. The original comparison + n8n rationale below are preserved for decision history only — they do **not** describe the current stack. (Reasons for the flip to Activepieces: MIT license vs n8n's Sustainable-Use-License org-review friction; cleaner flow editor non-engineers can read; user's Docker/Vercel/GitHub-Actions deployment familiarity maps onto Activepieces without n8n's queue-mode+Redis production quirks. See planning ADR-002 §"Why Activepieces.")
 
 **Context.** PM_CONTEXT Decision 9 deferred this. Both candidates run on $5–10/month VPS, both are open-source-friendly, both have visual editors that the maintenance-friendliness rule (§6 rule 19) requires. The choice is between equally-viable options.
 
@@ -32,9 +32,9 @@ Decisions already locked in PM_CONTEXT §8 are not re-litigated; they're referen
 | Deployment maturity | Earlier-stage product (active 2024+) | Mature; widely deployed |
 | EDGE familiarity | None | Some (mentioned across PM-CONTEXT) |
 
-**Decision.** **Self-hosted n8n** for Phase 1.
+**Decision (SUPERSEDED — see Status above).** ~~Self-hosted n8n~~ → **Activepieces** for Phase 1 (resolved Session 11; planning ADR-002). The n8n rationale below is retained as decision history.
 
-**Rationale.**
+**Rationale (historical — argued for the n8n option that was NOT taken).**
 - **Maturity premium.** n8n has run in production at scale for years; Activepieces is younger. Phase 1 demo deadline (4 weeks) discourages picking the less-battle-tested option.
 - **Community + integration breadth.** When the Phase 2+ Zoom / Slack / Jira adapters land, n8n almost certainly has prebuilt connectors; Activepieces may not.
 - **License acceptable for EDGE-internal.** n8n's Sustainable Use License permits internal use without compensation; the AGPL-tolerant posture (§6 rule 18) already accepted similar terms.
@@ -203,7 +203,7 @@ Decisions already locked in PM_CONTEXT §8 are not re-litigated; they're referen
 
 **Phase 1 stack on the VPS:**
 - One Docker container: Pulse API + LangGraph + Graphiti + dispatch handlers (Python).
-- One Docker container: n8n.
+- One Docker container: Activepieces (ADR-001 superseded → ADR-002; deployed to Fly.io in Phase 4, not the VPS).
 - docker-compose for orchestration (Q101).
 - nginx as reverse proxy + Let's Encrypt for TLS.
 
@@ -221,7 +221,7 @@ Decisions already locked in PM_CONTEXT §8 are not re-litigated; they're referen
 | Agent runtime | LangGraph (Python) |
 | Memory layer | Graphiti × Kuzu (embedded) |
 | Relational store | Postgres (Supabase free tier) |
-| Workflow engine | self-hosted n8n |
+| Workflow engine | Activepieces (ADR-001 superseded → planning ADR-002) |
 | Primary LLM | Anthropic Claude (Haiku + Sonnet/Opus two-tier) |
 | Embedder | OpenAI text-embedding-3-small |
 | Auth | OAuth via Google Workspace (Supabase Auth) |
@@ -240,7 +240,7 @@ ADRs are not directly mapped to §13 rows — they implement the picks that the 
 
 ## Open questions
 
-- **Q105** — n8n vs. Activepieces final call. PM recommends n8n; user-decisive.
+- **Q105** — n8n vs. Activepieces final call. **RESOLVED Session 11: Activepieces** (planning ADR-002).
 - **Q106** — Supabase vs. Neon final call. PM recommends Supabase (auth bundled).
 - **Q107** — Hetzner vs. DigitalOcean. PM proposes: Hetzner (cheaper); user-decisive.
 - **Q108** — Static site host: Vercel vs. Cloudflare Pages vs. Netlify. PM proposes: Vercel (familiar, generous free tier).
