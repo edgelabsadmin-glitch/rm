@@ -9,6 +9,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { CeoView } from "@/features/ceo/CeoView";
+import { Constellation } from "@/features/constellation/Constellation";
 import { QueueList } from "@/features/queue/QueueList";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
@@ -30,16 +31,7 @@ export default function App() {
           }
         />
         <Route path="/actions" element={<QueueList />} />
-        <Route
-          path="/constellation"
-          element={
-            <Placeholder
-              spec="Spec 041"
-              title="Constellation"
-              blurb="Force-directed map of the whole book of business — nodes sized by placements, colored by health, click-through to the account view."
-            />
-          }
-        />
+        <Route path="/constellation" element={<Constellation />} />
         <Route path="/ceo" element={<CeoView />} />
         <Route
           path="/submit"
