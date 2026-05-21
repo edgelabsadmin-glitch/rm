@@ -15,8 +15,13 @@ import {
   composeCapacityImbalance,
   type CapacityImbalanceCard,
 } from "./composers/rm_capacity_composer";
+import {
+  composeEscalationTierJumps,
+  type EscalationTierJumpCard,
+} from "./composers/escalation_tier_jump_composer";
 import { clusterCentroid, DEMO_PATTERNS, type PatternCard } from "./demo_patterns";
 import { ClusterPatternOverlay } from "./overlays/ClusterPatternOverlay";
+import { EscalationTierJumpOverlay } from "./overlays/EscalationTierJumpOverlay";
 import { RmCapacityImbalanceOverlay } from "./overlays/RmCapacityImbalanceOverlay";
 import {
   buildConstellationGraph,
@@ -28,6 +33,8 @@ import {
 const BASE = buildConstellationGraph();
 // Composer output is pure + deterministic over the canonical fixture — compute once.
 const CAPACITY_CARDS = composeCapacityImbalance();
+// Tier-jump cards evaluated at module load (current time vs the event's 48h window).
+const ESCALATION_CARDS = composeEscalationTierJumps();
 
 declare global {
   interface Window {
@@ -52,6 +59,9 @@ export function Constellation() {
   const [overlays, setOverlays] = useState<{ pattern: PatternCard; x: number; y: number }[]>([]);
   const [capacityOverlays, setCapacityOverlays] = useState<
     { card: CapacityImbalanceCard; x: number; y: number }[]
+  >([]);
+  const [escalationOverlays, setEscalationOverlays] = useState<
+    { card: EscalationTierJumpCard; x: number; y: number }[]
   >([]);
 
   // Compose the rendered graph = base + (talent for the expanded account).
@@ -153,6 +163,24 @@ export function Constellation() {
       }
       return cap;
     });
+
+    // Step-7: escalation tier-jump overlays, anchored directly at the affected account node.
+    const esc: { card: EscalationTierJumpCard; x: number; y: number }[] = [];
+    for (const card of ESCALATION_CARDS) {
+      const c = clusterCentroid([card.accountId], graph.nodes);
+      if (!c) continue;
+      const s = fg.graph2ScreenCoords(c.x, c.y);
+      esc.push({ card, x: s.x, y: s.y });
+    }
+    setEscalationOverlays((prev) => {
+      if (
+        prev.length === esc.length &&
+        prev.every((p, i) => Math.abs(p.x - esc[i].x) < 0.5 && Math.abs(p.y - esc[i].y) < 0.5)
+      ) {
+        return prev;
+      }
+      return esc;
+    });
   }, [graph]);
 
   function handleInvestigate(pattern: PatternCard) {
@@ -161,6 +189,10 @@ export function Constellation() {
 
   function handleInvestigateCapacity(card: CapacityImbalanceCard) {
     navigate(`/actions?rm=${encodeURIComponent(card.topLoadedRmId)}`);
+  }
+
+  function handleInvestigateEscalation(card: EscalationTierJumpCard) {
+    navigate(`/accounts/${encodeURIComponent(card.accountId)}`);
   }
 
   function handleNodeClick(n: ConstellationNode, event: MouseEvent) {
@@ -230,6 +262,17 @@ export function Constellation() {
           x={x}
           y={y}
           onInvestigate={handleInvestigateCapacity}
+        />
+      ))}
+
+      {/* Step-7: escalation tier-jump overlays. */}
+      {escalationOverlays.map(({ card, x, y }) => (
+        <EscalationTierJumpOverlay
+          key={card.id}
+          card={card}
+          x={x}
+          y={y}
+          onInvestigate={handleInvestigateEscalation}
         />
       ))}
     </div>

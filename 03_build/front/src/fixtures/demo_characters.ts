@@ -39,6 +39,8 @@ export type DemoAccount = {
   healthState: "healthy" | "at-risk" | "churn-signal";
 };
 export type DemoTalent = { id: string; name: string; accountId: string; stage: "Active" };
+/** Account id (string). Alias so consumers can name the intent (e.g. tier-jump events). */
+export type DemoAccountId = DemoAccount["id"];
 
 export const DEMO_MANAGERS: ReadonlyArray<DemoManager> = [
   { id: "sarah-hooper", name: "Sarah Hooper" },
