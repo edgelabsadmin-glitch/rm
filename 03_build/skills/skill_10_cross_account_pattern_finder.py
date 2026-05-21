@@ -36,10 +36,17 @@ async def run(ctx: SkillContext) -> list[SuggestedAction]:
     if len(customers) < min_support:
         return []  # not a pattern (Skill 10 makes this call, not the retriever)
 
+    # SPEC-041: the Constellation cluster-pattern overlay anchors this card in an
+    # RM's orbital region, so it needs the supporting account ids (additive). RM
+    # grouping is derived downstream by the overlay composer (account_id →
+    # Account.OwnerId); owning_rm_id is an optional pass-through (a cross-account
+    # pattern can span several RMs, so it has no single owner here).
     body = {
         "theme": theme,
         "headline": f"'{theme}' surfaced across {len(customers)} customers in the window.",
         "customers": customers,
+        "support_account_ids": sorted({m.customer_id for m in matches if m.customer_id}),
+        "owning_rm_id": ctx.facts.get("owning_rm_id"),
         "match_count": len(matches),
         "examples": [{"customer": m.customer_name, "quote": m.quote[:200]} for m in matches[:5]],
     }

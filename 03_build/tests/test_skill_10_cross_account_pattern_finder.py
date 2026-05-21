@@ -25,9 +25,9 @@ def _mock(monkeypatch):
     return fake_find, fake_submit
 
 
-def _match(name):
+def _match(name, customer_id=None):
     return CrossAccountMatch(
-        customer_id=name, customer_name=name, episode_id="e", quote="q", date=None
+        customer_id=customer_id or name, customer_name=name, episode_id="e", quote="q", date=None
     )
 
 
@@ -38,6 +38,32 @@ async def test_surfaces_when_min_support_met(_mock):
     actions = await skill.run(ctx)
     assert actions[0].action_type == "pattern-surface"
     assert len(actions[0].body["customers"]) == 3
+
+
+async def test_pattern_card_carries_support_account_ids(_mock):
+    # SPEC-041: the Constellation cluster-pattern overlay needs the supporting
+    # account ids (deduped + sorted) to anchor in an RM's orbital region.
+    fake_find, _ = _mock
+    fake_find.matches = [
+        _match("Acrisure", customer_id="001A"),
+        _match("Mendota", customer_id="001M"),
+        _match("DHR", customer_id="001D"),
+        _match("Acrisure", customer_id="001A"),  # duplicate supporting episode
+    ]
+    body = (await skill.run(SkillContext(facts={"theme": "vendor consolidation"})))[0].body
+    assert body["support_account_ids"] == ["001A", "001D", "001M"]
+    assert body["owning_rm_id"] is None  # optional pass-through, absent by default
+
+
+async def test_owning_rm_id_passthrough(_mock):
+    fake_find, _ = _mock
+    fake_find.matches = [_match("Acrisure"), _match("Mendota"), _match("DHR")]
+    body = (
+        await skill.run(
+            SkillContext(facts={"theme": "vendor consolidation", "owning_rm_id": "rm-7"})
+        )
+    )[0].body
+    assert body["owning_rm_id"] == "rm-7"
 
 
 async def test_no_pattern_below_min_support(_mock):
