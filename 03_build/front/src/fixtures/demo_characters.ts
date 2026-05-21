@@ -34,7 +34,7 @@ export type DemoRM = { id: string; name: string; managerId: string };
 export type DemoAccount = {
   id: string;
   name: string;
-  tier: "SMB" | "Mid" | "Enterprise";
+  tier: "Core" | "Growth" | "Strategic"; // EDGE white-label segments (was SMB/Mid/Enterprise)
   rmId: string;
   healthState: "healthy" | "at-risk" | "churn-signal";
 };
@@ -55,24 +55,24 @@ export const DEMO_RMS: ReadonlyArray<DemoRM> = [
 ];
 
 export const DEMO_ACCOUNTS: ReadonlyArray<DemoAccount> = [
-  // Enterprise
-  { id: "dhr-health-clinics", name: "DHR Health Clinics", tier: "Enterprise", rmId: "sidra-zia", healthState: "churn-signal" },
-  { id: "remindermedia", name: "ReminderMedia", tier: "Enterprise", rmId: "ameer-ali", healthState: "healthy" },
-  { id: "dhr-health-hospital", name: "DHR Health Hospital", tier: "Enterprise", rmId: "sidra-zia", healthState: "healthy" },
-  // Mid-Market
-  { id: "mendota-insurance", name: "Mendota Insurance", tier: "Mid", rmId: "sajjal-shaheedi", healthState: "at-risk" },
-  { id: "bayhealth", name: "Bayhealth, Inc", tier: "Mid", rmId: "ameer-ali", healthState: "healthy" },
-  { id: "denver-wellness", name: "Denver Wellness Associates", tier: "Mid", rmId: "ameer-ali", healthState: "churn-signal" },
-  { id: "dr-dental", name: "Dr. Dental", tier: "Mid", rmId: "ameer-ali", healthState: "healthy" },
-  { id: "green-security", name: "Green Security LLC", tier: "Mid", rmId: "ameer-ali", healthState: "healthy" },
-  { id: "palm-primary-care", name: "Palm Primary Care Texas", tier: "Mid", rmId: "sidra-zia", healthState: "healthy" },
-  // SMB
-  { id: "navaderm", name: "NAVADERM", tier: "SMB", rmId: "mubeen-sohail", healthState: "healthy" },
-  { id: "dmv-allergy-asthma", name: "DMV Allergy & Asthma", tier: "SMB", rmId: "sajjal-shaheedi", healthState: "healthy" },
-  { id: "vegas-vascular", name: "Vegas Vascular Specialists", tier: "SMB", rmId: "akash-tahir", healthState: "healthy" },
-  { id: "manhattan-restorative", name: "Manhattan Restorative Health Sciences", tier: "SMB", rmId: "yozeline-candia", healthState: "churn-signal" },
+  // Strategic (was Enterprise)
+  { id: "dhr-health-clinics", name: "DHR Health Clinics", tier: "Strategic", rmId: "sidra-zia", healthState: "churn-signal" },
+  { id: "remindermedia", name: "ReminderMedia", tier: "Strategic", rmId: "ameer-ali", healthState: "healthy" },
+  { id: "dhr-health-hospital", name: "DHR Health Hospital", tier: "Strategic", rmId: "sidra-zia", healthState: "healthy" },
+  // Growth (was Mid-Market)
+  { id: "mendota-insurance", name: "Mendota Insurance", tier: "Growth", rmId: "sajjal-shaheedi", healthState: "at-risk" },
+  { id: "bayhealth", name: "Bayhealth, Inc", tier: "Growth", rmId: "ameer-ali", healthState: "healthy" },
+  { id: "denver-wellness", name: "Denver Wellness Associates", tier: "Growth", rmId: "ameer-ali", healthState: "churn-signal" },
+  { id: "dr-dental", name: "Dr. Dental", tier: "Growth", rmId: "ameer-ali", healthState: "healthy" },
+  { id: "green-security", name: "Green Security LLC", tier: "Growth", rmId: "ameer-ali", healthState: "healthy" },
+  { id: "palm-primary-care", name: "Palm Primary Care Texas", tier: "Growth", rmId: "sidra-zia", healthState: "healthy" },
+  // Core (was SMB)
+  { id: "navaderm", name: "NAVADERM", tier: "Core", rmId: "mubeen-sohail", healthState: "healthy" },
+  { id: "dmv-allergy-asthma", name: "DMV Allergy & Asthma", tier: "Core", rmId: "sajjal-shaheedi", healthState: "healthy" },
+  { id: "vegas-vascular", name: "Vegas Vascular Specialists", tier: "Core", rmId: "akash-tahir", healthState: "healthy" },
+  { id: "manhattan-restorative", name: "Manhattan Restorative Health Sciences", tier: "Core", rmId: "yozeline-candia", healthState: "churn-signal" },
   // Tertiary (storyboard anchor; SFDC Account.Name "Cirventis", alias HelixVM)
-  { id: "cirventis", name: "Cirventis", tier: "Mid", rmId: "sajjal-shaheedi", healthState: "at-risk" },
+  { id: "cirventis", name: "Cirventis", tier: "Growth", rmId: "sajjal-shaheedi", healthState: "at-risk" },
 ];
 
 // Real Active talent, deduped to current placement (ruling #1) — names from the

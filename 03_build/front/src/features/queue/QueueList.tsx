@@ -28,7 +28,13 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "dispatched", label: "Dispatched" },
 ];
 const PENDING_VIEWS: View[] = ["mine", "overall"];
-const TIERS = ["SMB", "Mid-Market", "Enterprise"] as const;
+// EDGE white-label segment names (display) → spec-031 policy tier_class keys (API).
+// The display sweep does NOT touch Design-04 policy keys (per ruling: out of scope).
+const TIERS: { label: string; key: string }[] = [
+  { label: "Core", key: "SMB" },
+  { label: "Growth", key: "Mid-Market" },
+  { label: "Strategic", key: "Enterprise" },
+];
 
 function Chip({
   active,
@@ -119,8 +125,12 @@ export function QueueList() {
           <>
             <span className="mx-1 h-4 w-px bg-line-strong" />
             {TIERS.map((t) => (
-              <Chip key={t} active={tier === t} onClick={() => setTier(tier === t ? null : t)}>
-                {t}
+              <Chip
+                key={t.key}
+                active={tier === t.key}
+                onClick={() => setTier(tier === t.key ? null : t.key)}
+              >
+                {t.label}
               </Chip>
             ))}
           </>
