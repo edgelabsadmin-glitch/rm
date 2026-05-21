@@ -13,9 +13,9 @@ A dedicated `/constellation` nav surface: a **galactic map of the whole book of 
 **Visual vision (Session-18 lock):**
 - **Center:** the EDGE Pulse **globe** — a custom-rendered node, the brand-mark `Zap` glyph on a solid `bg-brand` disc with a `--color-brand-primary-glow` halo (the §6 tinted-shadow signature), pinned at graph center (`fx/fy = 0`). The gravitational anchor. (A true 3D globe is v1.5+.)
 - **Orbital hierarchy:** RM Managers (innermost orbit) → individual RMs (mid) → customer accounts (outermost, densest). Enforced via a per-tier **radial force** (`d3Force('radial', forceRadial(r_tier))`) + link forces — descendants trail their parent through physics, not bespoke transforms (disposition D11).
-- **Link saturation = signal state** (disposition D2 tokens): active customer engagement → `--color-link-active` (saturated brand purple); inactive / no recent signal → `--color-link-inactive` (dimmed slate); silent-churn-signal detected → `--color-link-churn` (reddish, reuses risk-high).
+- **Link saturation = signal state** (disposition D2 tokens): active customer engagement → `--color-link-active` (saturated brand purple); inactive / no recent signal → `--color-link-inactive` (dimmed slate); silent-churn-signal detected → `--color-link-churn` (reddish, reuses risk-high). **Churn links get animated emphasis** (pulse / glow / animated flow) — red is reserved for the genuinely urgent state (a connection failing) and earns attention through motion, not by tinting nodes.
 - **Force dynamics:** active accounts gain mass and pull outward; dormant accounts drift to the periphery.
-- **Node color** = composite health tier (Tier-0 risk colors); **node size** reflects activity/placement.
+- **Node color = brand purple across all health tiers** (Amendment 5) — the galaxy stays brand-cohesive at rest; scattered risk-colored nodes broke cohesion and fought the link encoding. **Node size = composite health × activity** (healthier + more active = larger; at-risk + dormant = smaller) — a single dimension encoding *both* health and activity. Health is NOT encoded as node color; the urgent signal lives on the links (churn-state, animated).
 - **Talent (option c):** hidden by default; on **account click**, talent appears as small nodes **orbiting that account** (inline orbital expansion; added to the graph data, removed on collapse). Side-panel list is the documented perf fallback (disposition D10). Keeps the galactic view clean per §22 opt-in depth.
 
 **Agentic overlay layer (3 types; the v1.5+→Phase-1 reversal, disposition 1f).** Overlays are HTML elements positioned over the canvas via `graph2ScreenCoords`, not graph nodes:
@@ -55,7 +55,8 @@ A dedicated `/constellation` nav surface: a **galactic map of the whole book of 
 ## Definition of Done
 
 - [ ] Center globe + 3-tier orbital hierarchy render via radial force; managers inner → RMs mid → accounts outer.
-- [ ] Link state colors per the 3 link-state tokens; node color = health tier, size = activity.
+- [ ] Nodes render **brand-purple across all tiers**; **node size = composite-health × activity** (Amendment 5). Health is NOT a node color.
+- [ ] Link state colors per the 3 link-state tokens; **churn links carry animated emphasis** (pulse/glow/flow) — red reserved for the failing connection, not for nodes.
 - [ ] Account click → sets `selectedAccountId` (spec-036 context) + navigates to the per-account view; full click→destination matrix per audit Dim 9.
 - [ ] Talent inline orbital expansion on account click (or side-panel fallback if perf gate requires).
 - [ ] All 3 overlays render + route correctly (cluster→pattern card; capacity→reassignment draft; escalation→email draft).
