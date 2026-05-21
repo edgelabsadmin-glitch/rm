@@ -10,7 +10,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
-import { DEMO_ACCOUNTS, type DemoAccountId } from "@/fixtures/demo_characters";
+import {
+  DEMO_ACCOUNTS,
+  DEMO_RMS,
+  DEMO_TALENT,
+  type DemoAccountId,
+} from "@/fixtures/demo_characters";
 import {
   composeCapacityImbalance,
   type CapacityImbalanceCard,
@@ -267,11 +272,16 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
 
   return (
     <div className="relative h-[calc(100vh-160px)] w-full" ref={boxRef}>
-      <div className="absolute left-4 top-4 z-10 rounded-2xl border border-line-strong bg-surface-card/90 px-3 py-2 text-xs text-ink-secondary">
-        <span className="font-mono text-ink-primary">{graph.nodes.length}</span> nodes ·{" "}
-        <span className="font-mono text-ink-primary">{fps}</span> fps
-        {expanded && <span className="ml-1 text-brand">· talent shown</span>}
-      </div>
+      {/* Polish #27: dev mode shows perf instrumentation; production shows live counts. */}
+      {import.meta.env.DEV ? (
+        <DevPerfChip nodes={graph.nodes.length} fps={fps} expanded={!!expanded} />
+      ) : (
+        <ProductionCountsChip
+          accountCount={DEMO_ACCOUNTS.length}
+          talentCount={DEMO_TALENT.filter((t) => t.stage === "Active").length}
+          rmCount={DEMO_RMS.length}
+        />
+      )}
       <ForceGraph
         fgRef={fgRef}
         graph={graph}
@@ -315,6 +325,39 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
           onInvestigate={handleInvestigateEscalation}
         />
       ))}
+    </div>
+  );
+}
+
+const CHIP_CLASS =
+  "absolute left-4 top-4 z-10 rounded-md border border-line-strong bg-surface-card/90 px-3 py-2 text-[11px] tracking-wider text-ink-secondary";
+
+/** Dev-only perf instrumentation (node count + FPS). */
+function DevPerfChip({ nodes, fps, expanded }: { nodes: number; fps: number; expanded: boolean }) {
+  return (
+    <div className={CHIP_CLASS}>
+      <span className="font-mono text-ink-primary">{nodes}</span> nodes ·{" "}
+      <span className="font-mono text-ink-primary">{fps}</span> fps
+      {expanded && <span className="ml-1 text-brand">· talent shown</span>}
+    </div>
+  );
+}
+
+/** Production chip — live book counts (all derived from demo_characters.ts). */
+function ProductionCountsChip({
+  accountCount,
+  talentCount,
+  rmCount,
+}: {
+  accountCount: number;
+  talentCount: number;
+  rmCount: number;
+}) {
+  return (
+    <div className={CHIP_CLASS}>
+      <span className="font-mono text-ink-primary">{accountCount}</span> accounts ·{" "}
+      <span className="font-mono text-ink-primary">{talentCount}</span> active talent ·{" "}
+      <span className="font-mono text-ink-primary">{rmCount}</span> RMs
     </div>
   );
 }
