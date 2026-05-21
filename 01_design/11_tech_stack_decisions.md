@@ -146,7 +146,7 @@ Decisions already locked in PM_CONTEXT §8 are not re-litigated; they're referen
 
 **Consequences.**
 - Front-end deploys to Vercel free tier.
-- Component library: build small in-house (no MUI/Antd; the design language is too specific).
+- **Component library: shadcn/ui as substrate, not a runtime dependency** (per Tier-0 §12). shadcn components are *copied into the repo* (we own the source), so this is still "in-house" code — but we do not hand-roll generic primitives (button, card, dialog, dropdown, input, select, badge) from scratch. We take shadcn's accessible, unstyled primitives and **re-token them** to the Tier-0 design language (§2 tokens; never the default shadcn look — §12 #1). No runtime component framework (no MUI/Antd/Chakra; the design language is too specific and those carry opinionated styling we'd fight). Brand-signature components (HealthRing, PulseBar, HeroCard, QueueCard, etc.) are fully custom — see Tier-0 §8 and `03_build/front/src/components/README.md` (spec 034 deliverable) for the substrate-vs-custom boundary.
 
 **Reversibility horizon.** Reversible to Next.js or Astro if SSR is needed. Phase 1 is fully client-side fetching + auth.
 
