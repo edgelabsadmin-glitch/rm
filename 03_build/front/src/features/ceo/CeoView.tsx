@@ -34,7 +34,7 @@ export function CeoView() {
     <FadeLift motionKey={w.week_of}>
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         {/* Header band — the purple hero (Tier-0 §8.7 treatment; tinted shadow). */}
-        <div className="rounded-4xl bg-brand p-6 text-ink-on-brand shadow-xl-brand">
+        <div className="surface-brand rounded-4xl bg-brand p-6 text-ink-on-brand shadow-xl-brand">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-sm text-ink-on-brand-strip">

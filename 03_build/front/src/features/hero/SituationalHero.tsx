@@ -20,7 +20,7 @@ export function SituationalHero() {
 
   return (
     <FadeLift motionKey={account.account_id}>
-      <div className="rounded-4xl bg-brand p-6 text-ink-on-brand shadow-xl-brand">
+      <div className="surface-brand rounded-4xl bg-brand p-6 text-ink-on-brand shadow-xl-brand">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm text-ink-on-brand-strip">

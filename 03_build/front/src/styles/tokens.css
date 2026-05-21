@@ -76,6 +76,18 @@
 }
 
 /*
+ * SPEC-035 — inline-tag surface-aware contrast. On a saturated brand-purple surface
+ * (`.surface-brand`, e.g. the CEO View hero band + the situational Hero card), the
+ * default inline-tag colors fail WCAG (rose-700 <bad> on dark purple, slate-950
+ * <num>/<em>). Lighten them while keeping the semantic meaning. Scoped to descendants
+ * of .surface-brand, so white-surface cards keep the defaults.
+ */
+.surface-brand .text-risk-high-fg { color: rgb(252, 165, 165); }   /* <bad> → rose-300 */
+.surface-brand .text-risk-low-fg  { color: rgb(110, 231, 183); }   /* <good> → emerald-300 */
+.surface-brand .text-ink-primary  { color: var(--color-text-on-brand); }       /* <num>/<em> → white */
+.surface-brand .text-ink-quote    { color: var(--color-text-on-brand-soft); }  /* <quote> → white/85 */
+
+/*
  * ─── Pulse Bar (Breathing) — §8.14 LOCKED Session 10 ──────────────
  * CSS-keyframes only (NOT framer-motion, per pre-034 audit disposition).
  * Canonical render: 01_design/agent_presence_variants/04_pulse_bar_breathing.html
