@@ -1,6 +1,6 @@
 /*
  * SPEC-041 Step-4 — Constellation interaction + talent drill-down.
- * Click→destination matrix (spec §51 + amendments): globe→/ceo; manager single→
+ * Click→destination matrix (spec §51 + amendments): globe→/executive; manager single→
  * zoom-to-cluster, modifier→/actions?manager=; RM→/actions?rm=; account single→
  * inline orbital talent drill-down, modifier→per-account view; empty space→collapse
  * talent. Talent capped at MAX_TALENT_PER_ACCOUNT (audit Dim 10); side-panel is the
@@ -100,7 +100,7 @@ export function Constellation() {
     const mod = event.metaKey || event.ctrlKey;
     switch (n.type) {
       case "globe":
-        navigate("/ceo");
+        navigate("/executive");
         break;
       case "manager":
         if (mod) navigate(`/actions?manager=${encodeURIComponent(n.id)}`);

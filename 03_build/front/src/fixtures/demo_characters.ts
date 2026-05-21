@@ -2,7 +2,7 @@
  * SPEC-041 — Demo character canonicalization: the SINGLE SOURCE OF TRUTH for the
  * demo's people + accounts. Operator-ratified (Session-19 rulings), sourced from
  * rm-intelligence-agent Phase-1 pipeline output (data/demo_curated_dataset.json +
- * the five .md files). Constellation, CEO View, per-account, and Action Queue
+ * the five .md files). Constellation, Executive View, per-account, and Action Queue
  * fixtures all consume from here. The fictional "Helix Labs" name is dropped entirely.
  *
  * healthState (locked ruling #4): Healthy→healthy; Neutral/50%→churn-signal;

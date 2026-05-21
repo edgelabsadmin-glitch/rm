@@ -1,5 +1,7 @@
 /*
- * SPEC-040 — CEO View, reframed to a three-column AGENTIC WORKSPACE per the
+ * SPEC-040 — Executive View (renamed from CEO View per operator Session 19; the
+ * recipients are CEO Iffi + VP-CS Eddy, so §6 #1 white-label + audience accuracy).
+ * A three-column AGENTIC WORKSPACE per the
  * Session-19 mockup (Design 08's "narrative not chart" lock superseded by §4.20:
  * every screen surfaces an agentic decision). Top row: Client Stickiness · Hero ·
  * Upsell Opportunities. Middle band: "What I'd ask of you" (Pulse-proposed asks
@@ -85,7 +87,7 @@ function StatCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function CeoView() {
+export function ExecutiveView() {
   return (
     <FadeLift motionKey={WEEK_OF}>
       <div className="mx-auto max-w-7xl space-y-5 p-6">

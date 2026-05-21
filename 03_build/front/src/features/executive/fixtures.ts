@@ -1,6 +1,6 @@
 /*
- * SPEC-040 — CEO View weekly fixture (pulse-api/composer not built; the LLM-driven
- * ceo_view_composer.py + email + static-HTML fallback land later — this spec renders
+ * SPEC-040 — Executive View weekly fixture (pulse-api/composer not built; the LLM-driven
+ * exec_view_composer.py + email + static-HTML fallback land later — this spec renders
  * the React surface against fixture data only).
  *
  * Voice (Design 08 §"Tone and voice spec"): "Pulse, on behalf of the book." Candid,
@@ -9,7 +9,7 @@
  * whitelist (Tier-0 §10) — rendered by the spec-035 renderer.
  *
  * API contract the composer WILL emit (Week-4 wiring; matches Design 08 §"Layout"):
- *   GET /ceo/weekly  →  CeoWeekly (this shape)
+ *   GET /executive/weekly  →  CeoWeekly (this shape)
  */
 export interface TalentPairing {
   talent: string;

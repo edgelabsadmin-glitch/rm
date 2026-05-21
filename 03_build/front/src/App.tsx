@@ -9,7 +9,7 @@ import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
-import { CeoView } from "@/features/ceo/CeoView";
+import { ExecutiveView } from "@/features/executive/ExecutiveView";
 import { QueueList } from "@/features/queue/QueueList";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
@@ -44,7 +44,7 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route path="/ceo" element={<CeoView />} />
+        <Route path="/executive" element={<ExecutiveView />} />
         <Route
           path="/submit"
           element={

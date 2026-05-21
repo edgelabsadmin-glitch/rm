@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CeoView } from "@/features/ceo/CeoView";
+import { ExecutiveView } from "@/features/executive/ExecutiveView";
 
-describe("CeoView (spec-040 three-column agentic workspace)", () => {
+describe("ExecutiveView (spec-040 three-column agentic workspace)", () => {
   it("renders the three top-row cards + asks band + numbers strip", () => {
-    render(<CeoView />);
+    render(<ExecutiveView />);
     expect(screen.getByText(/Client Stickiness/i)).toBeTruthy();
     expect(screen.getByText(/This week, with Pulse/i)).toBeTruthy();
     expect(screen.getByText(/Upsell Opportunities/i)).toBeTruthy();
@@ -13,19 +13,19 @@ describe("CeoView (spec-040 three-column agentic workspace)", () => {
   });
 
   it("shows the locked ARR figures via the revenue heuristic", () => {
-    render(<CeoView />);
+    render(<ExecutiveView />);
     expect(screen.getByText(/\$1\.52M ARR exposure/)).toBeTruthy(); // churn exposure
     expect(screen.getByText("$2.69M")).toBeTruthy(); // book ARR in the strip
   });
 
   it("has Approve + Edit on each of the 3 asks (stub handlers)", () => {
-    render(<CeoView />);
+    render(<ExecutiveView />);
     expect(screen.getAllByRole("button", { name: "Approve" })).toHaveLength(3);
     expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(3);
   });
 
   it("renders inline-tag prose as styled spans (not raw tags)", () => {
-    const { container } = render(<CeoView />);
+    const { container } = render(<ExecutiveView />);
     expect(container.querySelector("span.text-risk-high-fg")).toBeTruthy(); // <bad>
     expect(container.innerHTML).not.toContain("<bad>");
   });
