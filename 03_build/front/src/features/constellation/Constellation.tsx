@@ -11,13 +11,13 @@ import { useNavigate } from "react-router-dom";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
 import {
-  buildBenchmarkGraph,
+  buildConstellationGraph,
   buildTalentFor,
   type ConstellationGraph,
   type ConstellationNode,
 } from "./fixtures";
 
-const BASE = buildBenchmarkGraph();
+const BASE = buildConstellationGraph();
 
 declare global {
   interface Window {
