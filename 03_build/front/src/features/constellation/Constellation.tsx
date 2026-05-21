@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
-import { DEMO_PATTERNS, type DemoPattern } from "./demo_patterns";
+import { clusterCentroid, DEMO_PATTERNS, type PatternCard } from "./demo_patterns";
 import { ClusterPatternOverlay } from "./overlays/ClusterPatternOverlay";
 import {
   buildConstellationGraph,
@@ -41,7 +41,7 @@ export function Constellation() {
   const [expanded, setExpanded] = useState<string | null>(null); // account id with talent shown
   // Step-5: screen positions for the cluster-pattern overlays (centroid of each
   // pattern's support accounts, in screen px). Recomputed on engine tick + zoom/pan.
-  const [overlays, setOverlays] = useState<{ pattern: DemoPattern; x: number; y: number }[]>([]);
+  const [overlays, setOverlays] = useState<{ pattern: PatternCard; x: number; y: number }[]>([]);
 
   // Compose the rendered graph = base + (talent for the expanded account).
   const graph: ConstellationGraph = useMemo(() => {
@@ -107,15 +107,11 @@ export function Constellation() {
   const recomputeOverlays = useCallback(() => {
     const fg = fgRef.current;
     if (!fg?.graph2ScreenCoords) return;
-    const next: { pattern: DemoPattern; x: number; y: number }[] = [];
+    const next: { pattern: PatternCard; x: number; y: number }[] = [];
     for (const pattern of DEMO_PATTERNS) {
-      const pts = pattern.support_account_ids
-        .map((id) => graph.nodes.find((n) => n.id === id) as ConstellationNode | undefined)
-        .filter((n): n is ConstellationNode => !!n && n.x != null && n.y != null);
-      if (!pts.length) continue;
-      const cx = pts.reduce((s, n) => s + (n.x ?? 0), 0) / pts.length;
-      const cy = pts.reduce((s, n) => s + (n.y ?? 0), 0) / pts.length;
-      const s = fg.graph2ScreenCoords(cx, cy);
+      const c = clusterCentroid(pattern.support_account_ids, graph.nodes);
+      if (!c) continue;
+      const s = fg.graph2ScreenCoords(c.x, c.y);
       next.push({ pattern, x: s.x, y: s.y });
     }
     setOverlays((prev) => {
@@ -129,7 +125,7 @@ export function Constellation() {
     });
   }, [graph]);
 
-  function handleInvestigate(pattern: DemoPattern) {
+  function handleInvestigate(pattern: PatternCard) {
     navigate(`/actions?pattern=${encodeURIComponent(pattern.id)}`);
   }
 
