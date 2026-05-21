@@ -9,14 +9,14 @@
 
 :root {
   /* ─── Brand: Edge Purple (§2) ─────────────────────────────────── */
-  --color-brand-primary:        #6B46C1;
-  --color-brand-primary-hover:  #5B35B1;
-  --color-brand-primary-muted:  rgba(107, 70, 193, 0.10);
-  --color-brand-primary-ghost:  rgba(107, 70, 193, 0.07);
-  --color-brand-primary-soft:   rgba(107, 70, 193, 0.15);
-  --color-brand-primary-edge:   rgba(107, 70, 193, 0.25);
-  --color-brand-primary-glow:   rgba(107, 70, 193, 0.20);
-  --color-brand-primary-deep:   #4B2E91;
+  --color-brand-primary:        #4a0f70;  /* real Edge purple (rm-intelligence-agent ref + Session-19 mockup) */
+  --color-brand-primary-hover:  #3F0D5F;  /* darker shade of #4a0f70 */
+  --color-brand-primary-muted:  rgba(74, 15, 112, 0.10);
+  --color-brand-primary-ghost:  rgba(74, 15, 112, 0.07);
+  --color-brand-primary-soft:   rgba(74, 15, 112, 0.15);
+  --color-brand-primary-edge:   rgba(74, 15, 112, 0.25);
+  --color-brand-primary-glow:   rgba(74, 15, 112, 0.20);
+  --color-brand-primary-deep:   #350A50;  /* deepest — inner conic ring */
 
   /* ─── Surfaces (§2) ───────────────────────────────────────────── */
   --color-surface-page:         #FAFAFA;
@@ -60,10 +60,16 @@
   --color-stat-warning:         #BA7517;
   --color-stat-opportunity:     #639922;
 
+  /* ─── On-brand inline-tag variants — readable on saturated #4a0f70 (SPEC-035) ─ */
+  --color-risk-on-brand:        #F4C0D1;                  /* <bad> rose, readable on dark purple */
+  --color-good-on-brand:        #D8EFC4;                  /* <good> green, readable on dark purple */
+  --color-em-on-brand:          rgba(255, 255, 255, 0.85);/* <em>/<quote> italic emphasis */
+  --color-num-on-brand:         rgba(255, 255, 255, 0.95);/* <num> mono numerics */
+
   /* ─── Borders (§2) ────────────────────────────────────────────── */
   --color-border-subtle:        rgb(241, 245, 249);
   --color-border-strong:        rgb(226, 232, 240);
-  --color-border-brand:         rgba(107, 70, 193, 0.35);
+  --color-border-brand:         rgba(74, 15, 112, 0.35);
 
   /* ─── Tier risk colors (§2) ───────────────────────────────────── */
   --color-risk-high-bg:         rgb(255, 241, 242);
@@ -97,10 +103,10 @@
  * <num>/<em>). Lighten them while keeping the semantic meaning. Scoped to descendants
  * of .surface-brand, so white-surface cards keep the defaults.
  */
-.surface-brand .text-risk-high-fg { color: rgb(252, 165, 165); }   /* <bad> → rose-300 */
-.surface-brand .text-risk-low-fg  { color: rgb(110, 231, 183); }   /* <good> → emerald-300 */
-.surface-brand .text-ink-primary  { color: var(--color-text-on-brand); }       /* <num>/<em> → white */
-.surface-brand .text-ink-quote    { color: var(--color-text-on-brand-soft); }  /* <quote> → white/85 */
+.surface-brand .text-risk-high-fg { color: var(--color-risk-on-brand); }  /* <bad> */
+.surface-brand .text-risk-low-fg  { color: var(--color-good-on-brand); }  /* <good> */
+.surface-brand .font-mono         { color: var(--color-num-on-brand); }   /* <num> */
+.surface-brand .italic            { color: var(--color-em-on-brand); }    /* <em>/<quote> */
 
 /*
  * ─── Pulse Bar (Breathing) — §8.14 LOCKED Session 10 ──────────────

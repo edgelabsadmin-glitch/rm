@@ -76,7 +76,7 @@ const config: Config = {
       boxShadow: {
         // The Edge-Purple tinted shadow — RESTRICTED to hero card + brand-mark tile (§6).
         "xl-brand":
-          "0 20px 25px -5px rgba(107, 70, 193, 0.20), 0 8px 10px -6px rgba(107, 70, 193, 0.10)",
+          "0 20px 25px -5px rgba(74, 15, 112, 0.20), 0 8px 10px -6px rgba(74, 15, 112, 0.10)",
         "2xl-shell": "0 25px 50px -12px rgba(226, 232, 240, 0.70)",
       },
       transitionTimingFunction: {

@@ -17,9 +17,9 @@ function cssVar(name: string, fallback: string): string {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
 }
-const BRAND = cssVar("--color-brand-primary", "#6B46C1");
-const BRAND_DEEP = cssVar("--color-brand-primary-deep", "#4B2E91");
-const BRAND_GLOW = cssVar("--color-brand-primary-glow", "rgba(107,70,193,0.2)");
+const BRAND = cssVar("--color-brand-primary", "#4a0f70");
+const BRAND_DEEP = cssVar("--color-brand-primary-deep", "#350A50");
+const BRAND_GLOW = cssVar("--color-brand-primary-glow", "rgba(74,15,112,0.2)");
 const INK_SECONDARY = cssVar("--color-text-secondary", "rgb(100,116,139)");
 const LINK_COLOR: Record<string, string> = {
   active: cssVar("--color-link-active", BRAND),
