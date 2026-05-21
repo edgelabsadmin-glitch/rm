@@ -121,6 +121,10 @@ export interface ForceGraphProps {
   height: number;
   onNodeClick?: (n: ConstellationNode, event: MouseEvent) => void;
   onBackgroundClick?: () => void;
+  // Reposition hooks for HTML overlays (Step-5): engine tick while the sim settles,
+  // and zoom/pan transforms. Both trigger a graph2ScreenCoords recompute in the parent.
+  onEngineTick?: () => void;
+  onZoom?: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fgRef?: MutableRefObject<any>;
 }
@@ -131,6 +135,8 @@ export function ForceGraph({
   height,
   onNodeClick,
   onBackgroundClick,
+  onEngineTick,
+  onZoom,
   fgRef,
 }: ForceGraphProps) {
   return (
@@ -162,6 +168,8 @@ export function ForceGraph({
       linkDirectionalParticleWidth={2}
       linkDirectionalParticleColor={() => LINK_COLOR.churn}
       cooldownTicks={120}
+      onEngineTick={() => onEngineTick?.()}
+      onZoom={() => onZoom?.()}
       onNodeClick={(n: ConstellationNode, event: MouseEvent) => onNodeClick?.(n, event)}
       onBackgroundClick={() => onBackgroundClick?.()}
     />

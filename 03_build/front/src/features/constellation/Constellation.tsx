@@ -6,10 +6,12 @@
  * talent. Talent capped at MAX_TALENT_PER_ACCOUNT (audit Dim 10); side-panel is the
  * documented fallback (D10) if the orbital approach degrades at full density.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
+import { DEMO_PATTERNS, type DemoPattern } from "./demo_patterns";
+import { ClusterPatternOverlay } from "./overlays/ClusterPatternOverlay";
 import {
   buildConstellationGraph,
   buildTalentFor,
@@ -37,6 +39,9 @@ export function Constellation() {
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [fps, setFps] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null); // account id with talent shown
+  // Step-5: screen positions for the cluster-pattern overlays (centroid of each
+  // pattern's support accounts, in screen px). Recomputed on engine tick + zoom/pan.
+  const [overlays, setOverlays] = useState<{ pattern: DemoPattern; x: number; y: number }[]>([]);
 
   // Compose the rendered graph = base + (talent for the expanded account).
   const graph: ConstellationGraph = useMemo(() => {
@@ -96,6 +101,38 @@ export function Constellation() {
     return () => cancelAnimationFrame(raf);
   }, [graph]);
 
+  // Recompute each pattern overlay's screen position from the live centroid of its
+  // support-account nodes (node x/y are mutated in place by the sim). Cheap for the
+  // demo's single pattern; skips a state write when nothing moved meaningfully.
+  const recomputeOverlays = useCallback(() => {
+    const fg = fgRef.current;
+    if (!fg?.graph2ScreenCoords) return;
+    const next: { pattern: DemoPattern; x: number; y: number }[] = [];
+    for (const pattern of DEMO_PATTERNS) {
+      const pts = pattern.support_account_ids
+        .map((id) => graph.nodes.find((n) => n.id === id) as ConstellationNode | undefined)
+        .filter((n): n is ConstellationNode => !!n && n.x != null && n.y != null);
+      if (!pts.length) continue;
+      const cx = pts.reduce((s, n) => s + (n.x ?? 0), 0) / pts.length;
+      const cy = pts.reduce((s, n) => s + (n.y ?? 0), 0) / pts.length;
+      const s = fg.graph2ScreenCoords(cx, cy);
+      next.push({ pattern, x: s.x, y: s.y });
+    }
+    setOverlays((prev) => {
+      if (
+        prev.length === next.length &&
+        prev.every((p, i) => Math.abs(p.x - next[i].x) < 0.5 && Math.abs(p.y - next[i].y) < 0.5)
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [graph]);
+
+  function handleInvestigate(pattern: DemoPattern) {
+    navigate(`/actions?pattern=${encodeURIComponent(pattern.id)}`);
+  }
+
   function handleNodeClick(n: ConstellationNode, event: MouseEvent) {
     const mod = event.metaKey || event.ctrlKey;
     switch (n.type) {
@@ -140,7 +177,20 @@ export function Constellation() {
         height={size.h}
         onNodeClick={handleNodeClick}
         onBackgroundClick={() => setExpanded(null)}
+        onEngineTick={recomputeOverlays}
+        onZoom={recomputeOverlays}
       />
+
+      {/* Step-5: cluster-pattern alert overlays, positioned over the canvas. */}
+      {overlays.map(({ pattern, x, y }) => (
+        <ClusterPatternOverlay
+          key={pattern.id}
+          pattern={pattern}
+          x={x}
+          y={y}
+          onInvestigate={handleInvestigate}
+        />
+      ))}
     </div>
   );
 }
