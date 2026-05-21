@@ -25,7 +25,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.db import get_pool
 from core.events import log

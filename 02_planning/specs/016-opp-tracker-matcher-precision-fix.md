@@ -56,3 +56,24 @@ Three concrete code-level changes against opportunity-tracker per Spike 4 §2.4,
 - Not in Pulse's `03_build/` codebase — these changes execute against opportunity-tracker's repo.
 - Not where the Signal Source Adapter lives (spec 015 — Pulse-side).
 - Not where Skill 11 lives (spec 028 — Pulse-side; consumes the fixed match output).
+
+## Session 16 update (2026-05-21) — repo adopted; matcher fix NOT yet landed
+
+opportunity-tracker is now **Pulse-owned** at `edgelabsadmin-glitch/pulse-opp-tracker`
+(the upstream `DEdge-max/opportunity-tracker` repo is gone — see Q154). The external
+coordinated session is no longer needed; these three changes now execute against the
+Pulse-owned repo's `main`.
+
+**Status: NOT applied this session.** The prepared Session-16 patch was not present
+in the adopted code (only the SPEC-004 guard was), so the three changes (typed
+role-catalog, `off-scope` AI tier + `work_arrangement`, source narrowing to
+LinkedIn+Indeed) remain **outstanding**. Until they land:
+
+- `pulse.expansion_intent_signals.match_tier` never takes the `off-scope` value, and
+  `work_arrangement` / `matched_industry` are written NULL by the `[OPP-015]`
+  mirror-write.
+- The "Nurse / in-person-only" false-positive surface is unaddressed.
+
+**Next:** reconstruct the three changes from §Description against
+`pulse-opp-tracker` and land as `[OPP-016]` (one bundled PR / three commits), then
+redeploy the Fly worker (`pulse-opp-tracker.fly.dev`).

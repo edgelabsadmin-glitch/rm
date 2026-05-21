@@ -11,7 +11,7 @@ Sales (the table owns this), Enterprise always cc VP-CS.
 
 from __future__ import annotations
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.agent.context import SkillContext, SuggestedAction, submit_action
 

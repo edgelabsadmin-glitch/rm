@@ -15,7 +15,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.agent.context import SkillContext, SuggestedAction, submit_action
 from core.llm import client

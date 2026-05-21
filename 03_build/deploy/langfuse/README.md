@@ -24,11 +24,13 @@ cd 03_build/deploy/langfuse
 # 1. Create the app from this fly.toml (no deploy yet).
 flyctl launch --copy-config --no-deploy --name pulse-langfuse --region sin
 
-# 2. Secrets. Build LANGFUSE's DATABASE_URL from the .env one, adding the schema
-#    + pgbouncer flag (required for Prisma against the transaction pooler):
-#       <DATABASE_URL>?pgbouncer=true&schema=langfuse
+# 2. Secrets. Two Postgres URLs are required (see "Why two DB URLs" below):
+#    - DATABASE_URL: runtime queries via the TRANSACTION pooler (:6543, pgbouncer).
+#    - DIRECT_URL:   Prisma migrations via the SESSION pooler (:5432, no pgbouncer).
+#    Both add ?schema=langfuse.
 flyctl secrets set \
   DATABASE_URL="postgresql://postgres.uckyovidaajhqkcuxaiz:<password>@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&schema=langfuse" \
+  DIRECT_URL="postgresql://postgres.uckyovidaajhqkcuxaiz:<password>@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?schema=langfuse" \
   NEXTAUTH_SECRET="$(openssl rand -base64 32)" \
   SALT="$(openssl rand -base64 32)" \
   ENCRYPTION_KEY="$(openssl rand -hex 32)"
@@ -55,7 +57,8 @@ flyctl deploy
 ## Secret reference
 | Secret | Source |
 |---|---|
-| `DATABASE_URL` | `.env` `DATABASE_URL` + `?pgbouncer=true&schema=langfuse` |
+| `DATABASE_URL` | `.env` `DATABASE_URL` (`:6543`) + `?pgbouncer=true&schema=langfuse` |
+| `DIRECT_URL` | same creds on the **session** pooler `:5432` + `?schema=langfuse` |
 | `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
 | `SALT` | `openssl rand -base64 32` |
 | `ENCRYPTION_KEY` | `openssl rand -hex 32` (64 hex chars / 32 bytes) |
@@ -64,8 +67,21 @@ flyctl deploy
 ## Notes
 - **v2, Postgres-only** is deliberate (ADR-003 lean). Langfuse v3 self-host adds
   Clickhouse + Redis + S3 — out of scope for Phase 1.
-- `pgbouncer=true` is required: the Supabase transaction pooler doesn't support
-  the prepared statements Prisma would otherwise use (same reason pulse-api sets
-  `prepare_threshold=None`).
+- **Why two DB URLs.** The image's entrypoint runs `prisma migrate deploy` (and a
+  `prisma db execute` cleanup) on every boot, *before* it starts the web server —
+  if migrations fail the entrypoint exits, the Node process never launches, and a
+  later `flyctl ssh` shows only `/fly/init`. Prisma's migration engine ignores
+  `pgbouncer=true` and uses prepared statements, which the transaction pooler
+  (`:6543`) can't route — boot dies with `ERROR: prepared statement "s0" does not
+  exist`. Migrations need a connection that keeps a statement on one backend, so
+  `DIRECT_URL` must point at the **session** pooler (`:5432`, no `pgbouncer`).
+  Without `DIRECT_URL` the entrypoint defaults it to `DATABASE_URL` and hits this.
+- `pgbouncer=true` is required on `DATABASE_URL`: the transaction pooler doesn't
+  support the prepared statements Prisma's query engine would otherwise use (same
+  reason pulse-api sets `prepare_threshold=None`).
+- The Dockerfile deliberately sets **no `CMD`/`ENTRYPOINT`** — Fly carries the
+  upstream image's `dumb-init -- ./web/entrypoint.sh … node ./web/server.js`
+  forward correctly (visible in `flyctl logs` as `Preparing to run: …`). Adding
+  one here is unnecessary and would risk masking the entrypoint's migration step.
 - Pin the image tag in `Dockerfile` (replace `:2` with a dated v2 tag) once
   validated.

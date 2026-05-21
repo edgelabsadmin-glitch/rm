@@ -11,7 +11,7 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 from typing import Any
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.llm import client
 from core.llm.config import ANTHROPIC_OPUS

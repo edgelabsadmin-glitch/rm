@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.signals.base import (
     DetectionType,

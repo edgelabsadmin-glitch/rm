@@ -56,4 +56,25 @@ Per Spike 4 §3.4, the Episode envelope mapping is verbatim:
 
 - Not the matcher precision fix (that's spec 016 — works against opportunity-tracker's matcher code).
 - Not Skill 11 (spec 028 — consumes Episodes this adapter emits).
-- Not where opportunity-tracker runs (its runtime stays on GitHub Actions per Decision 39).
+- Not where opportunity-tracker runs (its runtime stays on GitHub Actions per Decision 39). **Superseded — see Session 16 update below.**
+
+## Session 16 update (2026-05-21) — opp-tracker adopted as Pulse-owned repo
+
+The external coordinated session against `DEdge-max/opportunity-tracker` is **no
+longer needed**: that repo became unreachable, so opportunity-tracker is now
+**Pulse-owned** at `edgelabsadmin-glitch/pulse-opp-tracker` (see Q154).
+
+- The coordinated **opp-tracker-side mirror-write** (this spec's §Outputs) **landed**
+  on `pulse-opp-tracker` `main` as `[OPP-015]`: `src/state.save_postings()` now
+  upserts each posting into `pulse.expansion_intent_signals` (idempotent
+  `ON CONFLICT (posting_id)`; never touches Pulse-owned `processed_at` /
+  `pulse_episode_id` / `processed_status`). Env-gated (`PULSE_MIRROR_ENABLED` +
+  `PULSE_DATABASE_URL`) and non-fatal so the scan still runs if Pulse Postgres is
+  down. Honors the test-account denylist (`0016S00003UGpijQAD`). Connects via the
+  Supabase transaction pooler (`prepare_threshold=None`). Unit tests included.
+- **Decision 39 superseded:** the daily job now deploys to **`pulse-opp-tracker.fly.dev`**
+  (Fly.io cron worker via supercronic, app `pulse-opp-tracker`, region `sin`) rather
+  than GitHub Actions. Deploy bundle landed as `[OPP-001]`; the Fly deploy itself is
+  an operator step.
+- The Pulse-side adapter + Activepieces poll flow remain as specified here.
+- `matched_industry` / `work_arrangement` columns stay NULL until spec 016 lands.

@@ -11,7 +11,7 @@ per customer per quarter (90-day rate-limit).
 
 from __future__ import annotations
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.agent.context import SkillContext, SuggestedAction, recently_actioned, submit_action
 from core.llm import client

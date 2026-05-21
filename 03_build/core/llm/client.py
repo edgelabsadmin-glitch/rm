@@ -16,7 +16,7 @@ import json
 import re
 from typing import Any
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.llm.config import _MODEL_DEFAULTS, timeout_for
 

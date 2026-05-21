@@ -16,8 +16,9 @@ dependencies = [
     "openai>=1.91",          # embeddings only (text-embedding-3-small per Spike 3 §C)
     # Data
     "psycopg[binary,pool]>=3.2",  # Supabase Postgres (+ async connection pool)
-    # Observability (ADR-003)
-    "langfuse>=2.0",
+    # Observability (ADR-003) — major-version cap: the self-hosted server is
+    # Langfuse v2; the v3+/v4 SDK speaks OTEL ingestion the v2 server can't accept.
+    "langfuse>=2.0,<3",
     # Env
     "python-dotenv>=1.0",
     # HTTP for adapters / Activepieces callbacks

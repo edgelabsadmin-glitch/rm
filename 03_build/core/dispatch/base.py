@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.actions.queue import ActionRecord, get_action
 

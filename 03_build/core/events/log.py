@@ -50,8 +50,8 @@ def _current_trace_id() -> str | None:
 
     if not os.environ.get("LANGFUSE_PUBLIC_KEY"):
         return None
-    try:  # langfuse 3.x
-        from langfuse import get_client
+    try:  # langfuse 3.x+ (forward-compat; unused while SDK pinned to v2 — Q155)
+        from langfuse import get_client  # type: ignore[attr-defined]
 
         return get_client().get_current_trace_id()
     except Exception:

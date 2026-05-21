@@ -9,7 +9,7 @@ Deterministic (no LLM). Can fire concurrently with Skill 04 (talent-care).
 
 from __future__ import annotations
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.agent.context import SkillContext, SuggestedAction, submit_action
 

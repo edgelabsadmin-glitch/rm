@@ -10,7 +10,7 @@ outreach to the customer referencing the public posting + the matched role.
 
 from __future__ import annotations
 
-from langfuse import observe
+from langfuse.decorators import observe
 
 from core.agent.context import SkillContext, SuggestedAction, recently_actioned, submit_action
 from core.llm import client
