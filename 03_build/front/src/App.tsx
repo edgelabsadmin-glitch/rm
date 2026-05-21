@@ -7,6 +7,7 @@
  */
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
+import { SituationalHero } from "@/features/hero/SituationalHero";
 import { QueueList } from "@/features/queue/QueueList";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
@@ -15,7 +16,7 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/accounts" replace />} />
+        <Route index element={<div className="p-6"><SituationalHero /></div>} />
         <Route
           path="/accounts"
           element={
