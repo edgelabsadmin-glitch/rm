@@ -1,34 +1,76 @@
 /*
- * SPEC-034 — Pulse Bar state context (singleton, ephemeral).
- * Holds the agent-presence state + pending Action Queue count that the chrome-level
- * Pulse Bar (§8.14) and the header Queue badge read. Idle by default.
+ * SPEC-038 — Pulse Bar state lifecycle (Tier-0 §8.14). Singleton, ephemeral.
  *
- * Phase 1 transport is 10s POLLING (pre-034 sequencing decision; SSE/WebSocket
- * deferred to v1.5+ candidate #23). Spec 038 wires the poll to the back-end
- * (agent_state_change + action_suggested_count); 034 ships the provider as a
- * drop-in with a static idle default so the bar mounts on every surface now.
+ * Effective state (deriveState):
+ *   ready      — a 600ms heartbeat is animating (a new action just landed)
+ *   processing — ≥1 fetch/mutation in flight ("processing state stacks")
+ *   idle       — nothing happening (1px / 0.15 default)
+ *
+ * Heartbeats SERIALIZE at one per 600ms (§8.14): a batch of new cards enqueues a
+ * heartbeat; the queue drains one-at-a-time so heartbeats never overlap. Phase-1
+ * transport is 10s polling (PulseBarController); SSE/WebSocket is v1.5+ #23.
  */
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 export type PulseState = "idle" | "processing" | "ready";
+
+export const HEARTBEAT_MS = 600;
+
+/** Pure: the visible bar state from the lifecycle flags (unit-tested). */
+export function deriveState(heartbeatActive: boolean, processing: boolean): PulseState {
+  if (heartbeatActive) return "ready";
+  if (processing) return "processing";
+  return "idle";
+}
 
 interface PulseStateValue {
   state: PulseState;
   queueCount: number;
-  setState: (s: PulseState) => void;
   setQueueCount: (n: number) => void;
+  setProcessing: (b: boolean) => void;
+  notifyNewActions: (count: number) => void;
 }
 
 const PulseStateContext = createContext<PulseStateValue | null>(null);
 
 export function PulseStateProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<PulseState>("idle");
   const [queueCount, setQueueCount] = useState(0);
-  // NOTE (spec 038): replace with a 10s poll of GET /api/agent/state →
-  // { state, queueCount }. Keep the 600ms heartbeat serialization client-side.
-  const value = useMemo(
-    () => ({ state, queueCount, setState, setQueueCount }),
-    [state, queueCount],
+  const [processing, setProcessing] = useState(false);
+  const [heartbeatActive, setHeartbeatActive] = useState(false);
+  const [queued, setQueued] = useState(0); // pending heartbeats
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Drain one heartbeat per 600ms; the timer lives in a ref so re-renders don't
+  // clear it mid-flight. When it ends, heartbeatActive flips → effect re-runs →
+  // fires the next queued heartbeat if any.
+  useEffect(() => {
+    if (!heartbeatActive && queued > 0) {
+      setQueued((q) => q - 1);
+      setHeartbeatActive(true);
+      timer.current = setTimeout(() => setHeartbeatActive(false), HEARTBEAT_MS);
+    }
+  }, [heartbeatActive, queued]);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  const notifyNewActions = useCallback((count: number) => {
+    if (count > 0) setQueued((q) => q + 1); // one announcement per batch
+  }, []);
+
+  const value = useMemo<PulseStateValue>(
+    () => ({
+      state: deriveState(heartbeatActive, processing),
+      queueCount,
+      setQueueCount,
+      setProcessing,
+      notifyNewActions,
+    }),
+    [heartbeatActive, processing, queueCount, notifyNewActions],
   );
   return <PulseStateContext.Provider value={value}>{children}</PulseStateContext.Provider>;
 }

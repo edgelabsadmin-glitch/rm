@@ -5,26 +5,23 @@
  * (Tier-0 §8.14 "badge count is live").
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { usePulseState } from "@/components/PulseStateProvider";
 import { api } from "@/lib/api";
 import { useSession } from "@/session/useSession";
 import type { ActionsResponse, QueueFilters } from "./types";
 
 const QUEUE_KEY = ["actions"] as const;
 
+// Phase-1 transport: 10s polling (SSE/WebSocket deferred to v1.5+ #23). The
+// PulseBarController owns count + new-card detection off this same query.
+export const POLL_MS = 10_000;
+
 export function useActions(filters: QueueFilters = {}) {
   const session = useSession();
-  const { setQueueCount } = usePulseState();
-  const query = useQuery({
+  return useQuery({
     queryKey: [...QUEUE_KEY, filters],
     queryFn: () => api.listActions(session, { ...filters, limit: 200 }),
+    refetchInterval: POLL_MS,
   });
-  // Keep the header badge in sync with the pending count.
-  useEffect(() => {
-    if (query.data) setQueueCount(query.data.actions.length);
-  }, [query.data, setQueueCount]);
-  return query;
 }
 
 export function useActionDetail(id: string | null) {
