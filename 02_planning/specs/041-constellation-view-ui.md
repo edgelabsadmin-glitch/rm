@@ -23,6 +23,14 @@ A dedicated `/constellation` nav surface: a **galactic map of the whole book of 
 2. **RM capacity imbalance** — when one RM's region shows many red/dim links + deep queue while another shows steady-purple with bandwidth, surface a reassignment thesis floating in inter-RM space. Click → reassignment-draft review surface. Proposal only; requires human approval (§6 rule 3).
 3. **Escalation tier-jump** — when an account's health worsens past threshold within a window, surface an escalation proposal anchored to the node. Click → drafts an escalation email to the RM's manager (spec-032 dispatch + new template). Reuses the existing `health-tier-changed` event (disposition D7).
 
+**Interaction (click → destination; audit Dim 9 + Session-19 amendments):**
+- **Center globe** → routes to **`/ceo`** (CEO View). Center node = org-level; CEO View = org-level narrative — a natural drill from visual org survey to strategic org narrative (and keeps the globe non-decorative per §4.20).
+- **Manager node** → **single-click = zoom-to-cluster** (primary; visual survey). **Modifier-click (cmd/ctrl)**, or a small "View N pending actions" overlay link shown after zoom, → **queue-filter `/actions?manager=<id>`** (secondary; navigation). Both workflows matter: survey first, then filtered access.
+- **RM node** → `/actions` filtered to that RM (`rm_id`).
+- **Account node** → set `selectedAccountId` (spec-036 context) + per-account view; spawns inline talent orbit.
+- **Link** → tooltip (state + last-signal date); no navigation.
+- **Overlays** → cluster→pattern card (Overall view); capacity→reassignment-draft review; escalation→escalation-email draft.
+
 ## Inputs
 
 - **Graph:** all in-scope managers/RMs/accounts + placement counts (SFDC + Graphiti), per-account composite health (spec 030, normalized `(score+100)/20` → 0..10), link signal-state per account.
@@ -51,7 +59,7 @@ A dedicated `/constellation` nav surface: a **galactic map of the whole book of 
 - [ ] Account click → sets `selectedAccountId` (spec-036 context) + navigates to the per-account view; full click→destination matrix per audit Dim 9.
 - [ ] Talent inline orbital expansion on account click (or side-panel fallback if perf gate requires).
 - [ ] All 3 overlays render + route correctly (cluster→pattern card; capacity→reassignment draft; escalation→email draft).
-- [ ] Performance per Step-2 gate: initial render <2s, pan/zoom ≥30fps at ~610 nodes (or PM-approved mitigations applied).
+- [ ] Performance per Step-2 gate: initial render <2s, pan/zoom ≥30fps at ~610 nodes, **memory footprint <200MB after 5 min of typical pan/zoom** (RMs leave Pulse open all day; canvas leaks possible) — or PM-approved mitigations applied if exceeded.
 - [ ] RBAC scope (stubbed session Phase 1; spec-042 server-side when it ships): RM own book / Manager reports / Admin all.
 - [ ] Pulse Bar lives at the top, same as every screen (§6 rule 24).
 - [ ] Empty / loading / error / RBAC-subset states per audit Dim 14.
@@ -66,7 +74,7 @@ A dedicated `/constellation` nav surface: a **galactic map of the whole book of 
 
 ## Implementation order (9-step audit sequence — disposition D15)
 
-1. Library + `ForceGraph` wrapper + 610-node fixture + **perf benchmark (GATE)**.
+1. Library + `ForceGraph` wrapper + 610-node fixture + **perf benchmark (GATE)** — FPS at fit/mid/max zoom, pan/zoom interaction latency, and **memory footprint <200MB after 5 min interaction**.
 2. Visual scaffold: center globe + 3-tier radial hierarchy (mock).
 3. Encodings: health→color/size, link-state coloring, active-mass/dormant-drift forces.
 4. Interaction: click→destination matrix + talent drill-down.
@@ -86,5 +94,5 @@ A dedicated `/constellation` nav surface: a **galactic map of the whole book of 
 - Not a 3D globe in Phase 1 (v1.5+).
 - Not where signal *definitions* surface (account-level map; signal detail lives in the account view).
 - Not auto-acting on capacity reassignments or escalations — both are proposals requiring approval (§6 rule 3).
-- Not on the demo critical path (disposition D4 — teaser only for 2026-06-30; revisit Scene-3 upgrade post-perf).
+- Not on the demo critical path (disposition D4 — teaser only for 2026-06-30; revisit Scene-3 upgrade post-perf). The Constellation demo storyboard scene is drafted as part of **specs 046/047 (demo prep)**, not in spec 041 itself.
 - Not a separate 041.1 — the overlay composer is a back-end section of this spec.
