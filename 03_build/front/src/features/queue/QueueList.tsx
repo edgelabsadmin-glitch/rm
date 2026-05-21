@@ -12,6 +12,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useSession } from "@/session/useSession";
 import { useLocalStorage } from "@/lib/useLocalStorage";
 import { cn } from "@/lib/utils";
@@ -59,15 +60,23 @@ export function QueueList() {
   const reduce = useReducedMotion();
   const [view, setView] = useLocalStorage<View>("pulse.queue.view", "mine");
   const [tier, setTier] = useLocalStorage<string | null>("pulse.queue.tier", null);
-  const isPendingView = PENDING_VIEWS.includes(view);
 
-  const filters: QueueFilters = useMemo(
-    () => ({
-      rm_id: view === "mine" ? session.id : undefined,
-      tier: tier ?? undefined,
-    }),
-    [view, tier, session.id],
-  );
+  // SPEC-041 routing: Constellation RM/manager clicks deep-link here with ?rm= / ?manager=.
+  // Present params override the local view; absent → existing My-Queue/Overall behavior.
+  const [sp] = useSearchParams();
+  const rmParam = sp.get("rm");
+  const managerParam = sp.get("manager");
+  const constellationFilter = rmParam || managerParam;
+  const isPendingView = constellationFilter ? true : PENDING_VIEWS.includes(view);
+
+  const filters: QueueFilters = useMemo(() => {
+    if (rmParam) return { rm_id: rmParam, tier: tier ?? undefined };
+    // NOTE: the API filters by rm_id, not manager — manager scoping is a Week-4
+    // API add (visible_rm_ids). Until then a ?manager= deep-link shows the banner
+    // + the caller's scope.
+    if (managerParam) return { tier: tier ?? undefined };
+    return { rm_id: view === "mine" ? session.id : undefined, tier: tier ?? undefined };
+  }, [rmParam, managerParam, view, tier, session.id]);
 
   const { data, isLoading, isError, error } = useActions(filters);
   const actions = data?.actions ?? [];
@@ -80,6 +89,25 @@ export function QueueList() {
         </h1>
         {isPendingView && <span className="text-xs text-ink-secondary">{actions.length} pending</span>}
       </div>
+
+      {constellationFilter && (
+        <div className="mb-4 flex items-center justify-between rounded-2xl bg-brand-muted px-3 py-2 text-xs text-brand">
+          <span>
+            From the constellation —{" "}
+            {rmParam ? (
+              <>filtered to RM <span className="font-mono">{rmParam}</span></>
+            ) : (
+              <>
+                showing <span className="font-mono">{managerParam}</span>'s team{" "}
+                <span className="text-ink-muted">(manager scoping wires in Week 4)</span>
+              </>
+            )}
+          </span>
+          <Link to="/actions" className="font-medium underline">
+            Clear
+          </Link>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {VIEWS.map((v) => (
