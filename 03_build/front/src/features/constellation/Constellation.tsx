@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
-import { DEMO_ACCOUNTS } from "@/fixtures/demo_characters";
+import { DEMO_ACCOUNTS, type DemoAccountId } from "@/fixtures/demo_characters";
 import {
   composeCapacityImbalance,
   type CapacityImbalanceCard,
@@ -24,13 +24,22 @@ import { ClusterPatternOverlay } from "./overlays/ClusterPatternOverlay";
 import { EscalationTierJumpOverlay } from "./overlays/EscalationTierJumpOverlay";
 import { RmCapacityImbalanceOverlay } from "./overlays/RmCapacityImbalanceOverlay";
 import {
+  ConstellationEmpty,
+  ConstellationError,
+  ConstellationLoading,
+} from "./states/ConstellationStates";
+import {
   buildConstellationGraph,
   buildTalentFor,
   type ConstellationGraph,
   type ConstellationNode,
 } from "./fixtures";
 
-const BASE = buildConstellationGraph();
+// Phase-1 data is derived synchronously, so 'loading'/'error' are reached only by the
+// Phase-2 async pulse-api fetch (the state components exist + are tested for that wiring).
+// Phase-1 resolves to 'empty' (scope yields zero accounts) or 'ready'.
+type Status = "loading" | "error" | "empty" | "ready";
+
 // Composer output is pure + deterministic over the canonical fixture — compute once.
 const CAPACITY_CARDS = composeCapacityImbalance();
 // Tier-jump cards evaluated at module load (current time vs the event's 48h window).
@@ -44,7 +53,16 @@ declare global {
   }
 }
 
-export function Constellation() {
+export interface ConstellationProps {
+  /**
+   * RBAC visibility scope (spec 042, Week 4): whitelist of account ids the viewer may see.
+   * undefined = no scoping (all accounts, the Phase-1 default). [] = nothing in scope →
+   * empty state. The manager/RM scaffold always renders; only account leaves are scoped.
+   */
+  accountScope?: DemoAccountId[];
+}
+
+export function Constellation({ accountScope }: ConstellationProps = {}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -64,14 +82,24 @@ export function Constellation() {
     { card: EscalationTierJumpCard; x: number; y: number }[]
   >([]);
 
+  // Base graph, scoped by the RBAC whitelist (spec 042). Memoized on the scope.
+  const base = useMemo(() => buildConstellationGraph(accountScope), [accountScope]);
+
+  // Phase-1 status: empty when a scope is given but resolves to zero accounts; else ready.
+  // (loading/error are Phase-2 async states — components exist + tested, not reached here.)
+  const status = useMemo<Status>(() => {
+    if (accountScope && base.nodes.every((n) => n.type !== "account")) return "empty";
+    return "ready";
+  }, [accountScope, base]);
+
   // Compose the rendered graph = base + (talent for the expanded account).
   const graph: ConstellationGraph = useMemo(() => {
-    if (!expanded) return BASE;
-    const acct = BASE.nodes.find((n) => n.id === expanded);
-    if (!acct) return BASE;
+    if (!expanded) return base;
+    const acct = base.nodes.find((n) => n.id === expanded);
+    if (!acct) return base;
     const t = buildTalentFor(acct);
-    return { nodes: [...BASE.nodes, ...t.nodes], links: [...BASE.links, ...t.links] };
-  }, [expanded]);
+    return { nodes: [...base.nodes, ...t.nodes], links: [...base.links, ...t.links] };
+  }, [base, expanded]);
 
   // Measure container.
   useEffect(() => {
@@ -223,6 +251,18 @@ export function Constellation() {
         break;
       // talent → no-op
     }
+  }
+
+  // Defensive states. Phase-1 only reaches 'empty'; 'loading'/'error' are wired by the
+  // Phase-2 async pulse-api fetch (components exist + are unit-tested for that).
+  if (status !== "ready") {
+    return (
+      <div className="relative h-[calc(100vh-160px)] w-full">
+        {status === "loading" && <ConstellationLoading />}
+        {status === "error" && <ConstellationError onRetry={() => window.location.reload()} />}
+        {status === "empty" && <ConstellationEmpty />}
+      </div>
+    );
   }
 
   return (

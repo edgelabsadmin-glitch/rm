@@ -58,11 +58,23 @@ function activeTalentCount(accountId: string): number {
   return DEMO_TALENT.reduce((n, t) => (t.accountId === accountId ? n + 1 : n), 0);
 }
 
-export function buildConstellationGraph(): ConstellationGraph {
+/**
+ * Build the org graph. `accountScope` (spec 042 RBAC, Week 4) optionally restricts the
+ * visible accounts to a whitelist of ids; undefined = no scoping (all accounts). The
+ * globe + manager/RM scaffold always render so the org frame is stable; only the account
+ * leaves are scoped. An empty scope yields zero account nodes (the caller shows the empty
+ * state).
+ */
+export function buildConstellationGraph(accountScope?: ReadonlyArray<string>): ConstellationGraph {
   const nodes: ConstellationNode[] = [];
   const links: ConstellationLink[] = [];
   const R_MGR = 160;
   const R_RM = 340;
+
+  const scopedAccounts =
+    accountScope === undefined
+      ? DEMO_ACCOUNTS
+      : DEMO_ACCOUNTS.filter((a) => accountScope.includes(a.id));
 
   nodes.push({ id: "globe", type: "globe", label: "EDGE Pulse", size: 26, fx: 0, fy: 0 });
 
@@ -84,7 +96,7 @@ export function buildConstellationGraph(): ConstellationGraph {
     links.push({ source: rm.id, target: rm.managerId, state: "active" });
   });
 
-  DEMO_ACCOUNTS.forEach((acc) => {
+  scopedAccounts.forEach((acc) => {
     const count = activeTalentCount(acc.id);
     const factor = acc.healthState === "healthy" ? 1.4 : 0.7; // health × activity (Amendment 5)
     const rm = DEMO_RMS.find((r) => r.id === acc.rmId);
