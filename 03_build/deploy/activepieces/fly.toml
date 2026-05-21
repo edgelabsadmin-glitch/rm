@@ -1,36 +1,35 @@
-# SPEC-001 / ADR-002 — Fly.io config for Activepieces (the Pulse workflow engine).
-# Self-hosted single Machine, Singapore (co-located with the Supabase pooler).
-# Operator runs `flyctl launch --copy-config` from this directory, then sets
-# secrets and `flyctl deploy`. See README.md.
-app = "pulse-flows"
-primary_region = "sin"   # Singapore — same region as the Supabase aws-1-ap-southeast-1 pooler
+# fly.toml app configuration file generated for pulse-flows on 2026-05-21T05:22:30+05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'pulse-flows'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
+
+[env]
+  AP_EXECUTION_MODE = 'UNSANDBOXED'
+  AP_FRONTEND_URL = 'https://pulse-flows.fly.dev'
+  AP_POSTGRES_DATABASE = 'postgres'
+  AP_POSTGRES_HOST = 'aws-1-ap-southeast-1.pooler.supabase.com'
+  AP_POSTGRES_PORT = '6543'
+  AP_POSTGRES_USE_SSL = 'true'
+  AP_QUEUE_MODE = 'MEMORY'
+  AP_TELEMETRY_ENABLED = 'false'
+
+[[mounts]]
+  source = 'ap_data'
+  destination = '/root/.activepieces'
 
 [http_service]
-  internal_port = 80            # Activepieces serves the app + API on :80
+  internal_port = 80
   force_https = true
-  auto_stop_machines = false    # do NOT sleep — scheduled flows (cron) must keep firing
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "1gb"                # Activepieces (Node + flow engine) needs >512mb headroom
-
-# Persistent storage for flow assets / local files (AP_DATA).
-[[mounts]]
-  source = "ap_data"
-  destination = "/root/.activepieces"
-
-# Non-secret config (secrets are set separately via `flyctl secrets set` — README).
-[env]
-  AP_FRONTEND_URL = "https://pulse-flows.fly.dev"
-  AP_QUEUE_MODE = "MEMORY"        # single Machine, no Redis in Phase 1 (ADR-002 lean)
-  AP_EXECUTION_MODE = "UNSANDBOXED"  # single-tenant self-host; revisit if untrusted flows
-  AP_TELEMETRY_ENABLED = "false"
-  AP_POSTGRES_HOST = "aws-1-ap-southeast-1.pooler.supabase.com"
-  AP_POSTGRES_PORT = "6543"
-  AP_POSTGRES_DATABASE = "postgres"
-  AP_POSTGRES_USE_SSL = "true"
+  size = 'shared-cpu-1x'
+  memory = '1gb'
