@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
 import {
@@ -16,6 +17,7 @@ import {
   DEMO_TALENT,
   type DemoAccountId,
 } from "@/fixtures/demo_characters";
+import { DEMO_TIER_JUMP_EVENTS } from "@/fixtures/demo_tier_jump_events";
 import {
   composeCapacityImbalance,
   type CapacityImbalanceCard,
@@ -45,11 +47,6 @@ import {
 // Phase-1 resolves to 'empty' (scope yields zero accounts) or 'ready'.
 type Status = "loading" | "error" | "empty" | "ready";
 
-// Composer output is pure + deterministic over the canonical fixture — compute once.
-const CAPACITY_CARDS = composeCapacityImbalance();
-// Tier-jump cards evaluated at module load (current time vs the event's 48h window).
-const ESCALATION_CARDS = composeEscalationTierJumps();
-
 declare global {
   interface Window {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,6 +70,10 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
   const boxRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { setSelectedAccountId } = useSelectedAccount();
+  // SPEC-042 Step-4: scope comes from the logged-in user (AuthContext). An explicit
+  // `accountScope` prop still overrides (RBAC test harness / future server scope).
+  const { accountScope: authScope } = useAuth();
+  const effectiveScope = accountScope ?? authScope;
 
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [fps, setFps] = useState(0);
@@ -87,15 +88,34 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
     { card: EscalationTierJumpCard; x: number; y: number }[]
   >([]);
 
-  // Base graph, scoped by the RBAC whitelist (spec 042). Memoized on the scope.
-  const base = useMemo(() => buildConstellationGraph(accountScope), [accountScope]);
+  // Base graph, scoped by the effective RBAC whitelist (spec 042). Memoized on the scope.
+  const base = useMemo(() => buildConstellationGraph(effectiveScope), [effectiveScope]);
 
   // Phase-1 status: empty when a scope is given but resolves to zero accounts; else ready.
   // (loading/error are Phase-2 async states — components exist + tested, not reached here.)
   const status = useMemo<Status>(() => {
-    if (accountScope && base.nodes.every((n) => n.type !== "account")) return "empty";
+    if (effectiveScope && base.nodes.every((n) => n.type !== "account")) return "empty";
     return "ready";
-  }, [accountScope, base]);
+  }, [effectiveScope, base]);
+
+  // Step-4: overlay composers honor the effective scope (closes watched concern #26).
+  const capacityCards = useMemo(
+    () => composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, effectiveScope),
+    [effectiveScope],
+  );
+  const escalationCards = useMemo(
+    () => composeEscalationTierJumps(DEMO_TIER_JUMP_EVENTS, effectiveScope),
+    [effectiveScope],
+  );
+  // Cluster patterns: partial-scope filter-out — a pattern is hidden unless ALL of its
+  // support accounts are in scope (spec §6 edge case).
+  const scopedPatterns = useMemo(
+    () =>
+      effectiveScope
+        ? DEMO_PATTERNS.filter((p) => p.support_account_ids.every((id) => effectiveScope.includes(id)))
+        : DEMO_PATTERNS,
+    [effectiveScope],
+  );
 
   // Compose the rendered graph = base + (talent for the expanded account).
   const graph: ConstellationGraph = useMemo(() => {
@@ -162,7 +182,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
     const fg = fgRef.current;
     if (!fg?.graph2ScreenCoords) return;
     const next: { pattern: PatternCard; x: number; y: number }[] = [];
-    for (const pattern of DEMO_PATTERNS) {
+    for (const pattern of scopedPatterns) {
       const c = clusterCentroid(pattern.support_account_ids, graph.nodes);
       if (!c) continue;
       const s = fg.graph2ScreenCoords(c.x, c.y);
@@ -180,7 +200,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
 
     // Step-6: capacity-imbalance overlays, anchored at the top-loaded RM's account cluster.
     const cap: { card: CapacityImbalanceCard; x: number; y: number }[] = [];
-    for (const card of CAPACITY_CARDS) {
+    for (const card of capacityCards) {
       const ids = DEMO_ACCOUNTS.filter((a) => a.rmId === card.topLoadedRmId).map((a) => a.id);
       const c = clusterCentroid(ids, graph.nodes);
       if (!c) continue;
@@ -199,7 +219,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
 
     // Step-7: escalation tier-jump overlays, anchored directly at the affected account node.
     const esc: { card: EscalationTierJumpCard; x: number; y: number }[] = [];
-    for (const card of ESCALATION_CARDS) {
+    for (const card of escalationCards) {
       const c = clusterCentroid([card.accountId], graph.nodes);
       if (!c) continue;
       const s = fg.graph2ScreenCoords(c.x, c.y);
@@ -214,7 +234,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
       }
       return esc;
     });
-  }, [graph]);
+  }, [graph, scopedPatterns, capacityCards, escalationCards]);
 
   function handleInvestigate(pattern: PatternCard) {
     navigate(`/actions?pattern=${encodeURIComponent(pattern.id)}`);

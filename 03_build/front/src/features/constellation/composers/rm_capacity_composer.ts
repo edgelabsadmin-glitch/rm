@@ -10,11 +10,14 @@
  * Imbalance trigger (Phase-1 heuristic): top RM's score > 2 × the team-median score.
  */
 import {
+  accountARR,
   DEMO_ACCOUNTS,
   DEMO_MANAGERS,
   DEMO_RMS,
-  rmBookARR,
+  type DemoAccount,
+  type DemoRM,
 } from "@/fixtures/demo_characters";
+import type { AccountScope } from "@/lib/rbac/types";
 
 export interface CapacityImbalanceCard {
   id: string;
@@ -43,17 +46,24 @@ interface RmLoad {
 
 const isChurnState = (s: string) => s === "at-risk" || s === "churn-signal";
 
-/** Per-RM load metrics, all derived from the canonical fixture. */
-export function computeRmLoads(): RmLoad[] {
-  return DEMO_RMS.map((rm) => {
-    const accounts = DEMO_ACCOUNTS.filter((a) => a.rmId === rm.id);
-    const churnExposureCount = accounts.filter((a) => isChurnState(a.healthState)).length;
-    const totalARR = rmBookARR(rm.id);
+/**
+ * Per-RM load metrics over the given account + RM sets (default = full canonical fixture).
+ * totalARR is summed from the *passed* accounts (so a scoped account set yields scoped ARR);
+ * unscoped this equals rmBookARR(rm.id) exactly. Spec 042 Step-4: filter-before-formula.
+ */
+export function computeRmLoads(
+  accounts: ReadonlyArray<DemoAccount> = DEMO_ACCOUNTS,
+  rms: ReadonlyArray<DemoRM> = DEMO_RMS,
+): RmLoad[] {
+  return rms.map((rm) => {
+    const rmAccounts = accounts.filter((a) => a.rmId === rm.id);
+    const churnExposureCount = rmAccounts.filter((a) => isChurnState(a.healthState)).length;
+    const totalARR = rmAccounts.reduce((s, a) => s + accountARR(a.id), 0);
     return {
       rmId: rm.id,
       rmName: rm.name,
       managerId: rm.managerId,
-      accountCount: accounts.length,
+      accountCount: rmAccounts.length,
       churnExposureCount,
       totalARR,
       riskWeightedScore: churnExposureCount + totalARR / 1_000_000,
@@ -73,8 +83,19 @@ function median(values: number[]): number {
  * exceeds 2× the org median; the comparison RM is the lowest-loaded teammate under the
  * same manager. Returns [] when no imbalance clears the threshold (overlay renders nothing).
  */
-export function composeCapacityImbalance(): CapacityImbalanceCard[] {
-  const loads = computeRmLoads();
+export function composeCapacityImbalance(
+  accounts: ReadonlyArray<DemoAccount> = DEMO_ACCOUNTS,
+  rms: ReadonlyArray<DemoRM> = DEMO_RMS,
+  accountScope?: AccountScope,
+): CapacityImbalanceCard[] {
+  // Filter the working set BEFORE the formula (spec 042 Step-4 / watched concern #26).
+  const scopedAccounts = accountScope
+    ? accounts.filter((a) => accountScope.includes(a.id))
+    : accounts;
+  const scopedRmIds = new Set(scopedAccounts.map((a) => a.rmId));
+  const scopedRms = rms.filter((r) => scopedRmIds.has(r.id));
+
+  const loads = computeRmLoads(scopedAccounts, scopedRms);
   if (loads.length < 2) return [];
 
   const sorted = [...loads].sort((a, b) => b.riskWeightedScore - a.riskWeightedScore);

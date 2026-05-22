@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
+import { AuthProvider } from "@/lib/auth/AuthContext";
 import { SelectedAccountProvider } from "@/session/SelectedAccountProvider";
 import { Constellation } from "./Constellation";
 import { buildConstellationGraph } from "./fixtures";
@@ -28,16 +29,23 @@ describe("Constellation defensive states (spec-041 Step-8)", () => {
     expect(screen.getByText(/No accounts in your view/i)).toBeTruthy();
   });
 
-  it("accountScope=[] renders the empty state (RBAC scope-empty)", () => {
+  it("accountScope=[] prop renders the empty state (RBAC scope-empty; prop overrides auth)", () => {
     render(
-      <MemoryRouter>
-        <SelectedAccountProvider>
-          <Constellation accountScope={[]} />
-        </SelectedAccountProvider>
-      </MemoryRouter>,
+      <AuthProvider>
+        <MemoryRouter>
+          <SelectedAccountProvider>
+            <Constellation accountScope={[]} />
+          </SelectedAccountProvider>
+        </MemoryRouter>
+      </AuthProvider>,
     );
     expect(screen.getByText(/No accounts in your view/i)).toBeTruthy();
   });
+
+  // NOTE: scope-from-AuthContext wiring (effectiveScope = prop ?? authScope) + the per-overlay
+  // scope filtering are covered by the composer + cluster-filter unit tests (canvas-free).
+  // A full non-empty Constellation render is intentionally not asserted here — ForceGraph's
+  // <canvas> doesn't render under jsdom (documented Step-8 constraint).
 });
 
 describe("buildConstellationGraph accountScope filtering", () => {

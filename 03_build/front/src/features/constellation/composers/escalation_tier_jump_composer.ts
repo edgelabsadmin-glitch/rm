@@ -6,6 +6,7 @@
  * string. No fabricated cause prose.
  */
 import { DEMO_ACCOUNTS, DEMO_RMS, type DemoAccountId } from "@/fixtures/demo_characters";
+import type { AccountScope } from "@/lib/rbac/types";
 import {
   DEMO_TIER_JUMP_EVENTS,
   type HealthTier,
@@ -28,16 +29,22 @@ export interface EscalationTierJumpCard {
 }
 
 /**
- * Compose escalation cards for tier-jump events within the active window. `now` is
- * injectable for deterministic tests; defaults to wall-clock. Events whose account is
- * missing from the fixture are skipped (defensive).
+ * Compose escalation cards for tier-jump events within the active window. Spec 042 Step-4:
+ * events whose `accountId` is outside `accountScope` are filtered out before hydration
+ * (watched concern #26). `accountScope` undefined = unscoped. `now` is injectable for
+ * deterministic tests; defaults to wall-clock. Events whose account is missing from the
+ * fixture are skipped (defensive).
  */
 export function composeEscalationTierJumps(
-  now: number = Date.now(),
   events: ReadonlyArray<TierJumpEvent> = DEMO_TIER_JUMP_EVENTS,
+  accountScope?: AccountScope,
+  now: number = Date.now(),
 ): EscalationTierJumpCard[] {
+  const scopedEvents = accountScope
+    ? events.filter((e) => accountScope.includes(e.accountId))
+    : events;
   const cards: EscalationTierJumpCard[] = [];
-  for (const ev of events) {
+  for (const ev of scopedEvents) {
     const elapsed = now - new Date(ev.occurredAt).getTime();
     if (elapsed < 0 || elapsed >= TIER_JUMP_WINDOW_MS) continue; // outside the 48h window
     const account = DEMO_ACCOUNTS.find((a) => a.id === ev.accountId);
