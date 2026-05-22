@@ -121,6 +121,46 @@ export const DEMO_ACTIONS: ActionDTO[] = [
     rank_score: 0.72,
     skill_id: "skill-05-escalation-router",
   },
+  // Two already-approved cards (Step-5 follow-up cont.) so the Approved status chip isn't
+  // empty in the demo. Generalized narrative; no fabricated specifics.
+  {
+    action_id: "demo-sidra-dhr-followup-approved",
+    customer_id: "dhr-health-clinics",
+    talent_id: null,
+    rm_id: "sidra-zia",
+    tier_class: "Enterprise",
+    urgency: "medium",
+    action_card: { headline: "Renewal sync follow-up — DHR Health Clinics", action_type: "renewal" },
+    why_oneline: "Renewal sync follow-up after the escalation thread — approved.",
+    why_detail:
+      `Follow-up on the DHR Health Clinics renewal escalation across <num>${seats("dhr-health-clinics")} active placements</num>. ` +
+      `Approved and in progress. Owning RM: ${rmName("sidra-zia")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["sfdc:dhr-renewal", "sfdc:case-dhr-escalation"],
+    proposed_at: "2026-05-18T10:00:00Z",
+    status: "approved",
+    rank_score: 0.83,
+    skill_id: "skill-03-renewal-watcher",
+  },
+  {
+    action_id: "demo-ameer-bayhealth-outreach-approved",
+    customer_id: "bayhealth",
+    talent_id: null,
+    rm_id: "ameer-ali",
+    tier_class: "Mid-Market",
+    urgency: "medium-low",
+    action_card: { headline: "Expansion outreach — Bayhealth", action_type: "outreach" },
+    why_oneline: "Expansion outreach to an existing healthcare-cluster contact — approved.",
+    why_detail:
+      `Expansion outreach at Bayhealth (<num>${seats("bayhealth")} active placements</num>) surfaced via opp-tracker. ` +
+      `Approved earlier this week. Owning RM: ${rmName("ameer-ali")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["opp-tracker:bayhealth-postings", "sfdc:bayhealth-placements"],
+    proposed_at: "2026-05-16T14:00:00Z",
+    status: "approved",
+    rank_score: 0.59,
+    skill_id: "skill-07-expansion-spotter",
+  },
 ];
 
 /**

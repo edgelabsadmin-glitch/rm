@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_ACTIONS, filterDemoActions } from "./demo_actions";
 
-describe("DEMO_ACTIONS fixture shape (spec-042 Step-5 follow-up Q1 — Sajjal seeds)", () => {
-  it("has 5 cards", () => {
-    expect(DEMO_ACTIONS).toHaveLength(5);
+describe("DEMO_ACTIONS fixture shape (spec-042 Step-5 follow-ups — Sajjal + approved seeds)", () => {
+  it("has 7 cards", () => {
+    expect(DEMO_ACTIONS).toHaveLength(7);
+  });
+  it("status breakdown: 5 pending + 2 approved", () => {
+    expect(DEMO_ACTIONS.filter((a) => a.status === "pending")).toHaveLength(5);
+    expect(DEMO_ACTIONS.filter((a) => a.status === "approved")).toHaveLength(2);
   });
   it("Sajjal owns exactly 2 cards (Mendota + Cirventis)", () => {
     const sajjal = DEMO_ACTIONS.filter((a) => a.rm_id === "sajjal-shaheedi");
@@ -11,6 +15,16 @@ describe("DEMO_ACTIONS fixture shape (spec-042 Step-5 follow-up Q1 — Sajjal se
     expect(new Set(sajjal.map((a) => a.customer_id))).toEqual(
       new Set(["mendota-insurance", "cirventis"]),
     );
+  });
+  it("the 2 approved cards are Sidra/DHR + Ameer/Bayhealth, proposed within the last 14 days", () => {
+    const approved = DEMO_ACTIONS.filter((a) => a.status === "approved");
+    expect(new Set(approved.map((a) => a.rm_id))).toEqual(new Set(["sidra-zia", "ameer-ali"]));
+    const now = new Date("2026-05-22T12:00:00Z").getTime();
+    for (const a of approved) {
+      const t = new Date(a.proposed_at).getTime();
+      expect(t).toBeLessThanOrEqual(now); // not in the future
+      expect(now - t).toBeLessThanOrEqual(14 * 24 * 60 * 60 * 1000); // within 14 days
+    }
   });
   it("every card has the same ActionDTO field shape (no missing/extra keys)", () => {
     const keys = Object.keys(DEMO_ACTIONS[0]).sort();

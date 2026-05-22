@@ -32,19 +32,21 @@ describe("visibleRmIdsForCaller (spec-042 Step-5)", () => {
 
 describe("scopeAndRefineCards — scope (security) then URL ?rm= (UX)", () => {
   it("admin sees all cards", () => {
-    expect(scopeAndRefineCards(DEMO_ACTIONS, "admin", "pulse-admin")).toHaveLength(5);
+    expect(scopeAndRefineCards(DEMO_ACTIONS, "admin", "pulse-admin")).toHaveLength(7);
   });
-  it("RM sees only their own card (Sidra → DHR)", () => {
+  it("RM sees only their own cards (Sidra → 2 DHR cards: pending churn + approved follow-up)", () => {
     const cards = scopeAndRefineCards(DEMO_ACTIONS, "rm", "sidra-zia");
-    expect(cards).toHaveLength(1);
-    expect(cards[0].rm_id).toBe("sidra-zia");
+    expect(cards).toHaveLength(2);
+    expect(cards.every((c) => c.rm_id === "sidra-zia")).toBe(true);
   });
   it("RM with no demo card (Yozeline) → empty", () => {
     expect(scopeAndRefineCards(DEMO_ACTIONS, "rm", "yozeline-candia")).toHaveLength(0);
   });
-  it("Manager Sarah → 3 team cards (DHR/Sidra + Mendota/Sajjal + Cirventis/Sajjal) — Story B", () => {
+  it("Manager Sarah → 4 team cards (scope is status-agnostic: DHR pending + DHR approved + Mendota + Cirventis)", () => {
+    // scopeAndRefineCards filters by rm_id only (no status filter), so the approved Sidra/DHR
+    // card is in scope too. Status filtering is a separate UX layer (applyStatusFilter).
     const cards = scopeAndRefineCards(DEMO_ACTIONS, "manager", "sarah-hooper");
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(4);
     expect(new Set(cards.map((c) => c.rm_id))).toEqual(new Set(["sidra-zia", "sajjal-shaheedi"]));
   });
   it("Manager Muhammad → team cards (Bayhealth + NAVADERM)", () => {
@@ -56,20 +58,20 @@ describe("scopeAndRefineCards — scope (security) then URL ?rm= (UX)", () => {
   });
 
   // URL ?rm= refinement applied ON TOP of scope (cannot widen).
-  it("RM + own ?rm= → no-op (still own card)", () => {
-    expect(scopeAndRefineCards(DEMO_ACTIONS, "rm", "sidra-zia", "sidra-zia")).toHaveLength(1);
+  it("RM + own ?rm= → no-op (still her 2 cards)", () => {
+    expect(scopeAndRefineCards(DEMO_ACTIONS, "rm", "sidra-zia", "sidra-zia")).toHaveLength(2);
   });
   it("RM + other ?rm= → empty (cannot escape scope)", () => {
     expect(scopeAndRefineCards(DEMO_ACTIONS, "rm", "sidra-zia", "ameer-ali")).toHaveLength(0);
   });
-  it("Manager + in-team ?rm= → that RM's cards within team", () => {
-    expect(scopeAndRefineCards(DEMO_ACTIONS, "manager", "sarah-hooper", "sidra-zia")).toHaveLength(1);
+  it("Manager + in-team ?rm= → that RM's cards within team (Sidra → 2)", () => {
+    expect(scopeAndRefineCards(DEMO_ACTIONS, "manager", "sarah-hooper", "sidra-zia")).toHaveLength(2);
   });
   it("Manager + out-of-team ?rm= → empty (cannot escape scope)", () => {
     expect(scopeAndRefineCards(DEMO_ACTIONS, "manager", "sarah-hooper", "ameer-ali")).toHaveLength(0);
   });
-  it("admin + ?rm= → just that RM's cards", () => {
-    expect(scopeAndRefineCards(DEMO_ACTIONS, "admin", "pulse-admin", "ameer-ali")).toHaveLength(1);
+  it("admin + ?rm= → just that RM's cards (Ameer → 2: Bayhealth expansion + approved outreach)", () => {
+    expect(scopeAndRefineCards(DEMO_ACTIONS, "admin", "pulse-admin", "ameer-ali")).toHaveLength(2);
   });
 
   it("Manager Sarah + ?rm=sajjal-shaheedi → narrows to Sajjal's 2 cards (Story B investigate)", () => {
@@ -108,5 +110,17 @@ describe("applyStatusFilter / applyTimeFilter (spec-042 Step-5 follow-up Q3)", (
   it("status + time combine cumulatively (active AND today)", () => {
     const combined = applyTimeFilter(applyStatusFilter(cards, "active"), "today", NOW);
     expect(combined).toHaveLength(1);
+  });
+});
+
+describe("applyStatusFilter against the real DEMO_ACTIONS (5 pending + 2 approved)", () => {
+  it("'approved' → 2 cards", () => {
+    expect(applyStatusFilter(DEMO_ACTIONS, "approved")).toHaveLength(2);
+  });
+  it("'active' → 5 cards (pending)", () => {
+    expect(applyStatusFilter(DEMO_ACTIONS, "active")).toHaveLength(5);
+  });
+  it("'all' → 7 cards", () => {
+    expect(applyStatusFilter(DEMO_ACTIONS, "all")).toHaveLength(7);
   });
 });
