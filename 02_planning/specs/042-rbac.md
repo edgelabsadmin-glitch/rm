@@ -535,19 +535,19 @@ Three-column workspace (consistent with Per-Account View + Executive View patter
 
 | Avatar | Name | Email | Role | Scope (accounts) |
 |---|---|---|---|---|
-| IW | Iffi Wahla | iffi@onedge.co | Executive | 14 (full org) |
-| EC | Eddy Chen | eddy@onedge.co | Executive | 14 (full org) |
-| SH | Sarah Hooper | sarah@onedge.co | Manager | 7 (team scope) |
-| MI | Muhammad Ibrahim | muhammad@onedge.co | Manager | 7 (team scope) |
-| SZ | Sidra Zia | sidra@onedge.co | RM | 3 |
-| SS | Sajjal Shaheedi | sajjal@onedge.co | RM | 3 |
-| YC | Yozeline Candia | yozeline@onedge.co | RM | 1 |
-| AA | Ameer Ali | ameer@onedge.co | RM | 5 |
-| MS | Mubeen Sohail | mubeen@onedge.co | RM | 1 |
-| AT | Akash Tahir | akash@onedge.co | RM | 1 |
+| IW | Iffi Wahla | iffi.wahla@edgeonline.co | Executive | 14 (full org) |
+| EC | Eddy Chen | eddy.chen@onedge.co | Executive | 14 (full org) |
+| SH | Sarah Hooper | sarah.hooper@onedge.co | Manager | 7 (team scope) |
+| MI | Muhammad Ibrahim | muhammad.ibrahim@onedge.co | Manager | 7 (team scope) |
+| SZ | Sidra Zia | sidra.zia@onedge.co | RM | 3 |
+| SS | Sajjal Shaheedi | sajjal.shaheedi@onedge.co | RM | 3 |
+| YC | Yozeline Candia | yozeline.candia@onedge.co | RM | 1 |
+| AA | Ameer Ali | ameer.ali@onedge.co | RM | 5 |
+| MS | Mubeen Sohail | mubeen.sohail@onedge.co | RM | 1 |
+| AT | Akash Tahir | akash.tahir@onedge.co | RM | 1 |
 | PA | Pulse Admin | admin@onedge.co | Admin | 14 (full org) |
 
-Counts derived from `deriveAccountScope()` per user. No hardcoded counts.
+Email convention: `{first}.{last}@onedge.co` for everyone except Iffi Wahla on `edgeonline.co` (single executive on secondary domain per Session 19 late-late stream extended operator confirmation). Pulse Admin = `admin@onedge.co` functional alias. Counts derived from `deriveAccountScope()`.
 
 **Right column (~320px):** Selected-user detail panel (opens when user row clicked). Shows:
 - User display name + email + role + avatar
