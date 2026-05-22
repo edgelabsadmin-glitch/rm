@@ -8,13 +8,17 @@ import { Bell, Zap } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { usePulseState } from "@/components/PulseStateProvider";
 import { useAuth } from "@/lib/auth/AuthContext";
+import type { UserRole } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { to: "/accounts", label: "Accounts" },
-  { to: "/constellation", label: "Constellation" },
-  { to: "/executive", label: "Executive View" },
-  { to: "/submit", label: "Submit" },
+// SPEC-042 Step 3: nav links are role-gated (visibility layer; RoleGuard enforces direct
+// URL access). Executive View is exec/admin only; Settings is admin only.
+const NAV: { to: string; label: string; roles: UserRole[] }[] = [
+  { to: "/accounts", label: "Accounts", roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/constellation", label: "Constellation", roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/executive", label: "Executive View", roles: ["executive", "admin"] },
+  { to: "/submit", label: "Submit", roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/settings/users", label: "Settings", roles: ["admin"] },
 ];
 
 function initials(name: string): string {
@@ -44,7 +48,7 @@ export function Header() {
         </div>
 
         <nav className="hidden items-center gap-1 lg:flex">
-          {NAV.map((item) => (
+          {NAV.filter((item) => item.roles.includes(user.role)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -79,18 +83,21 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        <NavLink
-          to="/actions"
-          className="relative inline-flex items-center gap-2 rounded-full border border-brand-edge px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand-ghost"
-        >
-          <Bell className="h-4 w-4" />
-          Queue
-          {queueCount > 0 && (
-            <span className="ml-1 inline-grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-xs font-medium text-ink-on-brand shadow-[0_0_0_3px_var(--color-brand-primary-glow)]">
-              {queueCount}
-            </span>
-          )}
-        </NavLink>
+        {/* Action Queue is RM/Manager/Admin workspace — hidden for Executive (§3 matrix). */}
+        {user.role !== "executive" && (
+          <NavLink
+            to="/actions"
+            className="relative inline-flex items-center gap-2 rounded-full border border-brand-edge px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand-ghost"
+          >
+            <Bell className="h-4 w-4" />
+            Queue
+            {queueCount > 0 && (
+              <span className="ml-1 inline-grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-xs font-medium text-ink-on-brand shadow-[0_0_0_3px_var(--color-brand-primary-glow)]">
+                {queueCount}
+              </span>
+            )}
+          </NavLink>
+        )}
         <div
           className="grid h-10 w-10 place-items-center rounded-full bg-ink-primary text-sm font-semibold text-ink-on-brand"
           title={`${user.displayName} · ${user.email}`}

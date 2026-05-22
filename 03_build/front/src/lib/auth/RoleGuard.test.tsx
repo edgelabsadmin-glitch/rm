@@ -36,10 +36,17 @@ describe("RoleGuard (spec-042 Step-2)", () => {
     expect(screen.getByText("GUARDED CONTENT")).toBeTruthy();
   });
 
-  it("redirects to the default fallback (/actions) when the role is disallowed", () => {
-    renderGuarded({ initialUserId: "iffi-wahla", allowedRoles: ["rm", "manager", "admin"] });
+  it("redirects to the role-default route (RM → /actions) when the role is disallowed", () => {
+    // RM blocked from an admin-only route → role-default fallback is /actions.
+    renderGuarded({ initialUserId: "sidra-zia", allowedRoles: ["admin"] });
     expect(screen.queryByText("GUARDED CONTENT")).toBeNull();
     expect(screen.getByText("ACTIONS FALLBACK")).toBeTruthy();
+  });
+
+  it("Executive disallowed → role-default fallback is /executive, NOT /actions (HALT #1 fix)", () => {
+    renderGuarded({ initialUserId: "iffi-wahla", allowedRoles: ["rm", "manager", "admin"] });
+    expect(screen.queryByText("GUARDED CONTENT")).toBeNull();
+    expect(screen.getByText("EXEC FALLBACK")).toBeTruthy();
   });
 
   it("respects a custom fallbackRoute", () => {

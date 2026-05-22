@@ -11,6 +11,9 @@ import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { ExecutiveView } from "@/features/executive/ExecutiveView";
 import { QueueList } from "@/features/queue/QueueList";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { defaultRouteForRole } from "@/lib/auth/defaultRoute";
+import { RoleGuard, AccountScopeGuard } from "@/lib/auth/RoleGuard";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
 
@@ -20,31 +23,67 @@ const Constellation = lazy(() =>
 );
 
 export default function App() {
+  // SPEC-042 Step 3: the root route lands each role on their default surface.
+  const { user } = useAuth();
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<AccountWorkspace />} />
+        <Route index element={<Navigate to={defaultRouteForRole(user.role)} replace />} />
         <Route path="/accounts" element={<AccountWorkspace />} />
         <Route
           path="/accounts/:id"
           element={
-            <Placeholder
-              spec="Spec 036-037"
-              title="Account detail"
-              blurb="Per-account view with opt-in depth: 270° composite-health ring, dual-sided signal vector, verified themes, and the AI-RM briefing voice."
-            />
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <AccountScopeGuard executiveBypass>
+                {/* Placeholder until spec 037 builds PerAccountView; the scope guard
+                    still enforces RM/Manager out-of-scope redirects today. */}
+                <Placeholder
+                  spec="Spec 036-037"
+                  title="Account detail"
+                  blurb="Per-account view with opt-in depth: 270° composite-health ring, dual-sided signal vector, verified themes, and the AI-RM briefing voice."
+                />
+              </AccountScopeGuard>
+            </RoleGuard>
           }
         />
-        <Route path="/actions" element={<QueueList />} />
+        <Route
+          path="/actions"
+          element={
+            <RoleGuard allowedRoles={["rm", "manager", "admin"]}>
+              <QueueList />
+            </RoleGuard>
+          }
+        />
         <Route
           path="/constellation"
           element={
-            <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
-              <Constellation />
-            </Suspense>
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
+                <Constellation />
+              </Suspense>
+            </RoleGuard>
           }
         />
-        <Route path="/executive" element={<ExecutiveView />} />
+        <Route
+          path="/executive"
+          element={
+            <RoleGuard allowedRoles={["executive", "admin"]}>
+              <ExecutiveView />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/settings/users"
+          element={
+            <RoleGuard allowedRoles={["admin"]}>
+              <Placeholder
+                spec="Spec 042 (Step 7)"
+                title="Settings — User management"
+                blurb="Admin-only read-only role topology + scope counts. The full panel lands in spec 042 Step 7; this route is RBAC-gated now."
+              />
+            </RoleGuard>
+          }
+        />
         <Route
           path="/submit"
           element={
@@ -55,7 +94,14 @@ export default function App() {
             />
           }
         />
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/admin"
+          element={
+            <RoleGuard allowedRoles={["admin"]}>
+              <AdminLayout />
+            </RoleGuard>
+          }
+        >
           <Route index element={<Navigate to="/admin/signals" replace />} />
           <Route
             path="signals"

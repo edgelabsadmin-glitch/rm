@@ -9,17 +9,21 @@ import { Navigate, useParams } from "react-router-dom";
 import type { DemoAccountId } from "@/fixtures/demo_characters";
 import type { UserRole } from "@/lib/rbac/types";
 import { useAuth } from "./AuthContext";
+import { defaultRouteForRole } from "./defaultRoute";
 
 interface RoleGuardProps {
   allowedRoles: UserRole[];
+  // Optional explicit redirect target. Omitted → the caller's role-default route. Computing
+  // the fallback from the role avoids an infinite loop for a role blocked from /actions
+  // (e.g. Executive), which a static "/actions" default would cause (Step-3 HALT #1).
   fallbackRoute?: string;
   children: ReactNode;
 }
 
-export function RoleGuard({ allowedRoles, fallbackRoute = "/actions", children }: RoleGuardProps) {
+export function RoleGuard({ allowedRoles, fallbackRoute, children }: RoleGuardProps) {
   const { user } = useAuth();
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to={fallbackRoute} replace />;
+    return <Navigate to={fallbackRoute ?? defaultRouteForRole(user.role)} replace />;
   }
   return <>{children}</>;
 }
