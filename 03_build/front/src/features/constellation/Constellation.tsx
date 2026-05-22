@@ -72,7 +72,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
   const { setSelectedAccountId } = useSelectedAccount();
   // SPEC-042 Step-4: scope comes from the logged-in user (AuthContext). An explicit
   // `accountScope` prop still overrides (RBAC test harness / future server scope).
-  const { accountScope: authScope } = useAuth();
+  const { user, accountScope: authScope } = useAuth();
   const effectiveScope = accountScope ?? authScope;
 
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -311,6 +311,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
         onBackgroundClick={() => setExpanded(null)}
         onEngineTick={recomputeOverlays}
         onZoom={recomputeOverlays}
+        viewerRole={user.role}
       />
 
       {/* Step-5: cluster-pattern alert overlays, positioned over the canvas. */}
