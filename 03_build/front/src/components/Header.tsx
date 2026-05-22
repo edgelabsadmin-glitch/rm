@@ -7,9 +7,16 @@
 import { Bell, Zap } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { usePulseState } from "@/components/PulseStateProvider";
+import { DEMO_USERS } from "@/fixtures/demo_characters";
 import { useAuth } from "@/lib/auth/AuthContext";
 import type { UserRole } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
+
+// SPEC-042 Step-9 (DoD §12): dev-only persona switcher so the demo operator can walk Stories
+// A/B/C (Yozeline RM / Sarah Manager / Iffi Executive) without real SSO. Gated on
+// import.meta.env.DEV — never shipped to production (spec 043 OAuth hydrates AuthContext instead).
+const ROLE_RANK: Record<UserRole, number> = { executive: 0, manager: 1, rm: 2, admin: 3 };
+const SWITCHER_USERS = [...DEMO_USERS].sort((a, b) => ROLE_RANK[a.role] - ROLE_RANK[b.role]);
 
 // SPEC-042 Step 3: nav links are role-gated (visibility layer; RoleGuard enforces direct
 // URL access). Executive View is exec/admin only; Settings is admin only.
@@ -31,7 +38,7 @@ function initials(name: string): string {
 }
 
 export function Header() {
-  const { user } = useAuth();
+  const { user, switchUser } = useAuth();
   const { queueCount } = usePulseState();
 
   return (
@@ -83,6 +90,25 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Dev-only persona switcher (DoD §12) — hidden in production builds. */}
+        {import.meta.env.DEV && (
+          <label className="flex items-center gap-1.5 text-xs text-ink-secondary">
+            <span className="hidden sm:inline">View as</span>
+            <select
+              data-testid="dev-user-switcher"
+              aria-label="Switch demo user"
+              value={user.id}
+              onChange={(e) => switchUser(e.target.value)}
+              className="rounded-md border border-line-strong bg-surface-card px-2 py-1 text-xs text-ink-primary"
+            >
+              {SWITCHER_USERS.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.displayName} · {u.role}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {/* Action Queue is RM/Manager/Admin workspace — hidden for Executive (§3 matrix). */}
         {user.role !== "executive" && (
           <NavLink

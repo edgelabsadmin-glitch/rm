@@ -1,6 +1,6 @@
 # Spec 042 — Role-Based Access Control (RBAC)
 
-**Status:** Ratified Session 19 late-late stream extended per pre-spec audit (memo at `00_research/audits/pre_spec_042_rbac_audit.md`, commit `510eae0`) + Executive workload visibility extension (operator-ratified Option D). PM dispositions applied this commit. Awaiting Step 1 implementation prompt next.
+**Status:** ✅ **CLOSED 2026-05-22** (Session 19 late-late stream extended). All 8 implementation steps + 4 follow-up commits landed on `dz-001`; DoD verified (§17 close-out); demo Stories A/B/C walkable end-to-end. Watched concern #26 (overlay composer scope filtering) closed by this spec. Carry-forward: #36 (Phase-1B pulse-api endpoint enforcement), #37 (403 detail-format normalization), #38 (capacity interpretation-B at scale), #39 (badge semantics Phase 2), multi-domain SSO (spec 043). Merge to `main` awaits separate operator authorization (§16). Phase-1A delivers scoping enforcement + viewable role topology; Phase-1B (post-pulse-api Week 4 cutover) swaps fixtures for real signal data + LLM-composed prose. — _Originally ratified per pre-spec audit (memo `00_research/audits/pre_spec_042_rbac_audit.md`, commit `510eae0`) + Executive workload visibility extension (operator-ratified Option D)._
 **Author:** PM (Senior Product Advisor)
 **Drafted:** 2026-05-22 (Session 19 late-late stream)
 **Phase:** Week 4 — back-end infrastructure
@@ -752,5 +752,72 @@ Merge to main awaits operator authorization: "audit `dz-001` → merge with [dev
 
 ---
 
-*End of Spec 042 — Role-Based Access Control.*
-*PM-drafted Session 19 late-late stream (2026-05-22). Lands on `dz-001` once ratified + audit cleared.*
+## 17. Step-9 close-out + DoD verification (2026-05-22)
+
+**Closed:** 2026-05-22 (Session 19 late-late stream extended), branch `dz-001`.
+
+### Implementation history (all on `dz-001`)
+
+8 implementation steps + 4 follow-up commits, all PM-ratified at each halt:
+
+- **Step 1** — `types.ts` + `accountScope.ts` + `DEMO_USERS` (11 users).
+- **Step 2** — `AuthContext` + `RoleGuard` + `useSession.Role` supersession (A3); `ApiCaller` shim; role-aware `filterDemoActions`.
+- **Step 3** — route-tree guards + role-aware `defaultRouteForRole` fallback (HALT #1 resolution).
+- **Step 4** + follow-up — overlay composer scope propagation; **interpretation B** (org-wide truth, scoped display) ratified (`d2c4cb5`).
+- **Step 5** + 2 follow-ups — Action Queue + `/accounts` scope filtering; seeded 2 Sajjal cards + 2 approved cards; PulseBar badge counts scoped **pending** only; Status/Time filters replace the My-Queue/Overall toggle.
+- **Step 6** — `Caller.executive` + `require_queue_caller` 403 (defense in depth); 6 backend tests, no DB.
+- **Step 7** — `SettingsUsersPanel` (read-only role topology, Hybrid disposition); replaced the Step-3 placeholder.
+- **Step 8** — `composeTeamWorkload` + Executive-View Team workload panel + Constellation RM-node tooltip extension (Edit 11).
+- **Step 9** (this) — DoD verification, dev persona switcher (DoD gap closed), walkability tests, spec close-out.
+
+### DoD verification (§12)
+
+| # | DoD criterion | Status | Note |
+|---|---|---|---|
+| 1 | 4 roles + permission matrix in code | ✅ | In `src/lib/rbac/types.ts` (⚠️ §12 said `roles.ts`; actual is `types.ts` — cosmetic path delta). |
+| 2 | `deriveAccountScope()` pure fn + tested | ✅ | `accountScope.ts` + `accountScope.test.ts`. |
+| 3 | `AuthContext` provider + `useAuth()` | ✅ | Wraps app; exposes `user`/`accountScope`/`switchUser`. |
+| 4 | `RoleGuard` on all 5 protected routes | ✅ | `/actions`, `/accounts/:id`, `/constellation`, `/executive`, `/settings/users`. |
+| 5 | Per-Account sub-route guard (Exec exception) | ✅ | `AccountScopeGuard executiveBypass`. |
+| 6 | 3 overlay composers honor `accountScope` | ✅ | Capacity + escalation composers + inline cluster filter. **Closes watched concern #26.** |
+| 7 | Action Queue filters by scope | ✅ | `scopeAndRefineCards` (security) then `?rm=` (UX). |
+| 8 | Default route per role | ✅ | `defaultRouteForRole` (RM/Manager/Admin → `/actions`, Executive → `/executive`). |
+| 9 | Pulse-api `Caller.executive` + queue 403 | ✅ | `require_queue_caller` blocks Executive (structured detail). |
+| 10 | Dev-mode auth header convention | ⚠️ | **Deviation (per audit H2):** uses the spec-031 `X-User-Id`/`X-User-Role` convention, **not** the §12 `X-Dev-User-Id` JWT injector (dropped as redundant). Intended. |
+| 11 | 11 demo users hardcoded | ✅ | `DEMO_USERS` in `demo_characters.ts`. |
+| 12 | Settings panel `/settings/users` | ✅ | List + scope counts + detail panel + Change-role Phase-2 placeholder. |
+| 13 | Pulse-api scope on **all** read endpoints | 〜 | **Deferred to Phase-1B (#36):** only `/actions*` enforced in Phase-1A; Constellation/Executive/Per-Account endpoints don't exist yet (client-side fixtures), inherit `Caller` at Week-4 cutover. |
+| 14 | Dev user-switcher (gated `import.meta.env.DEV`) | ✅ | **Gap found + closed in Step 9** — `switchUser` was exposed/tested but had no UI consumer; added a DEV-only persona `<select>` to the Header. |
+| 15 | Stories A/B/C walkable end-to-end | ✅ | `demo_walkability.test.ts` (12 canvas-free cross-surface assertions). |
+| 16 | New tests green | ✅ | ~168 new across Steps 1–9 (far exceeds the 28–34 §11 estimate). |
+| 17 | Existing tests pass (no regressions) | ✅ | 241 front-end + 284 backend green. |
+| 18 | Build green, lint clean | ✅ | `tsc -b && vite build` clean. |
+| 19 | All commits on `dz-001` | ✅ | Per §4.22 / §16. |
+| 20 | Spec doc closure section | ✅ | This §17 + CLOSED status line. |
+| 21 | Edit 11: Team workload panel + Constellation hover | ✅ | Both shipped (Step 8). |
+
+**Net:** all criteria met, with 2 documented deviations (#10 header convention per H2; #14 user-switcher gap closed this step) and 1 explicit deferral (#13 → Phase-1B / #36).
+
+### Implementation deviations recorded across steps
+
+- **Constellation tooltip** (Step 8, §6.7) implemented by extending the react-force-graph `nodeLabel` **string-builder** (`nodeTooltip`), not a JSX hover component with `hoveredRmId` state — the latter doesn't exist. Additive, unit-tested at the string level (canvas-free). No behavioral deviation from §6.7.
+- **`DEMO_RMS`** carries `{id, name, managerId}` (no `displayName`/`avatarInitials`); `composeTeamWorkload` uses `rm.name` and derives initials from it (SS/SZ/YC/AA/MS/AT, matching `DEMO_USERS`).
+- **`ApprovalStatus`** models `modified-approved` (not `modified`); `modifiedThisWeek`/`rejectedThisWeek` resolve to 0 in the Phase-1A fixture (only `pending`/`approved` present).
+
+### Watched concerns carry-forward
+
+- **#26 — overlay composer scope filtering** → **CLOSED by this spec** (DoD #6).
+- **#36 — Phase-1B pulse-api endpoint enforcement** → open; Constellation/Executive/Per-Account endpoints inherit `Caller` + `visible_rm_ids` at Week-4 cutover.
+- **#37 — 403 detail-format normalization** → open; pulse-api Week-4 cutover (structured vs string detail consistency).
+- **#38 — capacity interpretation-B at production scale** → open; re-evaluate org-wide-truth/scoped-display threshold at real volume (Phase 2).
+- **#39 — PulseBar badge semantics** → resolved Step-5 follow-up (scoped pending count); Phase-2 revisit if status taxonomy expands.
+- **Multi-domain SSO** → spec 043 (Google Workspace must cover `onedge.co` + `edgeonline.co`).
+
+### Phase-1A → Phase-1B transition
+
+Phase-1A ships the enforcement skeleton + viewable role topology against canonical fixtures. Phase-1B (post-pulse-api **Week-4 cutover**) swaps `DEMO_ACTIONS`/`DEMO_*` fixtures for real signal data and LLM-composed prose via the established `Caller` + `visible_rm_ids` pattern — **no composer-signature changes** at cutover. Real OAuth (spec 043) hydrates `AuthContext` from JWT claims, replacing the dev persona switcher + `X-User-*` headers.
+
+---
+
+*End of Spec 042 — Role-Based Access Control. **CLOSED 2026-05-22.***
+*PM-drafted Session 19 late-late stream (2026-05-22). All work on `dz-001`; merge to `main` awaits separate operator authorization.*

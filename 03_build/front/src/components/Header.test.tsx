@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { Header } from "@/components/Header";
@@ -49,5 +49,24 @@ describe("Header role-based nav visibility (spec-042 Step-3)", () => {
     expect(link(/^Queue/)).toBeTruthy();
     expect(link(/Accounts/)).toBeTruthy();
     expect(link(/Constellation/)).toBeTruthy();
+  });
+});
+
+describe("Header dev persona switcher (spec-042 Step-9 DoD §12)", () => {
+  it("renders the dev-only switcher reflecting the current user", () => {
+    renderHeader("pulse-admin");
+    const sel = screen.getByTestId("dev-user-switcher") as HTMLSelectElement;
+    expect(sel.value).toBe("pulse-admin");
+  });
+
+  it("switching personas re-derives the role-gated nav (Admin → RM hides Settings)", () => {
+    renderHeader("pulse-admin");
+    expect(link(/^Settings$/)).toBeTruthy();
+    fireEvent.change(screen.getByTestId("dev-user-switcher"), {
+      target: { value: "yozeline-candia" },
+    });
+    expect(link(/^Settings$/)).toBeNull();
+    expect(link(/Executive View/)).toBeNull();
+    expect(link(/^Queue/)).toBeTruthy();
   });
 });
