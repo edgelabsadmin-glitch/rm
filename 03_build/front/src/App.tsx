@@ -11,6 +11,7 @@ import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { ExecutiveView } from "@/features/executive/ExecutiveView";
 import { QueueList } from "@/features/queue/QueueList";
+import { SettingsUsersPanel } from "@/features/settings/SettingsUsersPanel";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { defaultRouteForRole } from "@/lib/auth/defaultRoute";
 import { RoleGuard, AccountScopeGuard } from "@/lib/auth/RoleGuard";
@@ -83,11 +84,7 @@ export default function App() {
           path="/settings/users"
           element={
             <RoleGuard allowedRoles={["admin"]}>
-              <Placeholder
-                spec="Spec 042 (Step 7)"
-                title="Settings — User management"
-                blurb="Admin-only read-only role topology + scope counts. The full panel lands in spec 042 Step 7; this route is RBAC-gated now."
-              />
+              <SettingsUsersPanel />
             </RoleGuard>
           }
         />

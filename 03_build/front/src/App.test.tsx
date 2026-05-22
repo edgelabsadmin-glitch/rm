@@ -73,9 +73,10 @@ describe("App route guards + default route (spec-042 Step-3)", () => {
     expect(screen.getByText(EXEC)).toBeTruthy();
   });
 
-  it("Admin at /settings/users renders the (placeholder) panel", () => {
+  it("Admin at /settings/users renders the SettingsUsersPanel (spec-042 Step-7)", () => {
     renderApp("pulse-admin", "/settings/users");
-    expect(screen.getByText(/Settings — User management/i)).toBeTruthy();
+    // The real panel renders the 11-user table (data-testid="user-row"), not the old placeholder.
+    expect(screen.getAllByTestId("user-row")).toHaveLength(11);
   });
 
   it("RM at /admin is redirected to /actions", () => {
