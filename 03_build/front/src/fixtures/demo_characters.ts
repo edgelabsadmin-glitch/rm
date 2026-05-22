@@ -21,6 +21,7 @@
  * a UI-rendering concern in the Constellation drill-down, not a data limit.
  */
 import { TALENT_NAMES } from "./demo_talent_names";
+import type { UserRole } from "@/lib/rbac/types";
 
 export const DEMO_CEO = { id: "iffi-wahla", name: "Iffi Wahla", role: "CEO" } as const;
 export const DEMO_VP_CS = {
@@ -136,3 +137,40 @@ export function formatARR(usd: number): string {
   if (usd >= 1_000) return `$${Math.round(usd / 1_000)}K`;
   return `$${usd.toLocaleString()}`;
 }
+
+// ============================================================================
+// DEMO_USERS — Phase 1A hardcoded role assignments per spec 042
+// ============================================================================
+// Email convention: {first}.{last}@onedge.co for everyone except Iffi Wahla
+// on edgeonline.co (single executive on secondary domain per Session 19
+// late-late stream extended operator confirmation).
+// Pulse Admin = admin@onedge.co (functional alias, not a person).
+// Spec 043 OAuth Week 4 requires Google Workspace multi-domain configuration.
+// RM/Manager ids match canonical DEMO_RMS / DEMO_MANAGERS (verified).
+export interface DemoUser {
+  id: string;
+  displayName: string;
+  email: string;
+  role: UserRole;
+  rmId?: string; // for RM role; identifies which RM this user IS
+  managerId?: string; // for Manager role; identifies which Manager this user IS
+  avatarInitials: string;
+}
+
+export const DEMO_USERS: ReadonlyArray<DemoUser> = [
+  // Executives
+  { id: "iffi-wahla", displayName: "Iffi Wahla", email: "iffi.wahla@edgeonline.co", role: "executive", avatarInitials: "IW" },
+  { id: "eddy-chen", displayName: "Eddy Chen", email: "eddy.chen@onedge.co", role: "executive", avatarInitials: "EC" },
+  // Managers
+  { id: "sarah-hooper", displayName: "Sarah Hooper", email: "sarah.hooper@onedge.co", role: "manager", managerId: "sarah-hooper", avatarInitials: "SH" },
+  { id: "muhammad-ibrahim", displayName: "Muhammad Ibrahim", email: "muhammad.ibrahim@onedge.co", role: "manager", managerId: "muhammad-ibrahim", avatarInitials: "MI" },
+  // RMs
+  { id: "sidra-zia", displayName: "Sidra Zia", email: "sidra.zia@onedge.co", role: "rm", rmId: "sidra-zia", avatarInitials: "SZ" },
+  { id: "sajjal-shaheedi", displayName: "Sajjal Shaheedi", email: "sajjal.shaheedi@onedge.co", role: "rm", rmId: "sajjal-shaheedi", avatarInitials: "SS" },
+  { id: "yozeline-candia", displayName: "Yozeline Candia", email: "yozeline.candia@onedge.co", role: "rm", rmId: "yozeline-candia", avatarInitials: "YC" },
+  { id: "ameer-ali", displayName: "Ameer Ali", email: "ameer.ali@onedge.co", role: "rm", rmId: "ameer-ali", avatarInitials: "AA" },
+  { id: "mubeen-sohail", displayName: "Mubeen Sohail", email: "mubeen.sohail@onedge.co", role: "rm", rmId: "mubeen-sohail", avatarInitials: "MS" },
+  { id: "akash-tahir", displayName: "Akash Tahir", email: "akash.tahir@onedge.co", role: "rm", rmId: "akash-tahir", avatarInitials: "AT" },
+  // Admin (functional alias)
+  { id: "pulse-admin", displayName: "Pulse Admin", email: "admin@onedge.co", role: "admin", avatarInitials: "PA" },
+];
