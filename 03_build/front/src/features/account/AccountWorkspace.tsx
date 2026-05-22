@@ -3,10 +3,13 @@
  * selectedAccountId), center = Hero card + opt-in-depth panels, right = Action Queue.
  * Desktop (lg+): 3-25/50-25 columns. md and below: stacks (list → center → queue).
  */
+import { useEffect, useMemo } from "react";
 import { FadeLift } from "@/components/FadeLift";
+import { DEMO_ACCOUNTS } from "@/fixtures/demo_characters";
 import { SituationalHero } from "@/features/hero/SituationalHero";
 import { getAccountHealthFixture } from "@/features/hero/fixtures";
 import { QueueList } from "@/features/queue/QueueList";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { AccountListColumn } from "./AccountListColumn";
 import { MeetingBriefPanel } from "./MeetingBriefPanel";
@@ -14,7 +17,25 @@ import { SignalVectorPanel } from "./SignalVectorPanel";
 import { VerifiedThemesPanel } from "./VerifiedThemesPanel";
 
 export function AccountWorkspace() {
-  const { selectedAccountId } = useSelectedAccount();
+  const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
+  const { accountScope } = useAuth();
+
+  // SPEC-042 Step-5: the in-scope account ids for this caller (exec/admin = all 14).
+  const visibleIds = useMemo(
+    () => DEMO_ACCOUNTS.filter((a) => !accountScope || accountScope.includes(a.id)).map((a) => a.id),
+    [accountScope],
+  );
+
+  // Auto-correct the selected account if it falls outside scope (e.g. Yozeline, whose only
+  // account is Manhattan, shouldn't land on the default DHR selection).
+  useEffect(() => {
+    if (selectedAccountId && !visibleIds.includes(selectedAccountId)) {
+      setSelectedAccountId(visibleIds[0] ?? "");
+    } else if (!selectedAccountId && visibleIds.length > 0) {
+      setSelectedAccountId(visibleIds[0]);
+    }
+  }, [visibleIds, selectedAccountId, setSelectedAccountId]);
+
   const account = getAccountHealthFixture(selectedAccountId);
 
   return (

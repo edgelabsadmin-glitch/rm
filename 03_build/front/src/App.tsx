@@ -29,7 +29,14 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<Navigate to={defaultRouteForRole(user.role)} replace />} />
-        <Route path="/accounts" element={<AccountWorkspace />} />
+        <Route
+          path="/accounts"
+          element={
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <AccountWorkspace />
+            </RoleGuard>
+          }
+        />
         <Route
           path="/accounts/:id"
           element={

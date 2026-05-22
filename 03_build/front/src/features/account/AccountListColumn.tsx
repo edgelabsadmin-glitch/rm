@@ -8,12 +8,18 @@ import { CalendarDays } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
 import { accountARR, formatARR } from "@/fixtures/demo_characters";
 import { getAccountSummaries } from "@/features/hero/fixtures";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { cn } from "@/lib/utils";
 
 export function AccountListColumn() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
-  const accounts = getAccountSummaries();
+  const { accountScope } = useAuth();
+  // SPEC-042 Step-5: the left rail shows only accounts in the caller's scope. Exec/Admin
+  // scope = all 14, so they see the full list; RM/Manager see their book/team.
+  const accounts = getAccountSummaries().filter(
+    (a) => !accountScope || accountScope.includes(a.account_id),
+  );
 
   return (
     <aside className="col-span-12 border-b border-line-subtle bg-surface-sidebar p-5 lg:col-span-3 lg:border-b-0 lg:border-r">

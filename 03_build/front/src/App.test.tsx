@@ -82,4 +82,15 @@ describe("App route guards + default route (spec-042 Step-3)", () => {
     renderApp("yozeline-candia", "/admin");
     expect(screen.getByText(QUEUE)).toBeTruthy();
   });
+
+  it("/accounts is accessible to an RM and shows their scoped account rail (Manhattan only)", () => {
+    renderApp("yozeline-candia", "/accounts");
+    // The account-list rail (only on the /accounts workspace) renders Yozeline's one account.
+    expect(screen.getByRole("button", { name: /Manhattan Restorative/i })).toBeTruthy();
+  });
+
+  it("/accounts is accessible to an Executive (read-only) with the full account rail", () => {
+    renderApp("iffi-wahla", "/accounts");
+    expect(screen.getByRole("button", { name: /DHR Health Clinics/i })).toBeTruthy();
+  });
 });

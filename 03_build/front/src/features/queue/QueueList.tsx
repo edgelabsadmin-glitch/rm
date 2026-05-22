@@ -18,6 +18,7 @@ import { useLocalStorage } from "@/lib/useLocalStorage";
 import { cn } from "@/lib/utils";
 import { useActions } from "./hooks";
 import { QueueCard } from "./QueueCard";
+import { scopeAndRefineCards } from "./queue_scope";
 import type { QueueFilters } from "./types";
 
 type View = "mine" | "overall" | "approved" | "dispatched";
@@ -75,17 +76,22 @@ export function QueueList() {
   const constellationFilter = rmParam || managerParam;
   const isPendingView = constellationFilter ? true : PENDING_VIEWS.includes(view);
 
-  const filters: QueueFilters = useMemo(() => {
-    if (rmParam) return { rm_id: rmParam, tier: tier ?? undefined };
-    // NOTE: the API filters by rm_id, not manager — manager scoping is a Week-4
-    // API add (visible_rm_ids). Until then a ?manager= deep-link shows the banner
-    // + the caller's scope.
-    if (managerParam) return { tier: tier ?? undefined };
-    return { rm_id: view === "mine" ? user.id : undefined, tier: tier ?? undefined };
-  }, [rmParam, managerParam, view, tier, user.id]);
+  // API fetch is scoped by the caller's role (demo_actions / backend Caller). The URL ?rm=
+  // refinement is applied CLIENT-SIDE on top of the authoritative role scope below — so a
+  // crafted ?rm= can never widen what the caller sees (spec 042 Step-5).
+  const filters: QueueFilters = useMemo(
+    () => ({ rm_id: user.role === "rm" ? user.id : undefined, tier: tier ?? undefined }),
+    [user.role, user.id, tier],
+  );
 
   const { data, isLoading, isError, error } = useActions(filters);
-  const actions = data?.actions ?? [];
+  const fetched = data?.actions ?? [];
+
+  // Authoritative role scope (security) then URL ?rm= refinement (UX) — see queue_scope.ts.
+  const actions = useMemo(
+    () => scopeAndRefineCards(fetched, user.role, user.id, rmParam),
+    [fetched, user.role, user.id, rmParam],
+  );
 
   return (
     <div className="p-6">
