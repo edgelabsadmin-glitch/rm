@@ -81,6 +81,46 @@ export const DEMO_ACTIONS: ActionDTO[] = [
     rank_score: 0.64,
     skill_id: "skill-09-reference-builder",
   },
+  // Sajjal's two at-risk accounts (Step-5 follow-up Q1) — restore Story B walkability so a
+  // Manager/Admin queue shows Sajjal cards. Figures derived from canonical ($10K/seat).
+  {
+    action_id: "demo-sajjal-mendota-renewal",
+    customer_id: "mendota-insurance",
+    talent_id: null,
+    rm_id: "sajjal-shaheedi",
+    tier_class: "Mid-Market",
+    urgency: "high",
+    action_card: { headline: "At-risk renewal — Mendota Insurance", action_type: "renewal" },
+    why_oneline: `Mendota flagged at-risk — ${seats("mendota-insurance")} active placements, ${formatARR(accountARR("mendota-insurance"))} book.`,
+    why_detail:
+      `Mendota Insurance is in an <bad>at-risk</bad> state with <num>${seats("mendota-insurance")} active placements</num> ` +
+      `(<num>${formatARR(accountARR("mendota-insurance"))}</num> book). Renewal review recommended. Owning RM: ${rmName("sajjal-shaheedi")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["sfdc:mendota-placements", "sfdc:mendota-renewal"],
+    proposed_at: "2026-05-21T09:00:00Z",
+    status: "pending",
+    rank_score: 0.88,
+    skill_id: "skill-03-renewal-watcher",
+  },
+  {
+    action_id: "demo-sajjal-cirventis-outreach",
+    customer_id: "cirventis",
+    talent_id: null,
+    rm_id: "sajjal-shaheedi",
+    tier_class: "Mid-Market",
+    urgency: "medium",
+    action_card: { headline: "At-risk outreach — Cirventis", action_type: "outreach" },
+    why_oneline: `Cirventis flagged at-risk — ${seats("cirventis")} active placements, ${formatARR(accountARR("cirventis"))} book.`,
+    why_detail:
+      `Cirventis is in an <bad>at-risk</bad> state with <num>${seats("cirventis")} active placements</num> ` +
+      `(<num>${formatARR(accountARR("cirventis"))}</num> book). Proactive outreach recommended. Owning RM: ${rmName("sajjal-shaheedi")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["sfdc:cirventis-placements", "chorus:cirventis-engagement"],
+    proposed_at: "2026-05-21T13:30:00Z",
+    status: "pending",
+    rank_score: 0.72,
+    skill_id: "skill-05-escalation-router",
+  },
 ];
 
 /**

@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_ACTIONS } from "./demo_actions";
-import { scopeAndRefineCards, visibleRmIdsForCaller } from "./queue_scope";
+import {
+  applyStatusFilter,
+  applyTimeFilter,
+  scopeAndRefineCards,
+  visibleRmIdsForCaller,
+} from "./queue_scope";
 
-// DEMO_ACTIONS rm_ids: DHR→sidra-zia, Bayhealth→ameer-ali, NAVADERM→mubeen-sohail.
+// DEMO_ACTIONS (5) rm_ids: DHR→sidra-zia, Bayhealth→ameer-ali, NAVADERM→mubeen-sohail,
+// Mendota→sajjal-shaheedi, Cirventis→sajjal-shaheedi.
 
 describe("visibleRmIdsForCaller (spec-042 Step-5)", () => {
   it("admin → null (no filter, sees all)", () => {
@@ -26,7 +32,7 @@ describe("visibleRmIdsForCaller (spec-042 Step-5)", () => {
 
 describe("scopeAndRefineCards — scope (security) then URL ?rm= (UX)", () => {
   it("admin sees all cards", () => {
-    expect(scopeAndRefineCards(DEMO_ACTIONS, "admin", "pulse-admin")).toHaveLength(3);
+    expect(scopeAndRefineCards(DEMO_ACTIONS, "admin", "pulse-admin")).toHaveLength(5);
   });
   it("RM sees only their own card (Sidra → DHR)", () => {
     const cards = scopeAndRefineCards(DEMO_ACTIONS, "rm", "sidra-zia");
@@ -36,9 +42,10 @@ describe("scopeAndRefineCards — scope (security) then URL ?rm= (UX)", () => {
   it("RM with no demo card (Yozeline) → empty", () => {
     expect(scopeAndRefineCards(DEMO_ACTIONS, "rm", "yozeline-candia")).toHaveLength(0);
   });
-  it("Manager Sarah → team cards (DHR via Sidra)", () => {
+  it("Manager Sarah → 3 team cards (DHR/Sidra + Mendota/Sajjal + Cirventis/Sajjal) — Story B", () => {
     const cards = scopeAndRefineCards(DEMO_ACTIONS, "manager", "sarah-hooper");
-    expect(cards.map((c) => c.rm_id)).toEqual(["sidra-zia"]);
+    expect(cards).toHaveLength(3);
+    expect(new Set(cards.map((c) => c.rm_id))).toEqual(new Set(["sidra-zia", "sajjal-shaheedi"]));
   });
   it("Manager Muhammad → team cards (Bayhealth + NAVADERM)", () => {
     const cards = scopeAndRefineCards(DEMO_ACTIONS, "manager", "muhammad-ibrahim");
@@ -63,5 +70,43 @@ describe("scopeAndRefineCards — scope (security) then URL ?rm= (UX)", () => {
   });
   it("admin + ?rm= → just that RM's cards", () => {
     expect(scopeAndRefineCards(DEMO_ACTIONS, "admin", "pulse-admin", "ameer-ali")).toHaveLength(1);
+  });
+
+  it("Manager Sarah + ?rm=sajjal-shaheedi → narrows to Sajjal's 2 cards (Story B investigate)", () => {
+    const cards = scopeAndRefineCards(DEMO_ACTIONS, "manager", "sarah-hooper", "sajjal-shaheedi");
+    expect(cards).toHaveLength(2);
+    expect(cards.every((c) => c.rm_id === "sajjal-shaheedi")).toBe(true);
+  });
+});
+
+describe("applyStatusFilter / applyTimeFilter (spec-042 Step-5 follow-up Q3)", () => {
+  const NOW = new Date("2026-05-22T12:00:00Z").getTime();
+  const cards = [
+    { status: "pending", proposed_at: "2026-05-22T06:00:00Z" }, // 6h ago — today
+    { status: "approved", proposed_at: "2026-05-20T12:00:00Z" }, // 2d ago — this week
+    { status: "pending", proposed_at: "2026-05-10T12:00:00Z" }, // 12d ago — older
+  ];
+
+  it("status 'active' → only pending", () => {
+    expect(applyStatusFilter(cards, "active")).toHaveLength(2);
+  });
+  it("status 'approved' → only approved", () => {
+    expect(applyStatusFilter(cards, "approved")).toHaveLength(1);
+  });
+  it("status 'all' → no filter", () => {
+    expect(applyStatusFilter(cards, "all")).toHaveLength(3);
+  });
+  it("time 'today' → within 24h", () => {
+    expect(applyTimeFilter(cards, "today", NOW)).toHaveLength(1);
+  });
+  it("time 'this-week' → within 7d", () => {
+    expect(applyTimeFilter(cards, "this-week", NOW)).toHaveLength(2);
+  });
+  it("time 'all-time' → no filter", () => {
+    expect(applyTimeFilter(cards, "all-time", NOW)).toHaveLength(3);
+  });
+  it("status + time combine cumulatively (active AND today)", () => {
+    const combined = applyTimeFilter(applyStatusFilter(cards, "active"), "today", NOW);
+    expect(combined).toHaveLength(1);
   });
 });

@@ -1,13 +1,8 @@
 /*
- * SPEC-035/038 — Action Queue list. Ranked pending cards from GET /actions (10s
- * polling via useActions). Bucket selector (Design 03 §"Left-rail navigation"):
- * My Queue / Overall (pending) + Approved / Dispatched. Tier filter chips. Selections
- * persisted in localStorage (Q36). Fade-and-lift entrance + AnimatePresence exit.
- *
- * Buckets note (option-b, spec 038 req 4): GET /actions is pending-only, so the
- * Approved/Dispatched buckets render a flagged empty state — wiring them needs a
- * `status` filter param on the spec-031 API (Week-4 follow-up). My Queue/Overall
- * work today.
+ * SPEC-035/038/042 — Action Queue list. Cards from GET /actions (10s polling via useActions),
+ * scoped to the caller's role (spec 042 Step-5) then refined by UX filters: Status (Active/
+ * Approved/All) + Time (All time/Today/This week) + Tier chips + URL ?rm=. The dead My-Queue/
+ * Overall toggle was removed (role scope is authoritative). Selections persisted in localStorage.
  */
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Sparkles } from "lucide-react";
@@ -18,19 +13,26 @@ import { useLocalStorage } from "@/lib/useLocalStorage";
 import { cn } from "@/lib/utils";
 import { useActions } from "./hooks";
 import { QueueCard } from "./QueueCard";
-import { scopeAndRefineCards } from "./queue_scope";
+import {
+  applyStatusFilter,
+  applyTimeFilter,
+  scopeAndRefineCards,
+  type StatusFilter,
+  type TimeFilter,
+} from "./queue_scope";
 import type { QueueFilters } from "./types";
 
-type View = "mine" | "overall" | "approved" | "dispatched";
-const VIEWS: { id: View; label: string }[] = [
-  { id: "mine", label: "My Queue" },
-  { id: "overall", label: "Overall" },
+const STATUS_OPTS: { id: StatusFilter; label: string }[] = [
+  { id: "active", label: "Active" },
   { id: "approved", label: "Approved" },
-  { id: "dispatched", label: "Dispatched" },
+  { id: "all", label: "All" },
 ];
-const PENDING_VIEWS: View[] = ["mine", "overall"];
+const TIME_OPTS: { id: TimeFilter; label: string }[] = [
+  { id: "all-time", label: "All time" },
+  { id: "today", label: "Today" },
+  { id: "this-week", label: "This week" },
+];
 // EDGE white-label segment names (display) → spec-031 policy tier_class keys (API).
-// The display sweep does NOT touch Design-04 policy keys (per ruling: out of scope).
 const TIERS: { label: string; key: string }[] = [
   { label: "Core", key: "SMB" },
   { label: "Growth", key: "Mid-Market" },
@@ -65,20 +67,21 @@ function Chip({
 export function QueueList() {
   const { user } = useAuth();
   const reduce = useReducedMotion();
-  const [view, setView] = useLocalStorage<View>("pulse.queue.view", "mine");
   const [tier, setTier] = useLocalStorage<string | null>("pulse.queue.tier", null);
+  const [statusFilter, setStatusFilter] = useLocalStorage<StatusFilter>(
+    "pulse.queue.status",
+    "active",
+  );
+  const [timeFilter, setTimeFilter] = useLocalStorage<TimeFilter>("pulse.queue.time", "all-time");
 
-  // SPEC-041 routing: Constellation RM/manager clicks deep-link here with ?rm= / ?manager=.
-  // Present params override the local view; absent → existing My-Queue/Overall behavior.
+  // SPEC-041 routing: Constellation RM clicks deep-link here with ?rm= (refines within scope).
   const [sp] = useSearchParams();
   const rmParam = sp.get("rm");
   const managerParam = sp.get("manager");
   const constellationFilter = rmParam || managerParam;
-  const isPendingView = constellationFilter ? true : PENDING_VIEWS.includes(view);
 
-  // API fetch is scoped by the caller's role (demo_actions / backend Caller). The URL ?rm=
-  // refinement is applied CLIENT-SIDE on top of the authoritative role scope below — so a
-  // crafted ?rm= can never widen what the caller sees (spec 042 Step-5).
+  // API fetch scoped by the caller's role (demo_actions / backend Caller) + tier. Scope +
+  // URL ?rm= + Status + Time are applied client-side below; ?rm= can never widen scope.
   const filters: QueueFilters = useMemo(
     () => ({ rm_id: user.role === "rm" ? user.id : undefined, tier: tier ?? undefined }),
     [user.role, user.id, tier],
@@ -87,11 +90,11 @@ export function QueueList() {
   const { data, isLoading, isError, error } = useActions(filters);
   const fetched = data?.actions ?? [];
 
-  // Authoritative role scope (security) then URL ?rm= refinement (UX) — see queue_scope.ts.
-  const actions = useMemo(
-    () => scopeAndRefineCards(fetched, user.role, user.id, rmParam),
-    [fetched, user.role, user.id, rmParam],
-  );
+  // Cumulative: role scope (security) → URL ?rm= (UX) → Status (UX) → Time (UX).
+  const actions = useMemo(() => {
+    const scoped = scopeAndRefineCards(fetched, user.role, user.id, rmParam);
+    return applyTimeFilter(applyStatusFilter(scoped, statusFilter), timeFilter);
+  }, [fetched, user.role, user.id, rmParam, statusFilter, timeFilter]);
 
   return (
     <div className="p-6">
@@ -99,7 +102,7 @@ export function QueueList() {
         <h1 className="text-lg font-semibold uppercase tracking-[0.18em] text-ink-secondary">
           Action Queue
         </h1>
-        {isPendingView && <span className="text-xs text-ink-secondary">{actions.length} pending</span>}
+        <span className="text-xs text-ink-secondary">{actions.length} shown</span>
       </div>
 
       {constellationFilter && (
@@ -121,70 +124,63 @@ export function QueueList() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {VIEWS.map((v) => (
-          <Chip key={v.id} active={view === v.id} onClick={() => setView(v.id)}>
-            {v.label}
-          </Chip>
-        ))}
-        {isPendingView && (
-          <>
-            <span className="mx-1 h-4 w-px bg-line-strong" />
-            {TIERS.map((t) => (
-              <Chip
-                key={t.key}
-                active={tier === t.key}
-                onClick={() => setTier(tier === t.key ? null : t.key)}
-              >
-                {t.label}
-              </Chip>
-            ))}
-          </>
-        )}
+      {/* Filter rows (Option A): Status · Time on top, Tier below. */}
+      <div className="mb-4 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {STATUS_OPTS.map((s) => (
+            <Chip key={s.id} active={statusFilter === s.id} onClick={() => setStatusFilter(s.id)}>
+              {s.label}
+            </Chip>
+          ))}
+          <span className="mx-1 h-4 w-px bg-line-strong" />
+          {TIME_OPTS.map((t) => (
+            <Chip key={t.id} active={timeFilter === t.id} onClick={() => setTimeFilter(t.id)}>
+              {t.label}
+            </Chip>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {TIERS.map((t) => (
+            <Chip
+              key={t.key}
+              active={tier === t.key}
+              onClick={() => setTier(tier === t.key ? null : t.key)}
+            >
+              {t.label}
+            </Chip>
+          ))}
+        </div>
       </div>
 
-      {/* Approved/Dispatched buckets: API status filter is a Week-4 follow-up. */}
-      {!isPendingView && (
-        <p className="text-sm leading-6 text-ink-secondary">
-          {view === "approved" ? "Approved" : "Dispatched"} history wires in Week 4 — it needs a{" "}
-          <span className="font-mono">status</span> filter on{" "}
-          <span className="font-mono">GET /actions</span> (currently pending-only).
+      {isLoading && <p className="text-sm text-ink-secondary">Loading queue…</p>}
+      {isError && (
+        <p className="text-sm text-risk-high-fg">
+          Couldn’t load the queue: {(error as Error)?.message ?? "unknown error"}
         </p>
       )}
-
-      {isPendingView && (
-        <>
-          {isLoading && <p className="text-sm text-ink-secondary">Loading queue…</p>}
-          {isError && (
-            <p className="text-sm text-risk-high-fg">
-              Couldn’t load the queue: {(error as Error)?.message ?? "unknown error"}
-            </p>
-          )}
-          {!isLoading && !isError && actions.length === 0 && (
-            <div className="flex items-center gap-2 rounded-3xl bg-surface-tinted-row p-4 text-sm text-ink-secondary">
-              <Sparkles className="h-4 w-4 text-brand" />
-              All clear — Pulse will surface new actions here.
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <AnimatePresence initial={false}>
-              {actions.map((a) => (
-                <motion.div
-                  key={a.action_id}
-                  layout
-                  initial={reduce ? false : { opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <QueueCard action={a} isAdmin={user.role === "admin"} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </>
+      {!isLoading && !isError && actions.length === 0 && (
+        <div className="flex items-center gap-2 rounded-3xl bg-surface-tinted-row p-4 text-sm text-ink-secondary">
+          <Sparkles className="h-4 w-4 text-brand" />
+          All clear — Pulse will surface new actions here.
+        </div>
       )}
+
+      <div className="space-y-3">
+        <AnimatePresence initial={false}>
+          {actions.map((a) => (
+            <motion.div
+              key={a.action_id}
+              layout
+              initial={reduce ? false : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <QueueCard action={a} isAdmin={user.role === "admin"} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

@@ -27,3 +27,31 @@ export function scopeAndRefineCards<T extends { rm_id: string | null }>(
     visible === null ? [...cards] : cards.filter((c) => c.rm_id != null && visible.includes(c.rm_id));
   return urlRm ? scoped.filter((c) => c.rm_id === urlRm) : scoped;
 }
+
+// SPEC-042 Step-5 follow-up (Q3): Status + Time filters replace the dead My-Queue/Overall
+// toggle. UX layer — applied AFTER the role-scope security filter. Pure + now-injectable.
+export type StatusFilter = "active" | "approved" | "all";
+export type TimeFilter = "all-time" | "today" | "this-week";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "active" → pending only; "approved" → approved only; "all" → no filter. */
+export function applyStatusFilter<T extends { status: string }>(
+  cards: ReadonlyArray<T>,
+  status: StatusFilter,
+): T[] {
+  if (status === "active") return cards.filter((c) => c.status === "pending");
+  if (status === "approved") return cards.filter((c) => c.status === "approved");
+  return [...cards];
+}
+
+/** "today" → proposed within 24h; "this-week" → within 7d; "all-time" → no filter. */
+export function applyTimeFilter<T extends { proposed_at: string }>(
+  cards: ReadonlyArray<T>,
+  time: TimeFilter,
+  now: number = Date.now(),
+): T[] {
+  if (time === "all-time") return [...cards];
+  const cutoff = now - (time === "today" ? DAY_MS : 7 * DAY_MS);
+  return cards.filter((c) => new Date(c.proposed_at).getTime() >= cutoff);
+}
