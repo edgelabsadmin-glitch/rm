@@ -4,9 +4,20 @@
  * X-User-Role / X-Report-Ids) sourced from the stubbed session; spec 043 replaces
  * these with a real bearer token at the same chokepoint.
  */
-import type { Session } from "@/session/useSession";
+import type { UserRole } from "@/lib/rbac/types";
 
 const BASE = "/api";
+
+/**
+ * Minimal identity the API client sends to pulse-api (spec 042 A3 — replaces the old
+ * `Session` type). `DemoUser` from AuthContext satisfies this structurally, so consumers
+ * pass `useAuth().user` directly. Mirrors the backend `Caller` model (api/actions.py);
+ * spec 043 OAuth swaps the source of `id`/`role` without changing this contract.
+ */
+export interface ApiCaller {
+  id: string;
+  role: UserRole;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -18,23 +29,23 @@ export class ApiError extends Error {
   }
 }
 
-function authHeaders(session: Session): Record<string, string> {
+export function authHeaders(caller: ApiCaller): Record<string, string> {
   return {
-    "X-User-Id": session.id,
-    "X-User-Role": session.role,
+    "X-User-Id": caller.id,
+    "X-User-Role": caller.role,
   };
 }
 
 async function request<T>(
   path: string,
-  session: Session,
+  caller: ApiCaller,
   init: RequestInit = {},
 ): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...authHeaders(session),
+      ...authHeaders(caller),
       ...(init.headers ?? {}),
     },
   });
@@ -63,43 +74,46 @@ function qs(params: Record<string, string | number | undefined>): string {
 
 export const api = {
   listActions: async (
-    session: Session,
+    caller: ApiCaller,
     params: Record<string, string | number | undefined> = {},
   ) => {
     type ActionsResponse = import("@/features/queue/types").ActionsResponse;
     try {
-      return await request<ActionsResponse>(`/actions${qs(params)}`, session);
+      return await request<ActionsResponse>(`/actions${qs(params)}`, caller);
     } catch (err) {
       // DEV-only: with no FastAPI behind the /api proxy, serve the Phase-1 demo
       // fixture so the queue renders. Prod surfaces the error (Week-4 live wiring).
       if (import.meta.env.DEV) {
         const { filterDemoActions } = await import("@/features/queue/demo_actions");
-        return filterDemoActions({
-          rm_id: params.rm_id as string | undefined,
-          tier: params.tier as string | undefined,
-          customer_id: params.customer_id as string | undefined,
-        });
+        return filterDemoActions(
+          {
+            rm_id: params.rm_id as string | undefined,
+            tier: params.tier as string | undefined,
+            customer_id: params.customer_id as string | undefined,
+          },
+          caller.role,
+        );
       }
       throw err;
     }
   },
 
-  getAction: (session: Session, id: string) =>
-    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}`, session),
+  getAction: (caller: ApiCaller, id: string) =>
+    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}`, caller),
 
-  approve: (session: Session, id: string) =>
-    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}/approve`, session, {
+  approve: (caller: ApiCaller, id: string) =>
+    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}/approve`, caller, {
       method: "POST",
     }),
 
-  modify: (session: Session, id: string, diff: Record<string, unknown>) =>
-    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}/modify`, session, {
+  modify: (caller: ApiCaller, id: string, diff: Record<string, unknown>) =>
+    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}/modify`, caller, {
       method: "POST",
       body: JSON.stringify({ diff }),
     }),
 
-  reject: (session: Session, id: string, reason_picker: string, free_text?: string) =>
-    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}/reject`, session, {
+  reject: (caller: ApiCaller, id: string, reason_picker: string, free_text?: string) =>
+    request<import("@/features/queue/types").ActionDTO>(`/actions/${id}/reject`, caller, {
       method: "POST",
       body: JSON.stringify({ reason_picker, free_text: free_text ?? null }),
     }),

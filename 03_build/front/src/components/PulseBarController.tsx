@@ -9,12 +9,12 @@
 import { useEffect, useRef } from "react";
 import { usePulseState } from "@/components/PulseStateProvider";
 import { useActions } from "@/features/queue/hooks";
-import { useSession } from "@/session/useSession";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 export function PulseBarController() {
-  const session = useSession();
+  const { user } = useAuth();
   const { setQueueCount, setProcessing, notifyNewActions } = usePulseState();
-  const { data, isFetching } = useActions({ rm_id: session.id });
+  const { data, isFetching } = useActions({ rm_id: user.id });
   const prevIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {

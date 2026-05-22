@@ -13,7 +13,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useSession } from "@/session/useSession";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { useLocalStorage } from "@/lib/useLocalStorage";
 import { cn } from "@/lib/utils";
 import { useActions } from "./hooks";
@@ -62,7 +62,7 @@ function Chip({
 }
 
 export function QueueList() {
-  const session = useSession();
+  const { user } = useAuth();
   const reduce = useReducedMotion();
   const [view, setView] = useLocalStorage<View>("pulse.queue.view", "mine");
   const [tier, setTier] = useLocalStorage<string | null>("pulse.queue.tier", null);
@@ -81,8 +81,8 @@ export function QueueList() {
     // API add (visible_rm_ids). Until then a ?manager= deep-link shows the banner
     // + the caller's scope.
     if (managerParam) return { tier: tier ?? undefined };
-    return { rm_id: view === "mine" ? session.id : undefined, tier: tier ?? undefined };
-  }, [rmParam, managerParam, view, tier, session.id]);
+    return { rm_id: view === "mine" ? user.id : undefined, tier: tier ?? undefined };
+  }, [rmParam, managerParam, view, tier, user.id]);
 
   const { data, isLoading, isError, error } = useActions(filters);
   const actions = data?.actions ?? [];
@@ -172,7 +172,7 @@ export function QueueList() {
                   exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
                   transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  <QueueCard action={a} isAdmin={session.role === "admin"} />
+                  <QueueCard action={a} isAdmin={user.role === "admin"} />
                 </motion.div>
               ))}
             </AnimatePresence>

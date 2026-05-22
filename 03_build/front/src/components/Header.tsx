@@ -7,7 +7,7 @@
 import { Bell, Zap } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { usePulseState } from "@/components/PulseStateProvider";
-import { useSession } from "@/session/useSession";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -27,7 +27,7 @@ function initials(name: string): string {
 }
 
 export function Header() {
-  const session = useSession();
+  const { user } = useAuth();
   const { queueCount } = usePulseState();
 
   return (
@@ -60,7 +60,7 @@ export function Header() {
               {item.label}
             </NavLink>
           ))}
-          {session.role === "admin" && (
+          {user.role === "admin" && (
             <NavLink
               to="/admin"
               className={({ isActive }) =>
@@ -93,9 +93,9 @@ export function Header() {
         </NavLink>
         <div
           className="grid h-10 w-10 place-items-center rounded-full bg-ink-primary text-sm font-semibold text-ink-on-brand"
-          title={`${session.name} · ${session.email}`}
+          title={`${user.displayName} · ${user.email}`}
         >
-          {initials(session.name)}
+          {initials(user.displayName)}
         </div>
       </div>
     </header>

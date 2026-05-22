@@ -11,7 +11,7 @@
  * in why_detail as <num> inline tags (Tier-0 §10), rendered by the spec-035 renderer.
  */
 import { accountARR, DEMO_RMS, formatARR, REVENUE_PER_SEAT_USD } from "@/fixtures/demo_characters";
-import { STUB_SESSION } from "@/session/useSession";
+import type { UserRole } from "@/lib/rbac/types";
 import type { ActionDTO, ActionsResponse, QueueFilters } from "./types";
 
 const rmName = (id: string) => DEMO_RMS.find((r) => r.id === id)?.name ?? id;
@@ -84,13 +84,18 @@ export const DEMO_ACTIONS: ActionDTO[] = [
 ];
 
 /**
- * Filter the demo cards the way GET /api/actions would. Honors a real rm_id deep-link
- * (Constellation ?rm=) and the tier chip; the demo session stub (rm-demo) is treated as
- * book-wide so My Queue isn't empty in the demo (real scoping is server-side, spec 042).
+ * Filter the demo cards the way GET /api/actions would. Role-aware (spec 042 A3 re-anchor):
+ * RMs see only their own book (filter by rm_id); Manager / Executive / Admin see the full
+ * book (the rm_id self-filter is skipped — their "My Queue" rm_id wouldn't match RM-owned
+ * cards anyway). Tier + customer filters always apply. Real scoping is server-side (spec 042
+ * Caller model). `callerRole` defaults to undefined = unscoped (legacy / pre-RBAC).
  */
-export function filterDemoActions(filters: QueueFilters = {}): ActionsResponse {
+export function filterDemoActions(
+  filters: QueueFilters = {},
+  callerRole?: UserRole,
+): ActionsResponse {
   let actions = DEMO_ACTIONS;
-  if (filters.rm_id && filters.rm_id !== STUB_SESSION.id) {
+  if (filters.rm_id && callerRole === "rm") {
     actions = actions.filter((a) => a.rm_id === filters.rm_id);
   }
   if (filters.tier) {
