@@ -1,6 +1,6 @@
 # Spec 042 — Role-Based Access Control (RBAC)
 
-**Status:** Draft for PM/operator review. Lands on `dz-001` once ratified and pre-spec audit cleared.
+**Status:** Ratified Session 19 late-late stream extended per pre-spec audit (memo at `00_research/audits/pre_spec_042_rbac_audit.md`, commit `510eae0`) + Executive workload visibility extension (operator-ratified Option D). PM dispositions applied this commit. Awaiting Step 1 implementation prompt next.
 **Author:** PM (Senior Product Advisor)
 **Drafted:** 2026-05-22 (Session 19 late-late stream)
 **Phase:** Week 4 — back-end infrastructure
@@ -82,6 +82,16 @@ Spec 042 also unblocks watched concern #26 from spec 041 closure: the three Cons
 | Executive | `/executive` |
 | Admin | `/actions` (all queue) |
 
+### 3.3 Executive workload visibility (per operator catch Session 19 late-late stream extended)
+
+Executive role is blocked from `/actions` per permission matrix (the RM queue is RM/Manager workspace, not executive surface). Executive visibility into RM workload delivers through:
+
+1. **RM capacity imbalance overlay** (existing — spec 041 Step 6). Surfaces top-loaded RM at org level.
+2. **Team workload panel on Executive View** (NEW — per spec 042 §6.6 below). Per-RM queue depth + approvals this week + throughput indicator. At-a-glance team-wide workload texture.
+3. **Constellation RM node hover drill-down** (NEW — extension to spec 041 Step 4 hover tooltips). Hover an RM node shows workload metrics plus existing ARR + account count.
+
+NOT delivered through Action Queue read-only access — `/actions` is RM workspace surface; executive context is delivered through curated executive surfaces.
+
 ---
 
 ## 4. AccountScope derivation
@@ -108,7 +118,7 @@ export function deriveAccountScope(
       return DEMO_ACCOUNTS
         .filter(a => a.rmId === userId)
         .map(a => a.id);
-    case 'manager':
+    case 'manager': {
       // Manager sees all accounts owned by RMs they manage
       const teamRmIds = DEMO_RMS
         .filter(rm => rm.managerId === userId)
@@ -116,6 +126,7 @@ export function deriveAccountScope(
       return DEMO_ACCOUNTS
         .filter(a => teamRmIds.includes(a.rmId))
         .map(a => a.id);
+    }
     case 'executive':
     case 'admin':
       // Full org scope
@@ -139,6 +150,18 @@ interface AuthContextValue {
 ```
 
 Consumers use `useAuth()` hook to read scope; pass to surfaces that need it (Constellation, Action Queue, Per-Account View navigation guards, all three overlay composers).
+
+### AuthContext supersedes useSession.Role (A3 disposition)
+
+Per audit A3 disposition: `useSession.Role` (currently used by Header + AdminLayout) is SUPERSEDED by AuthContext. Spec 042 Step 2 includes the migration:
+
+1. Header refactored to use `useAuth()` instead of `useSession()`
+2. AdminLayout refactored to use `useAuth()` instead of `useSession()`
+3. `useSession.Role` removed from codebase by end of spec 042
+4. AuthContext.user.role is single source of truth for user role going forward
+5. Spec 043 OAuth hydrates AuthContext directly from JWT claims (no useSession migration needed Phase 1B)
+
+Migration is ~30 min Claude Code work; folded into Step 2.
 
 ---
 
@@ -170,12 +193,14 @@ export function RoleGuard({ allowedRoles, fallbackRoute = '/actions', children }
 <Routes>
   <Route path="/actions" element={
     <RoleGuard allowedRoles={['rm', 'manager', 'admin']}>
-      <ActionQueueView />
+      <QueueList />
     </RoleGuard>
   } />
   <Route path="/accounts/:id" element={
     <RoleGuard allowedRoles={['rm', 'manager', 'executive', 'admin']}>
-      <PerAccountView />
+      <AccountScopeGuard executiveBypass>
+        <PerAccountView />
+      </AccountScopeGuard>
     </RoleGuard>
   } />
   <Route path="/constellation" element={
@@ -196,20 +221,32 @@ export function RoleGuard({ allowedRoles, fallbackRoute = '/actions', children }
 </Routes>
 ```
 
-### Sub-route guards
+### AccountScopeGuard sub-route guard (Phase 1A wrapper pattern)
 
-Per-Account View also enforces in-scope check at component level (since `:id` route param can be anything):
+Per audit H1 disposition: `/accounts/:id` currently renders a Placeholder (spec 037 PerAccountView is unbuilt). To preserve demo Story A's "Yozeline blocked from DHR" demonstration without waiting for spec 037 build, spec 042 lands a lightweight wrapper component at the route level:
 
 ```typescript
-// inside PerAccountView component
-const { accountScope } = useAuth();
-const { id } = useParams();
-if (accountScope && !accountScope.includes(id as DemoAccountId)) {
-  return <Navigate to="/actions" replace />;
+interface AccountScopeGuardProps {
+  executiveBypass?: boolean; // Executive role bypasses scope check (read-only navigation)
+  children: ReactNode;
+}
+
+export function AccountScopeGuard({ executiveBypass = false, children }: AccountScopeGuardProps) {
+  const { user, accountScope } = useAuth();
+  const { id } = useParams();
+
+  if (executiveBypass && user.role === 'executive') return <>{children}</>;
+  if (executiveBypass && user.role === 'admin') return <>{children}</>;
+  if (accountScope && !accountScope.includes(id as DemoAccountId)) {
+    return <Navigate to="/actions" replace />;
+  }
+  return <>{children}</>;
 }
 ```
 
-Executive role exception: Executive can navigate to any `/accounts/:id` (read-only); scope check skipped for Executive role.
+When spec 037 builds the real PerAccountView component, AccountScopeGuard can either be folded inside PerAccountView or kept as the route wrapper — implementation choice at that time. For Phase 1A, the wrapper pattern intercepts before the Placeholder renders.
+
+> **Note (audit H1):** `ActionQueueView` was a drafting placeholder; the actual Action Queue component is `QueueList` (spec 035). All route references use `QueueList`.
 
 ---
 
@@ -229,9 +266,12 @@ Scoped user (e.g., RM Yozeline with `accountScope=['manhattan-restorative']`) cu
 
 All three composers accept optional `accountScope` parameter; filter their working set before computing:
 
+### Composer signatures (corrected per audit A1)
+
+**`composeCapacityImbalance()` extension** (actual shipped name, not "rm_capacity_composer.ts"):
+
 ```typescript
-// rm_capacity_composer.ts (updated)
-export function computeRmCapacityImbalance(
+export function composeCapacityImbalance(
   accounts: typeof DEMO_ACCOUNTS,
   rms: typeof DEMO_RMS,
   accountScope?: AccountScope,
@@ -245,7 +285,37 @@ export function computeRmCapacityImbalance(
 }
 ```
 
-Same pattern for cluster_pattern (filter DEMO_PATTERNS to those where all `support_account_ids` ⊆ scope) and escalation_tier_jump (filter DEMO_TIER_JUMP_EVENTS to those where event's `accountId` ∈ scope).
+**`composeEscalationTierJumps()` extension:**
+
+```typescript
+export function composeEscalationTierJumps(
+  events: typeof DEMO_TIER_JUMP_EVENTS,
+  accountScope?: AccountScope,
+): EscalationTierJumpCard[] {
+  const scopedEvents = accountScope
+    ? events.filter(e => accountScope.includes(e.accountId))
+    : events;
+  // ... existing logic operates on scopedEvents
+}
+```
+
+**Cluster pattern (inline filter, not a composer extension):**
+
+Cluster-pattern handling lives inline within `ClusterPatternOverlay` (filtering `DEMO_PATTERNS` directly), not in a separate composer module (no `cluster_pattern_composer.ts` exists). The inline filter applies the same partial-scope-pattern filter-out semantics: if any of a pattern's `support_account_ids` is out of scope, the pattern is not surfaced to that user.
+
+```typescript
+// inside ClusterPatternOverlay component
+const { accountScope } = useAuth();
+const scopedPatterns = DEMO_PATTERNS.filter(pattern => {
+  if (!accountScope) return true; // unscoped = show all
+  return pattern.support_account_ids.every(id => accountScope.includes(id));
+});
+```
+
+§11 test naming updated correspondingly:
+- `composeCapacityImbalance` covered by the existing `rm_capacity_composer.test.ts` (extended with `accountScope` cases)
+- `composeEscalationTierJumps` covered by the existing `escalation_tier_jump_composer.test.ts` (extended)
+- Cluster pattern tested at `ClusterPatternOverlay.test.tsx` (overlay level), not as a standalone composer
 
 ### Behavior expectations per role
 
@@ -262,54 +332,141 @@ If a Skill 10 pattern card references accounts both in-scope and out-of-scope fo
 
 ---
 
-## 7. Pulse-api middleware (defense in depth)
+## 6.5. Team workload composer (Executive workload visibility — Edit 11)
 
-### New middleware: `pulse-api/middleware/rbac_scope.py`
+New composer module: `src/features/executive/composers/team_workload_composer.ts`
 
-Wraps all read endpoints. Extracts user role + identity from JWT claim (provided by spec 043 OAuth; Phase 1 dev mode uses fixture JWT with hardcoded claims).
+```typescript
+export interface TeamWorkloadRow {
+  rmId: string;
+  rmName: string;
+  avatarInitials: string;
+  pendingCount: number;        // open cards in Action Queue
+  approvedThisWeek: number;    // cards approved in last 7d
+  modifiedThisWeek: number;
+  rejectedThisWeek: number;
+  throughputIndicator: 'rising' | 'steady' | 'declining' | 'flat';
+  combinedLoad: number;         // sort key (pending + throughput adjustment)
+}
 
-```python
-def apply_scope_filter(query, user_role: str, user_id: str):
-    """Filter DB query by user's account scope."""
-    if user_role in ('executive', 'admin'):
-        return query  # full org access
-    elif user_role == 'manager':
-        team_rm_ids = get_team_rm_ids(user_id)
-        return query.filter(Account.rm_id.in_(team_rm_ids))
-    elif user_role == 'rm':
-        return query.filter(Account.rm_id == user_id)
-    else:
-        raise PermissionDenied(f"Unknown role: {user_role}")
-```
-
-### Applied to endpoints
-
-- `GET /api/queue` — filter cards by scope
-- `GET /api/accounts/:id` — 403 if out of scope (except Executive read-only)
-- `GET /api/accounts` (list) — filter by scope
-- `GET /api/constellation` — filter accounts + composer outputs by scope
-- `GET /api/executive` — 403 unless Executive or Admin
-- `GET /api/settings/users` — 403 unless Admin
-- `POST /api/queue/:id/approve` — 403 if card not in scope
-- `POST /api/queue/:id/modify` — 403 if card not in scope
-- `POST /api/queue/:id/reject` — 403 if card not in scope
-
-### Phase 1 dev mode
-
-Until spec 043 OAuth ships (Week 4 same window), pulse-api uses a dev-mode JWT injector that reads `X-Dev-User-Id` header (front-end sends current user id) and synthesizes claims from hardcoded role assignments. **DEV-only fallback** — production builds reject requests without real JWT. Pattern matches Action Queue `demo_actions.ts` fallback approach (watched concern #23 cutover tracking applies).
-
-### 403 response format
-
-```json
-{
-  "error": "insufficient_scope",
-  "required_role": "admin",
-  "user_role": "rm",
-  "message": "This action requires admin role."
+export function composeTeamWorkload(
+  rms: typeof DEMO_RMS,
+  actions: typeof DEMO_ACTIONS, // existing dev-only Action Queue fixture
+  accountScope?: AccountScope,  // for Manager-scoped workload view (not used by Executive who sees all)
+): TeamWorkloadRow[] {
+  // For each RM in scope:
+  //   - pending = actions where rmId matches AND status === 'pending'
+  //   - approvedThisWeek = actions where rmId matches AND status === 'approved' AND within 7d
+  //   - modifiedThisWeek, rejectedThisWeek = same pattern
+  //   - throughputIndicator: derive from approval rate trend over last 14 days
+  //     (Phase 1: heuristic based on approvedThisWeek vs averageThisMonth; Phase 1B: real signal-derived)
+  //   - combinedLoad = pendingCount + (approvedThisWeek * 0.5)  // weighted heuristic; sort descending
+  // Returns sorted by combinedLoad descending. All counts derived from DEMO_ACTIONS fixture (Phase 1A);
+  // Phase 1B reads real pulse-api data.
 }
 ```
 
-Front-end surfaces 403s via toast notification: "You don't have access to this resource."
+Test file: `team_workload_composer.test.ts`. Verify scope filtering, derived counts match expected per-RM values from fixture.
+
+**Phase 1A → 1B transition:** Composer reads `DEMO_ACTIONS` fixture currently; pulse-api Week 4 cutover swaps to real action data via the existing `Caller` + `visible_rm_ids` pattern. No composer-signature change at cutover.
+
+---
+
+## 6.6. Executive View Team workload panel (Edit 11)
+
+New panel on Executive View, positioned BETWEEN the asks band ("What I'd ask of you · 3 this week") and the "Book in numbers" bottom strip. Honors §4.20 (every section surfaces an agentic decision) by giving the executive a workload-distribution-at-a-glance to support team interventions.
+
+### Composition
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Team workload                                          │
+├─────┬─────────────────┬──────┬──────────┬──────────────┤
+│ Av  │ Name            │ Pend │ Approved │ Throughput    │
+├─────┼─────────────────┼──────┼──────────┼──────────────┤
+│ SS  │ Sajjal Shaheedi │  8   │   12     │  ↑ rising     │
+│ SZ  │ Sidra Zia       │  3   │    9     │  → steady     │
+│ AA  │ Ameer Ali       │  4   │    7     │  → steady     │
+│ YC  │ Yozeline Candia │  1   │    3     │  ↑ rising     │
+│ MS  │ Mubeen Sohail   │  0   │    2     │  → flat       │
+│ AT  │ Akash Tahir     │  1   │    1     │  → flat       │
+└─────┴─────────────────┴──────┴──────────┴──────────────┘
+```
+
+(Numbers in mockup are illustrative; actual values derived from `composeTeamWorkload()`.)
+
+Per-row composition:
+- Avatar (24×24 rounded square; chip-warning bg if pendingCount >= 6, otherwise neutral)
+- Name (13px medium)
+- Pending count (numeric; chip-warning text-color if >= 6)
+- Approved this week (numeric; secondary text)
+- Throughput indicator: arrow + label (↑ rising, → steady, ↓ declining, → flat) with corresponding text color (good-on-brand / secondary / risk-on-brand / tertiary)
+
+Sortable by clicking column header (default: combinedLoad descending). Click an RM row → routes to `/constellation?rm=<rm-id>` (focuses Constellation on that RM's cluster — uses the existing spec 041 Step 4 deep-link pattern).
+
+### Agentic decision the panel surfaces
+
+"Sajjal is at 8 pending + rising throughput → either intervention warranted (Sarah pairs with him) OR he's handling the load (let him operate). Sidra at 3 pending + steady → no intervention needed. Yozeline at 1 pending + rising → ramp signal worth recognizing." The panel makes a per-RM decision possible without leaving the Executive View.
+
+---
+
+## 6.7. Constellation RM node hover drill-down (Edit 11)
+
+Extend the existing spec 041 Step 4 hover tooltip on RM nodes to surface workload metrics in addition to ARR + account count.
+
+### Existing hover content (spec 041 Step 4)
+- RM name
+- Book ARR (e.g., "$760K")
+- Account count (e.g., "3 accounts")
+
+### NEW additional content (Edit 11 — for Executive + Admin roles only; RM/Manager roles see existing tooltip)
+- Pending cards (e.g., "8 pending")
+- Approved this week (e.g., "12 approved this week")
+- Throughput indicator (e.g., "↑ rising")
+
+### Behavior
+- Hover tooltip extension shows for Executive + Admin roles.
+- RM + Manager roles see the existing tooltip (their scope already gives them direct queue access; redundant in tooltip).
+- Same `composeTeamWorkload()` data source as the Executive View Team workload panel; no duplicate composer.
+
+### Implementation
+- Extend the existing hover tooltip component to accept optional workload props.
+- AuthContext role check determines whether to render the workload section.
+- Workload row data passed from the parent Constellation component (which already reads `composeTeamWorkload()` for any executive-role rendering).
+
+---
+
+## 7. Pulse-api backend touchpoints (defense in depth — narrowed per audit)
+
+Per audit H2 disposition: spec 042 originally proposed a new middleware (`pulse-api/middleware/rbac_scope.py`) targeting endpoints (`/api/queue|constellation|executive|accounts`). Audit revealed:
+
+1. Scope enforcement **already ships** in `api/actions.py` via the `Caller` model + `visible_rm_ids` filtering + 403 responses (spec 031, exercised by `test_actions_api_db.py`).
+2. Three of the four proposed endpoints (`/api/constellation`, `/api/executive`, `/api/accounts`) do not exist — those surfaces are client-side in Phase 1A; pulse-api endpoints land Phase 1B Week 4 cutover.
+3. The dev-mode `X-Dev-User-Id` JWT injector pattern is redundant — the existing `X-User-*` header convention from spec 031 is the established Phase 1A pattern.
+
+### Backend changes for spec 042 (narrowed)
+
+Single backend touchpoint:
+
+**`api/actions.py` — Extend `Caller` model to add `executive` role:**
+- Current `Caller.role` enum includes `rm | manager | admin`; add `executive`.
+- `visible_rm_ids` derivation for executive: returns all RM IDs (full org scope, matching `deriveAccountScope` for executive role).
+- 403 logic unchanged; existing test pattern in `test_actions_api_db.py` extended with executive-role cases.
+- Note: per the permission matrix, executives are blocked from `/actions` at the front-end route guard. The backend executive scope is "all" for the Phase-1B endpoints that will reuse `Caller` (Constellation/Executive/Per-Account); the queue endpoints remain RM/Manager/Admin in practice.
+
+### Backend deferred to Phase 1B (Week 4 pulse-api cutover)
+
+When Constellation, Executive View, and Per-Account View wire to real pulse-api endpoints (not yet built), RBAC enforcement extends to those endpoints using the same `Caller` model + `visible_rm_ids` pattern. Filed as watched concern #36 for Week 4 coordination.
+
+### Defense-in-depth posture (Phase 1A)
+
+- **Front-end:** route guards + AccountScopeGuard + accountScope filtering through composers + AuthContext (this spec).
+- **Back-end:** existing `Caller`-based 403 enforcement on `/actions*` (spec 031; extended here with executive role).
+- **Phase 1B addition:** new pulse-api endpoints for Constellation/Executive/Per-Account inherit `Caller` enforcement (Week 4).
+
+### Header convention
+
+Front-end sends `X-User-Id`, `X-User-Role` headers (matching the spec 031 established pattern) to pulse-api. Pulse-api populates `Caller` from headers in Phase 1A; real JWT claims replace headers Phase 1B once spec 043 OAuth deploys.
 
 ---
 
@@ -416,7 +573,7 @@ Three demo stories spec 042 enables:
 - Capacity overlay: empty (her score doesn't warrant)
 - Tier-jump overlay: surfaces (Manhattan watch→at-risk is in her scope)
 - Tries to navigate to `/executive` — RoleGuard redirects to `/actions`
-- Tries to navigate to `/accounts/dhr-health-clinics` — sub-route guard redirects to `/actions`
+- Tries to navigate to `/accounts/dhr-health-clinics` — AccountScopeGuard redirects to `/actions`
 
 ### Story B — Manager Sarah opens her view
 
@@ -429,15 +586,21 @@ Three demo stories spec 042 enables:
 - No Executive View access
 - No Settings access
 
-### Story C — Executive Iffi opens his view
+### Story C — Executive Iffi opens his view (REVISED Edit 11)
 
 - Logs in as `iffi-wahla`
 - Default route: `/executive` (the surface designed for him)
-- Sees full Executive View with three-column agentic workspace, all asks, all stats
-- Navigates to `/constellation` — full org scope, all 3 overlays, all 14 accounts
-- Can navigate to any `/accounts/:id` read-only
-- No `/actions` access (executives don't approve)
-- No Settings access
+- Sees full Executive View:
+  - Hero Card with three-column agentic workspace + 2×2 pulse-facts
+  - "What I'd ask of you · 3 this week" asks band
+  - **NEW: Team workload panel** showing 6 RMs sorted by combined load — Sajjal at top (8 pending + rising throughput), Akash at bottom (1 pending + flat)
+  - "Book in numbers" bottom strip
+- Identifies Sajjal as the RM needing attention → clicks Sajjal's row → routes to `/constellation?rm=sajjal-shaheedi`
+- Constellation focuses on Sajjal's cluster + zoom level
+- Hovers Sajjal's RM node → tooltip shows: book ARR ($760K) + account count (3) + **NEW: 8 pending + 12 approved this week + ↑ rising**
+- Decides intervention warranted: navigates to Sajjal's accounts via Per-Account View read-only navigation to understand context before suggesting Sarah pair with him
+- No Action Queue access (executives don't approve; that's RM/Manager workspace)
+- Returns to Executive View; full visibility into team workload without touching the RM action surface
 
 Admin role is technical (Phase 1 demo doesn't surface Admin flow prominently; Admin used to demonstrate the Settings panel exists).
 
@@ -466,9 +629,12 @@ Admin role is technical (Phase 1 demo doesn't surface Admin flow prominently; Ad
 - `test_executive_endpoint_access.py` — Executive + Admin only
 - `test_settings_endpoint_access.py` — Admin only
 
-### Estimated test count
+### Estimated test count (revised per audit + Executive workload extension)
 
-~25-30 new tests (15-18 front-end Vitest, 10-12 back-end pytest). Front-end test total grows from 65 to ~80-83.
+- Vitest (front-end): 23-27 tests (was 15-18 — A3 Supersede adds Header + AdminLayout migration tests; Edit 11 adds Team workload composer + Executive View panel + Constellation RM hover tests)
+- Pytest (back-end): 5-7 tests (was 10-12 — H2 scope-down to `Caller.executive` extension only)
+- **Total: 28-34 new tests** (was 25-30)
+- Front-end test total grows from 65 to ~88-92.
 
 ---
 
@@ -486,7 +652,7 @@ Admin role is technical (Phase 1 demo doesn't surface Admin flow prominently; Ad
 - ✅ Dev-mode JWT injector reads `X-Dev-User-Id` header (Phase 1 fallback before spec 043 OAuth)
 - ✅ 11 demo users hardcoded in `demo_characters.ts` with correct role assignments
 - ✅ Settings panel `/settings/users` renders user list with scope counts; selected-user detail panel works; role-change CTA shows placeholder
-- ✅ User switcher in app shell (dev-only, gated behind `import.meta.env.DEV` per posture rule #44) lets demo operator switch between demo users
+- ✅ User switcher in app shell (dev-only, gated behind `import.meta.env.DEV` per §6 posture rule #44) lets demo operator switch between demo users
 - ✅ All three demo stories (A/B/C) walkable end-to-end on `localhost:5173`
 - ✅ 25-30 new tests green
 - ✅ Existing 65 tests still pass (no regressions)
@@ -505,6 +671,7 @@ Likely new watched concerns to emerge during implementation (will file as they a
 - **Multi-tenant scope isolation** — spec 042 is single-tenant. White-label deployments will need tenant-scoped role assignment. Phase 2.
 - **Dev user-switcher UI affordance** — `import.meta.env.DEV` gates a user switcher; production hides it. If Phase 2 surfaces a "switch user" affordance for legitimate admin impersonation use cases, design pattern needs revisit.
 - **Multi-domain SSO (NEW Session 19 late-late stream)** — Spec 043 OAuth must support both `onedge.co` and `edgeonline.co` domains via single Google Workspace multi-domain configuration. Operator action item for spec 043 kickoff: confirm Google Workspace covers both domains, or coordinate IdP setup. Cross-reference §15.
+- **Phase 1B pulse-api endpoint build (NEW Session 19 late-late stream extended audit)** — When Constellation, Executive View, and Per-Account View wire to real pulse-api endpoints (Week 4 cutover), RBAC enforcement extends to those endpoints using the same `Caller` model + `visible_rm_ids` pattern already established in `api/actions.py`. Filed for Week 4 coordination (watched concern #36).
 
 ---
 
@@ -516,36 +683,35 @@ Likely new watched concerns to emerge during implementation (will file as they a
 - `demo_characters.ts` extension (DEMO_USERS + DemoUser interface)
 - HALT for PM review of derived scope counts (verify all 11 users return expected scope sizes)
 
-**Step 2 — AuthContext + RoleGuard (~45 min):**
+**Step 2 — AuthContext + RoleGuard + `useSession.Role` supersession migration (~75 min; A3 Supersede):**
 - `src/lib/auth/AuthContext.tsx` + provider in App.tsx
 - `src/lib/auth/RoleGuard.tsx` + tests
+- Migrate Header + AdminLayout from `useSession()` to `useAuth()`; remove `useSession.Role`
 - Dev-mode user switcher in app shell (gated `import.meta.env.DEV`)
 - HALT for PM visual ratification of user switcher + role-based redirect on login
 
-**Step 3 — Route guards + sub-route enforcement (~30 min):**
+**Step 3 — Route guards + AccountScopeGuard sub-route enforcement (~30 min):**
 - App.tsx route tree wrapping
-- Per-Account View sub-route guard (Executive exception)
+- `AccountScopeGuard` wrapper on `/accounts/:id` (Executive bypass)
 - Tests
 - HALT for PM verification of all 5 protected routes
 
 **Step 4 — Constellation overlay composer scope propagation (~45 min):**
-- Update rm_capacity_composer, escalation_tier_jump_composer, cluster_pattern_composer to accept accountScope
+- Extend `composeCapacityImbalance` + `composeEscalationTierJumps` to accept `accountScope`; add inline `DEMO_PATTERNS` scope filter in `ClusterPatternOverlay`
 - Update tests
 - Verify scoped user (Yozeline) sees only in-scope overlay references
 - HALT for PM verification (closes watched concern #26)
 
 **Step 5 — Action Queue + Per-Account View scope filtering (~45 min):**
 - Action Queue filter logic updated
-- Per-Account View access checks (Executive exception)
+- Per-Account View access checks (Executive exception) via AccountScopeGuard
 - Tests
 - HALT for PM visual ratification per demo story A (Yozeline) and B (Sarah)
 
-**Step 6 — Pulse-api middleware + dev-mode JWT injector (~60 min):**
-- `pulse-api/middleware/rbac_scope.py`
-- `pulse-api/middleware/dev_jwt_injector.py` (gated behind ENV flag)
-- Apply middleware to all read + mutation endpoints
-- Tests
-- HALT for PM verification (curl against dev endpoints with different X-Dev-User-Id headers; verify 403s + filtered responses)
+**Step 6 — `Caller.executive` extension in `api/actions.py` + `test_actions_api_db.py` (~30 min; H2 scope-down):**
+- Add `executive` to the `Caller` role enum + `visible_rm_ids` (full org scope)
+- Extend `test_actions_api_db.py` with executive-role cases
+- HALT for PM verification (curl against `/actions*` with different `X-User-Role` headers; verify 403s + filtered responses)
 
 **Step 7 — Settings panel `/settings/users` (~45 min):**
 - `src/features/settings/SettingsUsersPanel.tsx` (three-column workspace)
@@ -553,20 +719,26 @@ Likely new watched concerns to emerge during implementation (will file as they a
 - Tests
 - HALT for PM visual ratification
 
-**Step 8 — Demo flow end-to-end + polish + DoD verification (~30 min):**
+**Step 8 — Executive workload visibility (NEW; ~75-90 min; Edit 11):**
+- `team_workload_composer.ts` + tests (`composeTeamWorkload`)
+- Executive View Team workload panel (between asks band + Book-in-numbers strip)
+- Constellation RM node hover extension (Executive/Admin only)
+- HALT for PM visual ratification per demo story C (Iffi)
+
+**Step 9 — Demo flow end-to-end + polish + DoD verification (~30 min):**
 - Walk through demo stories A/B/C
-- Run full test suite (target ~80-83 vitest + ~10-12 pytest)
+- Run full test suite (target ~88-92 vitest + ~5-7 pytest)
 - Update spec doc with closure section
 - HALT for PM ratification + spec 042 close
 
-**Total estimated:** 4.5-5.5 hours Claude Code execution across 8 halts.
+**Total estimated:** ~6-7 hours Claude Code execution across 9 halts (was 4.5-5.5h; Edit 11 adds ~75-90 min net new work).
 
 ---
 
 ## 15. Cross-spec coordination
 
 - **Spec 041 closure (`accountScope` prop interface):** Already wired; spec 042 extends to overlay composers.
-- **Spec 043 OAuth:** Real JWT claims replace dev-mode header injector. Same middleware contract. **Multi-domain SSO requirement (NEW per Session 19 late-late stream operator confirmation):** spec 043 must configure Google Workspace to cover both `onedge.co` AND `edgeonline.co` domains under a single SSO identity provider (Iffi Wahla is on `edgeonline.co`; all other users on `onedge.co`).
+- **Spec 043 OAuth:** Real JWT claims replace the `X-User-*` header convention from spec 031 + spec 042. Same `Caller` model contract on backend side. **Multi-domain SSO requirement (NEW per Session 19 late-late stream extended operator confirmation):** spec 043 must configure Google Workspace to cover both `onedge.co` AND `edgeonline.co` domains under a single SSO identity provider (Iffi Wahla is on `edgeonline.co`; all other users on `onedge.co`).
 - **Spec 044-047 Layer 8 surfaces:** Will need role guards (likely Admin-only for Signal Performance + Outcome tracking surfaces). Spec 042 establishes the RoleGuard + AccountScope pattern those specs will reuse.
 - **Pulse-api deploy:** Middleware deploys with rest of pulse-api; dev fallback removed at production cutover.
 
