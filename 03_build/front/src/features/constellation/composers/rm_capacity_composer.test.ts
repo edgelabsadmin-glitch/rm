@@ -59,36 +59,46 @@ describe("rm_capacity_composer (spec-041 Step-6, derived from canonical fixture)
   });
 });
 
-describe("composeCapacityImbalance — accountScope filtering (spec-042 Step-4)", () => {
-  it("undefined scope → identical to the unscoped result (no behavior change)", () => {
+describe("composeCapacityImbalance — interpretation B: org-wide truth, scoped display (Step-4 follow-up)", () => {
+  // The org-wide detection emits ONE card (Sajjal, the single top-loaded RM org-wide). The
+  // scope arg only filters whether that card is DISPLAYED — it never recomputes the threshold.
+  it("undefined scope → identical to the unscoped org-wide result (Sajjal card)", () => {
     const unscoped = composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, undefined);
     expect(unscoped).toEqual(composeCapacityImbalance());
+    expect(unscoped).toHaveLength(1);
+    expect(unscoped[0].topLoadedRmId).toBe("sajjal-shaheedi");
   });
 
-  it("empty scope → no in-scope accounts → empty array", () => {
+  it("empty scope → no overlap → card hidden (empty)", () => {
     expect(composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, [])).toHaveLength(0);
   });
 
-  it("single-account scope (Yozeline) → no imbalance possible → empty", () => {
-    const scope = deriveAccountScope("rm", "yozeline-candia"); // 1 account
+  it("Yozeline (Manhattan only) → no overlap with Sajjal's book → card hidden", () => {
+    const scope = deriveAccountScope("rm", "yozeline-candia");
     expect(composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, scope)).toHaveLength(0);
   });
 
-  it("Sarah's team scope → NO imbalance card (filter-before-formula: scoped median rises)", () => {
-    // FINDING (spec-042 Step-4): the 2×-median threshold recomputes over the scoped set.
-    // Sarah's team scores are {Sajjal 2.76, Sidra 1.99, Yozeline 1.1} → median 1.99, 2× = 3.98.
-    // Sajjal's 2.76 does NOT clear it, so the team-scoped view surfaces no imbalance — the
-    // org-wide card only fired because low-load Muhammad-team RMs dragged the global median
-    // down. (Contradicts the prompt's Story-B expectation; flagged + tied to concern #24.)
+  it("Sarah's team scope → Sajjal card SURFACES (her team-scope overlaps his accounts) — Story B restored", () => {
     const scope = deriveAccountScope("manager", "sarah-hooper");
+    const cards = composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, scope);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].topLoadedRmId).toBe("sajjal-shaheedi");
+  });
+
+  it("Muhammad's team scope → card hidden (no overlap with Sajjal's accounts; org-wide top is Sajjal)", () => {
+    const scope = deriveAccountScope("manager", "muhammad-ibrahim");
     expect(composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, scope)).toHaveLength(0);
   });
 
-  it("Muhammad's team scope → surfaces Ameer (top within his team), never Sajjal (not on team)", () => {
-    const scope = deriveAccountScope("manager", "muhammad-ibrahim");
+  it("Sidra's own book → card hidden (Sidra owns DHR Clinics/Hospital/Palm — NO overlap with Sajjal's Mendota/DMV/Cirventis; prompt's 'Sidra owns Mendota' premise is incorrect per canonical fixture)", () => {
+    const scope = deriveAccountScope("rm", "sidra-zia");
+    expect(composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, scope)).toHaveLength(0);
+  });
+
+  it("full org scope → Sajjal card visible (Executive / Admin)", () => {
+    const scope = deriveAccountScope("admin", "pulse-admin");
     const cards = composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, scope);
-    expect(cards.every((c) => c.topLoadedRmId !== "sajjal-shaheedi")).toBe(true);
-    // Ameer (1.61) easily clears 2× the within-team median (~0.14).
-    if (cards.length) expect(cards[0].topLoadedRmId).toBe("ameer-ali");
+    expect(cards).toHaveLength(1);
+    expect(cards[0].topLoadedRmId).toBe("sajjal-shaheedi");
   });
 });

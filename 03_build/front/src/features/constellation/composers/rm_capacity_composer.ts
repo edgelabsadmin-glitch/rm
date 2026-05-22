@@ -79,23 +79,11 @@ function median(values: number[]): number {
 }
 
 /**
- * Detect a capacity imbalance. Returns one card when the top RM's risk-weighted score
- * exceeds 2× the org median; the comparison RM is the lowest-loaded teammate under the
- * same manager. Returns [] when no imbalance clears the threshold (overlay renders nothing).
+ * Org-wide imbalance detection (truth is viewer-independent). Returns one card when the top
+ * RM's risk-weighted score exceeds 2× the org median; the comparison RM is the lowest-loaded
+ * teammate under the same manager. Returns [] when no imbalance clears the threshold.
  */
-export function composeCapacityImbalance(
-  accounts: ReadonlyArray<DemoAccount> = DEMO_ACCOUNTS,
-  rms: ReadonlyArray<DemoRM> = DEMO_RMS,
-  accountScope?: AccountScope,
-): CapacityImbalanceCard[] {
-  // Filter the working set BEFORE the formula (spec 042 Step-4 / watched concern #26).
-  const scopedAccounts = accountScope
-    ? accounts.filter((a) => accountScope.includes(a.id))
-    : accounts;
-  const scopedRmIds = new Set(scopedAccounts.map((a) => a.rmId));
-  const scopedRms = rms.filter((r) => scopedRmIds.has(r.id));
-
-  const loads = computeRmLoads(scopedAccounts, scopedRms);
+function detectImbalanceCards(loads: RmLoad[]): CapacityImbalanceCard[] {
   if (loads.length < 2) return [];
 
   const sorted = [...loads].sort((a, b) => b.riskWeightedScore - a.riskWeightedScore);
@@ -129,4 +117,24 @@ export function composeCapacityImbalance(
       managerName: manager?.name ?? top.managerId,
     },
   ];
+}
+
+/**
+ * SPEC-042 Step-4 follow-up — interpretation B (operator-ratified): the imbalance is computed
+ * ORG-WIDE (the 2×-median truth doesn't depend on who's looking), then cards are filtered at
+ * the DISPLAY layer — a card is shown only if the caller's scope overlaps the top-loaded RM's
+ * accounts. This matches the escalation + cluster overlays (truth org-wide; display scoped) and
+ * restores the demo Story-B Sajjal moment for Manager Sarah. accountScope undefined = unscoped.
+ */
+export function composeCapacityImbalance(
+  accounts: ReadonlyArray<DemoAccount> = DEMO_ACCOUNTS,
+  rms: ReadonlyArray<DemoRM> = DEMO_RMS,
+  accountScope?: AccountScope,
+): CapacityImbalanceCard[] {
+  const allCards = detectImbalanceCards(computeRmLoads(accounts, rms));
+  if (!accountScope) return allCards;
+  return allCards.filter((card) => {
+    const rmAccountIds = accounts.filter((a) => a.rmId === card.topLoadedRmId).map((a) => a.id);
+    return rmAccountIds.some((id) => accountScope.includes(id));
+  });
 }
