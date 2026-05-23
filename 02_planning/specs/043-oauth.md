@@ -1,942 +1,457 @@
-# Spec 043 — OAuth + Production-Grade Auth + Audit Observability
+# Spec 043 — OAuth via Supabase Auth (Path A)
 
-**Status:** Ratified Session 19 late-late stream extended further v2 per pre-spec audit (memo at `00_research/audits/pre_spec_043_oauth_audit.md`, commit `b7b90b3`). PM dispositions applied this commit: H1 + H2 + A1-A7 + I-items reviewed; 9 edits landed. Awaiting Step 1 implementation prompt next. Lands on `dz-001` (or successor branch per operator merge decision); merge to `main` awaits separate operator authorization.
-
-**Author:** PM (Senior Product Advisor)
-**Date drafted:** 2026-05-22 (Session 19 late-late stream extended further)
-**Estimated effort:** ~5-6h Claude Code across 7 steps + ~30 min pre-spec audit
-**Demo target:** 2026-06-30
-**Supersedes:** Dev `X-User-*` header convention (spec 031 Phase 1A pattern)
-**Closes watched concerns:** #29 (retired dev JWT injector), #30 (multi-domain SSO), #37 (403 detail format), #40 (NEW — auth observability per operator-stated load-bearing concern)
-
----
-
-## 1. Why this spec
-
-Spec 042 closed Phase 1A RBAC with a working AuthContext + Caller model populated from dev-mode `X-User-*` headers. That convention enabled fixture-based persona switching during local development but is not production-suitable: anyone with knowledge of the header names can spoof identity. Phase 1B production requires real authenticated identity.
-
-**Spec 043 replaces dev headers with Google Workspace OAuth** for the two EDGE domains (`onedge.co` primary, `edgeonline.co` secondary), populates AuthContext from verified JWT claims, and populates backend `Caller` from the same source — eliminating the spoofing surface and making the production session lifecycle real.
-
-**Additionally — and this is load-bearing per operator feedback** — the spec elevates auth observability to a primary deliverable. Operator-stated concern from prior agent builds: thin error messages on OAuth failures ("can't login", "account not connected") cost hours of debugging time because no structured trail exists. Spec 043 addresses this by:
-
-1. **Structured error codes at every auth failure boundary** — front-end and backend return well-typed errors with `{code, message, remediation}` shape, not opaque strings.
-2. **Auth audit log table** writing every login attempt (success and failure) with sufficient diagnostic context to debug a failure without reproducing it.
-3. **Admin-accessible audit viewer at `/admin/audit`** — operator can see real-time auth events during demo or production without leaving the app.
-
-Scope per operator ratification (Hybrid disposition Session 19 late-late stream extended further):
-- ✓ Structured errors (front-end + backend)
-- ✓ Audit log table + write path
-- ✓ Minimal admin viewer (reverse-chronological, last 100 events, expandable rows)
-- ✗ Real-time alerting (Phase 2 — watched concern carry-forward)
-- ✗ Replay capability (Phase 2)
-- ✗ Anomaly detection (Phase 2)
+**Status:** DRAFT v3.2 (Session 19 late-late stream extended further v3)
+**Architecture:** Supabase Auth with **asymmetric JWT signing (RS256 or ES256)** verified via Supabase JWKS endpoint
+**Branch:** `dz-001`
+**Honors:** ADR-006 v1.1 (`02_planning/architecture_decisions/ADR-006-authentication.md`)
+**Depends on:** Spec 042 RBAC CLOSED; Phase-0 infrastructure reconnaissance `acc6ed1`; ADR-006 v1.1; operator-verified asymmetric JWT signing keys live in Supabase Project Settings
+**Closes watched concerns:** #30 (multi-domain SSO), #37 (403 detail normalization), #40 (auth observability), #41 (profiles unguarded)
+**Estimated effort:** ~3 hours Claude Code
 
 ---
 
-## 2. Audience + framing
+## §1 Framing + ADR honor
 
-This spec is for the operator + future contributing engineers. It documents what we build, why we make specific architecture choices, what we don't build (and why), and what carries forward to Phase 2.
+This spec implements production-grade Google Workspace OAuth authentication for EDGE Pulse, **honoring ADR-006 v1.1 "Authentication via Supabase Auth"**.
 
-The product surface this spec touches: every page (login required), Header (logout flow), AdminLayout (new audit sub-route), backend `Caller` model population.
+**JWT signing is asymmetric (RS256 or ES256), verified locally by pulse-api via Supabase JWKS public keys.** This is Supabase's recommended algorithm for OAuth use cases and matches the operator's live Supabase Project Settings → JWT Signing Keys configuration (asymmetric ES256, legacy HS256 retired).
 
----
+**Reference:** `02_planning/architecture_decisions/ADR-006-authentication.md` v1.1. **Reconnaissance:** `00_research/inventories/infrastructure_inventory_session19_v2.md`. **Pre-spec audits:** `pre_spec_043_oauth_audit_v2.md` (`5f82914`), `pre_spec_043_oauth_audit_v3.md` (`c57a15f`), `pre_spec_043_oauth_audit_v4.md`.
 
-## 3. Architecture overview
+**What Supabase Auth provides (no spec 043 work needed):**
+- Google Workspace OAuth 2.0 flow (authorization code + PKCE)
+- JWT minting with **asymmetric algorithm (RS256 or ES256)** — private key managed internally by Supabase; never exposed
+- Public keys published at JWKS endpoint `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`
+- Refresh token rotation (90-day default)
+- Session cookie management (httponly, secure, samesite=lax)
+- `auth.users` table (Supabase managed schema)
+- `auth.audit_log_entries` table (auto-populated; closes #40)
+- Email domain allowlist (optional dashboard config; backend DEMO_USERS check is authoritative regardless — closes #30)
 
-### 3.1 OAuth flow (high level)
+**What this spec builds (~3h):**
+- Frontend: `/login` page + Supabase Auth client + AsyncAuthProvider (loading state across all 12 `useAuth` consumers) + logout flow with Header dropdown
+- Backend: `require_caller` rewrite (in `api/actions.py`) — validates Supabase asymmetric JWTs via JWKS + DEMO_USERS allowlist enforcement
+- Backend: `/profiles` endpoint guarding (closes #41)
+- Backend: `/admin/audit` viewer querying `auth.audit_log_entries`
+- 403 detail format normalization across all guards (closes #37)
+- Automated multi-domain (onedge.co + edgeonline.co) JWT integration tests
 
-```
-[User]
-  │
-  ▼
-GET /                                  # initial visit
-  │
-  ▼
-AuthContext checks for valid session   # cookie-based; httpOnly
-  │
-  ├─ valid → hydrate AuthContext from JWT claims → render app
-  │
-  └─ invalid/missing → redirect to /login
-     │
-     ▼
-GET /login                             # shows "Sign in with Google" button
-  │ click
-  ▼
-GET /api/auth/google                    # backend redirects to Google OAuth
-  │
-  ▼
-Google Workspace consent screen
-  │ user authorizes
-  ▼
-GET /api/auth/google/callback           # Google redirects back with code
-  │
-  ├─ verify state nonce
-  ├─ exchange code for tokens
-  ├─ verify ID token signature + claims
-  ├─ check domain in {onedge.co, edgeonline.co}
-  ├─ lookup user in DEMO_USERS by email
-  ├─ write pulse.auth_audit_log row (success or specific failure code)
-  │
-  ├─ success → set httpOnly session cookie → redirect to /
-  │
-  └─ failure → redirect to /login?error=<code>
-```
-
-### 3.2 Token storage
-
-**httpOnly, Secure, SameSite=Lax session cookie** containing a server-signed JWT. Two-token pattern:
-
-- **`pulse_session`** (~1h lifetime) — short-lived access token used by API
-- **`pulse_refresh`** (~30d lifetime) — refresh token used to renew access token
-
-Stored as httpOnly cookies (not localStorage) to mitigate XSS exfiltration. SameSite=Lax allows OAuth callback redirect from Google while preventing CSRF on cross-origin API.
-
-Refresh happens on access-token 401 from any API call: front-end calls `POST /api/auth/refresh`; if refresh token still valid, get new access token + retry original API call; if refresh token expired, force logout.
-
-### 3.3 AuthContext hydration (replaces spec 042 dev-header convention)
-
-Spec 042 currently:
-- `AuthProvider({initialUserId = 'pulse-admin'})` reads from `DEMO_USERS` directly
-- Dev-mode user switcher in Header lets operator pick any DemoUser
-- `useAuth().user` is always non-null `DemoUser` — every consumer downstream of AuthProvider assumes this
-
-Spec 043 changes (PRESERVING non-null user contract — H2 disposition):
-- `AuthProvider` accepts optional `initialUserId` (retained for DEV + tests; bypasses async fetch)
-- In production (no `initialUserId`), AuthProvider calls `GET /api/auth/me` on mount
-- WHILE async fetch is in flight: AuthProvider renders a loading boundary INTERNALLY (loading state never escapes to consumers)
-- On success: AuthProvider hydrates `user` + `accountScope` → renders children with non-null `user`
-- On failure (401, network error): AuthProvider redirects to `/login` → never renders children
-- Dev-mode user switcher remains gated `import.meta.env.DEV` for local development only — production build omits it
-
-The AuthContext **interface remains unchanged for consumers**: `useAuth().user` is always non-null `DemoUser` when consumer code runs. The loading/redirect concerns are encapsulated within AuthProvider itself.
-
-Implementation pattern:
-
-```typescript
-export function AuthProvider({ children, initialUserId }: AuthProviderProps) {
-  // Test/DEV path: synchronous hydration from DEMO_USERS by id
-  if (initialUserId !== undefined) {
-    return <AuthContextProvider userId={initialUserId}>{children}</AuthContextProvider>;
-  }
-
-  // Production path: async hydration from /api/auth/me
-  return <AsyncAuthProvider>{children}</AsyncAuthProvider>;
-}
-
-function AsyncAuthProvider({ children }: { children: ReactNode }) {
-  const { data, error, isLoading } = useQuery({
-    queryKey: ['auth-me'],
-    queryFn: fetchAuthMe,
-  });
-
-  if (isLoading) return <FullScreenLoader />;
-  if (error || !data) {
-    // Redirect to /login; render nothing (no consumer code runs)
-    return <Navigate to="/login?error=session_expired" replace />;
-  }
-
-  return (
-    <AuthContextProvider userId={data.user.id} hydrated={data}>
-      {children}
-    </AuthContextProvider>
-  );
-}
-```
-
-The `AuthContextProvider` (inner) preserves the existing spec 042 contract; downstream `useAuth()` consumers see non-null user with no behavior change. Existing 525-test baseline is unaffected: test files mount `AuthProvider initialUserId={...}` and take the synchronous path.
-
-### 3.4 Backend Caller population (replaces header parsing)
-
-Spec 031 + spec 042 currently:
-- `get_caller()` reads `X-User-Id` + `X-User-Role` headers
-- Returns `Caller(user_id=..., role=...)`
-
-Spec 043 changes:
-- `get_caller()` reads `pulse_session` cookie
-- Verifies JWT signature + expiry
-- Returns `Caller(user_id=claim.sub, role=claim.role)` populated from verified claims
-- On verification failure: returns 401 with structured error (NOT 403; identity unverified is 401, scope insufficient is 403 per HTTP standards)
-
-The `Caller` model itself stays unchanged. Spec 042's `require_queue_caller` defense-in-depth dependency continues to work — it gates AFTER identity verification.
+**What this spec does NOT touch:**
+- `PULSE_INTERNAL_API_TOKEN` service-to-service auth (preserved unchanged)
+- `/health` GET (unauthenticated by design)
+- Existing 4 routers in `api/main.py` (no new backend auth router — Supabase Auth callback goes to Supabase, not pulse-api)
 
 ---
 
-## 4. Multi-domain Google Workspace configuration
+## §2 Architecture overview
 
-### 4.1 Domain setup
+### 2.1 Auth flow (production)
 
-Single Google Cloud project hosts the OAuth client. Authorized domains in OAuth consent screen:
-- `onedge.co` (primary — 10 users: Eddy, Sarah, Muhammad, Sidra, Sajjal, Yozeline, Ameer, Mubeen, Akash, Pulse Admin)
-- `edgeonline.co` (secondary — 1 user: Iffi Wahla)
+1. User navigates to any protected route
+2. Frontend `AsyncAuthProvider` checks for Supabase session via `supabase.auth.getSession()`
+3. If no session → redirect to `/login`
+4. `/login` renders "Sign in with Google" → calls `supabase.auth.signInWithOAuth({ provider: 'google' })`
+5. Supabase Auth redirects to Google OAuth consent screen
+6. Google redirects to **Supabase Auth callback** (`https://uckyovidaajhqkcuxaiz.supabase.co/auth/v1/callback`) — NOT pulse-api
+7. Supabase Auth exchanges code, creates/finds `auth.users` row, mints **asymmetric (RS256 or ES256) JWT**, sets httponly cookie, redirects to **Pulse frontend** `/auth/callback`
+8. Frontend `/auth/callback` confirms session, redirects to `/` (role-defaulted)
+9. Subsequent API calls: frontend sends JWT in `Authorization: Bearer <jwt>` header
+10. Backend `require_caller` (in `api/actions.py`) validates JWT via **Supabase JWKS public keys** (cached in-process; algorithm allowlist `["RS256", "ES256"]`; rejects HS256) → looks up email in DEMO_USERS → populates `Caller` → request proceeds
 
-Authorized redirect URIs (configured in Google Cloud console):
-- `http://localhost:5173/api/auth/google/callback` (development)
-- `https://pulse.onedge.co/api/auth/google/callback` (production, when deployed)
+### 2.2 Auth flow (dev)
 
-OAuth scopes requested (minimal):
-- `openid` — required
-- `email` — required for domain check + user lookup
-- `profile` — required for displayName fallback
+Same as production, but Supabase redirects to `http://localhost:5173/auth/callback`. Backend on `localhost:8000`; Vite proxy strips `/api` prefix.
 
-**No additional scopes** — spec 043 is identity only. Adapter ingestion specs handled this separately (specs 012-014).
+Dev user-switcher (Header `<select>` from spec 042) PRESERVED for non-OAuth dev workflows; gated `import.meta.env.DEV` AND `!supabase.auth.session()`.
 
-### 4.2 Email canonicalization
+### 2.3 Multi-domain SSO (closes #30)
 
-Per Session 19 late-late stream operator ratification: `{first}.{last}@onedge.co` for all users except Iffi Wahla on `edgeonline.co`. Email comparison must be case-insensitive (Google returns lowercase but defensive comparison anyway).
+- Iffi Wahla on `edgeonline.co`; all other DEMO_USERS on `onedge.co`
+- **Backend DEMO_USERS check (authoritative):** `require_caller` looks up JWT email in DEMO_USERS; user with valid Google account NOT in DEMO_USERS → 403 with structured detail per §2.5
+- Supabase Auth dashboard email domain allowlist: skipped this iteration (not exposed in operator's tier); backend check is sufficient
+- Google Cloud OAuth consent screen Internal user type: configured; supports both domains under `onedge.co` Google org
+- **Automated test coverage:** Step 9 integration test includes 2 multi-domain cases (`onedge.co` JWT happy path + `edgeonline.co` JWT happy path)
 
-```python
-def normalize_email(email: str) -> str:
-    return email.strip().lower()
-```
+### 2.4 Audit observability (closes #40)
 
-### 4.3 Domain allowlist enforcement (backend)
+Supabase writes to `auth.audit_log_entries` automatically on every auth event. Spec 043 builds `/admin/audit` viewer (admin-only) querying this table via Supabase service-role client.
 
-```python
-ALLOWED_DOMAINS = {"onedge.co", "edgeonline.co"}
+### 2.5 403 detail format normalization (closes #37)
 
-def is_domain_allowed(email: str) -> bool:
-    if "@" not in email:
-        return False
-    domain = email.split("@", 1)[1].lower()
-    return domain in ALLOWED_DOMAINS
-```
-
-Domain check runs BEFORE DEMO_USERS lookup. Wrong-domain attempts get `domain_not_allowed` error without disclosing whether the user exists in our allowlist (security — don't leak provisioning state to unauthorized domains).
-
-### 4.4 User provisioning (allowlist-only — Hybrid disposition Q2)
-
-After domain check passes: lookup user by normalized email in `DEMO_USERS` table.
-
-```python
-def find_user_by_email(email: str) -> Optional[DemoUser]:
-    normalized = normalize_email(email)
-    return next((u for u in DEMO_USERS if u.email == normalized), None)
-```
-
-If found → success path (write audit, mint tokens, redirect to `/`).
-If not found → `user_not_provisioned` error (audit logs the attempted email so admin can debug).
-
-**Why allowlist-only (Phase 1A):** the demo audience is fixed (11 known users). Auto-provisioning at this scale is over-engineering. Phase 2 spec will add proper user-creation flow on Settings panel.
-
-**Phase 2 carryforward:** when EDGE onboards new RMs post-demo, admin will be able to add users via Settings panel (extends existing `/settings/users` from spec 042 Step 7) without code change.
-
----
-
-## 5. Structured error code taxonomy
-
-Every auth failure path returns a structured error with shape:
-
-```typescript
-interface AuthError {
-  code: AuthErrorCode;
-  message: string;        // human-readable
-  remediation: string;    // actionable guidance for end-user
-  attempted_email?: string;  // diagnostic only; admin audit log includes; NOT in user-facing URL
-}
-
-type AuthErrorCode =
-  | 'oauth_state_mismatch'        // CSRF defense — state nonce didn't match
-  | 'oauth_provider_error'         // Google returned error during code exchange
-  | 'token_verification_failed'    // ID token signature or claims invalid
-  | 'domain_not_allowed'           // email domain not in onedge.co / edgeonline.co
-  | 'user_not_provisioned'         // domain ok but email not in DEMO_USERS
-  | 'session_expired'              // pulse_session cookie expired, refresh failed
-  | 'session_invalid'              // pulse_session cookie malformed or signature failed
-  | 'no_session'                   // no cookie present (initial visit)
-  | 'rate_limited'                 // (Phase 2 enables; Phase 1A wires the code but rate limit logic is Phase 2)
-  | 'internal_error';              // catchall — backend exception during auth
-```
-
-### 5.1 Error code mapping table
-
-| Code | When it fires | User sees | Audit logs |
-|---|---|---|---|
-| `oauth_state_mismatch` | Callback state nonce ≠ cookie nonce | "Login attempt was interrupted. Please try again." | All, with `state_in_cookie`, `state_in_callback` for forensic |
-| `oauth_provider_error` | Google `/token` exchange returned error | "Sign-in with Google failed. Please try again or contact support." | All, with raw Google error response |
-| `token_verification_failed` | ID token signature/claim verify failed | "Sign-in verification failed. Please try again." | All, with which check failed |
-| `domain_not_allowed` | Email domain ∉ allowed set | "Your email domain is not authorized for Pulse. Contact your admin." | All, with attempted domain |
-| `user_not_provisioned` | Email not in DEMO_USERS | "Your account is not provisioned for Pulse. Contact your admin." | All, with attempted email |
-| `session_expired` | Access token expired, refresh failed | "Your session expired. Please sign in again." | Log + redirect to /login |
-| `session_invalid` | Cookie tampered/malformed | "Your session is invalid. Please sign in again." | Log + clear cookie + redirect |
-| `no_session` | No cookie on protected route | (silently redirects to /login) | No log (every initial visit hits this) |
-| `rate_limited` | (Phase 2) Too many attempts | "Too many login attempts. Try again in N minutes." | All, with attempt count |
-| `internal_error` | Backend exception during auth flow | "Something went wrong. Please try again." | All, with stack trace + exception type |
-
-### 5.2 What end-user sees vs what admin sees
-
-**End-user view (login page):**
-- Top-of-page banner with error message + remediation
-- No technical details, no exposed `attempted_email` in URL (prevents email enumeration via shared screenshots)
-- Persistent across refresh until user clicks dismiss or retries login
-
-**Admin view (`/admin/audit`):**
-- Full audit row with timestamp, ip, user_agent, attempted_email, error code, raw diagnostics
-- Color-coded: success = good-on-brand, failure = risk-on-brand
-- Click row → expand to see full diagnostic payload (state nonces, token claim subset, exception traces if internal_error)
-
----
-
-## 6. Front-end error UI
-
-### 6.1 Login page (`/login`)
-
-New route `/login` (no RoleGuard — unauthenticated route):
-
-```
-┌─────────────────────────────────────────────┐
-│   Pulse                                     │
-│                                             │
-│   Relationship intelligence for RMs         │
-│                                             │
-│   ┌─────────────────────────────────────┐  │
-│   │  Sign in with Google                │  │
-│   └─────────────────────────────────────┘  │
-│                                             │
-│   [error banner appears here if error param]│
-│                                             │
-└─────────────────────────────────────────────┘
-```
-
-Error param handling: `/login?error=<code>` triggers banner rendering. Banner content from error code mapping table §5.1.
-
-### 6.2 In-app session-expiry handling
-
-When ANY API call returns 401:
-1. Front-end automatically calls `POST /api/auth/refresh`
-2. If refresh succeeds → retry original API call (transparent to user)
-3. If refresh fails → AuthContext clears local state → redirect to `/login?error=session_expired`
-
-This pattern wraps the fetch layer (likely via `lib/api.ts` — the API client already exists from spec 042 Step 2; extend it).
-
-### 6.3 Logout flow
-
-Header dropdown gains "Sign out" item below the avatar:
-
-```
-┌──────────────┐
-│ Pulse Admin  │
-│ admin@...co  │
-├──────────────┤
-│ Sign out     │ ← new
-└──────────────┘
-```
-
-Click → `POST /api/auth/logout` → backend clears cookies → front-end redirects to `/login` → audit log writes `logout` event (Phase 2 may add; Phase 1A logs only login attempts).
-
-### 6.4 Front-end ApiError type extension (A3 disposition)
-
-Per audit A3: the existing `ApiError.detail` in the front-end client (`src/lib/api.ts`) is typed as `string`, but spec 042 Step 6 already returns a structured 403 detail object (the executive block), and spec 043 introduces structured 401/403 detail objects throughout. The field already silently holds objects in the executive-403 path today.
-
-Type update (lands in Step 5):
-
-```typescript
-// src/lib/api.ts
-interface AuthErrorDetail {
-  code: AuthErrorCode;
-  message: string;
-  remediation?: string;
-  required_roles?: UserRole[];
-  user_role?: UserRole;
-}
-
-interface ApiError {
-  status: number;
-  detail: string | AuthErrorDetail;  // discriminated at consumer site
-}
-```
-
-Consumers discriminate via a runtime `typeof` check; structured-detail consumers (login page error banner, audit viewer, refresh handler) cast to `AuthErrorDetail` after `typeof detail === 'object'`. String-detail consumers (existing queue error display) keep working unchanged.
-
----
-
-## 7. Backend structured 401/403 responses
-
-### 7.1 Endpoint additions
-
-New endpoints (extend existing `api/` module):
-
-```
-GET    /api/auth/google              → initiate OAuth (redirect to Google)
-GET    /api/auth/google/callback     → handle Google callback (success/failure)
-GET    /api/auth/me                  → return current user from session cookie
-POST   /api/auth/refresh             → refresh access token using refresh cookie
-POST   /api/auth/logout              → clear cookies, audit log
-GET    /api/auth/audit               → admin-only; last 100 audit log events
-```
-
-### 7.2 Response shape
-
-**Success (`/api/auth/me`):**
-```json
-{
-  "user": {
-    "id": "iffi-wahla",
-    "displayName": "Iffi Wahla",
-    "email": "iffi.wahla@edgeonline.co",
-    "role": "executive",
-    "avatarInitials": "IW"
-  },
-  "accountScope": ["dhr-health-clinics", "dhr-health-hospital", "..."]
-}
-```
-
-**Failure (401 with structured detail):**
+All 403 responses return JSON body:
 ```json
 {
   "detail": {
-    "code": "user_not_provisioned",
-    "message": "Your account is not provisioned for Pulse.",
-    "remediation": "Contact your admin to be added."
+    "code": "FORBIDDEN_NOT_IN_ALLOWLIST" | "FORBIDDEN_INSUFFICIENT_ROLE" | "FORBIDDEN_OUT_OF_SCOPE" | "FORBIDDEN_INVALID_TOKEN",
+    "message": "...",
+    "context": { /* optional */ }
   }
 }
 ```
 
-Note: 401 detail format **matches** spec 042 Step 6 executive 403 structured format (per watched concern #37 normalization direction — spec 043 is the natural checkpoint to converge backend error formats).
-
-### 7.3 Existing string-detail 403 normalization (closes #37 — expanded scope per audit)
-
-Per watched concern #37 + audit advisory A1: existing string-detail 403s in the backend are NOT limited to `api/actions.py` scope-403 path. Audit identified additional string-detail 403s in:
-
-- `api/dispatch.py` — dispatch endpoint 403s (`"internal token required"`, `str(e)`)
-- `api/admin/kill_switch.py` — kill switch endpoint 403 (`"admin token required"`)
-- `api/actions.py:73` — the `require_caller` invalid-role 403 (`"valid X-User-Id and X-User-Role required"`) + `api/actions.py:139` scope-403 (`"action outside your scope"`)
-
-(Note: the spec 042 Step 6 executive-block 403 at `api/actions.py:82` is **already structured** and is the format target.)
-
-Spec 043 Step 7 normalization pass converts ALL existing string-detail 403s in these files to structured detail matching the spec 043 pattern:
-
-```python
-detail = {
-    "error": "<specific_error_code>",
-    "required_roles": [...],  # or "required_scope" depending on context
-    "user_role": "<caller_role>",
-    "message": "<human-readable message>",
-    "remediation": "<actionable guidance>",
-}
-```
-
-Adds ~10 min to Step 7 budget (estimate revised from ~30 to ~40 min). Watched concern #37 closes more thoroughly than originally planned.
+Affected sites: `require_caller` (`api/actions.py`), `require_admin` (`api/admin/kill_switch.py`), `require_internal_token` (`api/dispatch.py`), spec 042 executive-403 (`api/actions.py`). Frontend `ApiError.detail` type updated to discriminated union with legacy string fallback.
 
 ---
 
-## 8. Auth audit log
+## §3 Step-by-step implementation
 
-### 8.1 Schema
+### Step 0 — Pre-implementation operator config (Supabase + Google Cloud)
 
-New Postgres table `pulse.auth_audit_log` (H1 disposition — psycopg3 + `pulse.` schema + app-generated UUID, matching the existing migration conventions in `migrations/0001`–`0008`):
+**Operator-executed.** Reference: `00_research/operator_prework/043-v3-prework.md`.
 
-```sql
--- Migration file: 0009_auth_audit_log.sql (verified next available; 0008 is the last existing).
+**Seven tasks total** (operator confirmation status as of placement):
 
-CREATE TABLE pulse.auth_audit_log (
-  id              TEXT PRIMARY KEY,                    -- app-generated UUID (str(uuid.uuid4())); matches existing migration pattern (no DB-side default)
-  ts              TIMESTAMPTZ NOT NULL DEFAULT now(),
-  attempted_email TEXT,                  -- nullable; null for no_session
-  attempted_domain TEXT,                  -- denormalized for query convenience
-  user_id         TEXT,                  -- nullable; null when lookup failed
-  role            TEXT,                  -- nullable; null when lookup failed
-  success         BOOLEAN NOT NULL,
-  error_code      TEXT,                  -- nullable; null when success=true
-  ip_address      INET,                  -- captured from request (X-Forwarded-For aware; see §8.2)
-  user_agent      TEXT,                  -- captured from request
-  diagnostics     JSONB,                 -- nullable; full diagnostic payload
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+| Task | Description | Status |
+|---|---|---|
+| 1 | Supabase: Enable Google OAuth provider; paste GOOGLE_OAUTH_CLIENT_ID + SECRET | ✅ Done |
+| 2 | Supabase: Configure Site URL + Redirect URLs | ✅ Done |
+| 3 | Supabase: Email domain allowlist | ⏭️ Skipped (free tier; backend authoritative) |
+| 4 | Supabase: Email templates | ⏭️ Skipped (OAuth-only) |
+| 5 | Google Cloud: Add Supabase callback URI to pulse-web-client | ✅ Done |
+| 6 | Local .env vars present | ✅ Done |
+| 7 | **NEW v3.2:** Verify Supabase asymmetric JWT signing keys | ✅ Done (ES256 confirmed) |
 
-CREATE INDEX idx_auth_audit_log_ts ON pulse.auth_audit_log(ts DESC);
-CREATE INDEX idx_auth_audit_log_email ON pulse.auth_audit_log(attempted_email) WHERE attempted_email IS NOT NULL;
-CREATE INDEX idx_auth_audit_log_error ON pulse.auth_audit_log(error_code) WHERE error_code IS NOT NULL;
-```
+Task 7 detail: Open Supabase dashboard → Project Settings → JWT Signing Keys. Verify current signing key is asymmetric (RS256 or ES256), NOT legacy HS256. Operator verified ES256 live Session 19 late-late stream extended further v3. If a future operator finds legacy HS256, Supabase one-click migration to asymmetric (~5 min) MUST complete before Step 1.
 
-### 8.2 Write path
+**Validation:** All 7 tasks dispositioned. Claude Code Step 3 begins unblocked.
 
-`write_auth_audit(...)` function called at every terminal point in the OAuth callback handler. Written in **psycopg3 idiom** (`%s` placeholders + `async with pool.connection()/cursor()`, matching `core/ingest/pipeline.py`), app-generated UUID, and **X-Forwarded-For-aware IP capture** (A6):
+### Step 1 — Supabase client setup + env vars
 
-```python
-import uuid
+**Backend (`03_build/api/`):**
+- Add `supabase>=2.3.0` to `pyproject.toml`
+- Add `pyjwt[crypto]>=2.8.0` to `pyproject.toml` — `[crypto]` extras required for asymmetric algorithm support (RSA/EC)
+- New file `api/auth/__init__.py` (empty)
+- New file `api/auth/supabase_client.py`: factory for Supabase service-role client. Reads `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` from env.
+- New file `api/auth/jwt_verify.py`:
+  - Uses pyjwt `PyJWKClient` to fetch and cache Supabase JWKS public keys from `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`
+  - Validates incoming JWTs with **explicit algorithm allowlist `["RS256", "ES256"]`** — rejects HS256 (defense against algorithm-substitution attacks)
+  - Verifies signature (asymmetric, with JWKS public key matching `kid` claim), expiry, audience (`"authenticated"` per Supabase convention)
+  - Async-safe; refreshes JWKS cache on unknown `kid` (handles Supabase key rotation)
+  - Cache TTL: 1 hour default; configurable via `PULSE_JWKS_CACHE_TTL_SEC` env var (default `3600`)
+  - Fail-fast on unreachable JWKS endpoint at startup
 
-async def write_auth_audit(
-    *,
-    attempted_email: Optional[str],
-    user_id: Optional[str],
-    role: Optional[str],
-    success: bool,
-    error_code: Optional[str],
-    request: Request,
-    diagnostics: Optional[dict] = None,
-) -> None:
-    domain = (
-        attempted_email.split("@", 1)[1] if attempted_email and "@" in attempted_email
-        else None
-    )
+  Reference implementation pattern (per Supabase docs):
+  ```python
+  from jwt import PyJWKClient
+  import jwt as pyjwt
 
-    # Prefer X-Forwarded-For (production behind reverse proxy); fall back to direct client (per A6)
-    ip_address = (
-        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        or (request.client.host if request.client else None)
-    )
+  jwks_client = PyJWKClient(f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json")
 
-    async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                """
-                INSERT INTO pulse.auth_audit_log
-                (id, attempted_email, attempted_domain, user_id, role, success, error_code,
-                 ip_address, user_agent, diagnostics)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    str(uuid.uuid4()),
-                    attempted_email,
-                    domain,
-                    user_id,
-                    role,
-                    success,
-                    error_code,
-                    ip_address,
-                    request.headers.get("user-agent"),
-                    json.dumps(diagnostics) if diagnostics else None,
-                ),
-            )
-```
+  def verify_token(token: str) -> dict:
+      signing_key = jwks_client.get_signing_key_from_jwt(token)
+      return pyjwt.decode(
+          token,
+          signing_key.key,
+          algorithms=["RS256", "ES256"],  # NO HS256
+          audience="authenticated",
+      )
+  ```
 
-(`pool` is obtained via the existing `await get_pool()` chokepoint in `core/db.py`.)
+**Frontend (`03_build/front/`):**
+- `npm install @supabase/supabase-js@^2.39.0` (explicit; not transitive)
+- New file `front/src/lib/supabase.ts`: factory for browser Supabase client. Reads `import.meta.env.VITE_SUPABASE_URL` + `import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY`
+- Update `.env.example`: add `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `PULSE_JWKS_CACHE_TTL_SEC` (default 3600), `PULSE_AUTH_DEV_BYPASS` (default false)
 
-### 8.3 Write triggers (which events get logged)
+**Validation tests (9 net new):**
+- `pytest tests/test_jwt_verify.py` — 7 cases:
+  1. JWKS fetch happy path
+  2. JWKS fetch failure on cold start (fail-fast)
+  3. RS256 signature validation success
+  4. ES256 signature validation success
+  5. Expired-token rejection
+  6. Wrong-audience rejection
+  7. **HS256 token rejection** (algorithm-substitution attack defense — verifies allowlist enforced)
 
-| Event | Logged? | error_code | Notes |
-|---|---|---|---|
-| Successful login | ✓ | null | success=true |
-| Failed login — domain not allowed | ✓ | `domain_not_allowed` | attempted_email captured |
-| Failed login — user not provisioned | ✓ | `user_not_provisioned` | attempted_email captured |
-| Failed login — state mismatch | ✓ | `oauth_state_mismatch` | diagnostics include state values |
-| Failed login — provider error | ✓ | `oauth_provider_error` | diagnostics include Google error |
-| Failed login — token verify | ✓ | `token_verification_failed` | diagnostics include which check failed |
-| Token refresh success | ✓ | null | success=true; user_id from refresh token |
-| Token refresh failure | ✓ | `session_expired` | logged BEFORE redirecting to /login |
-| Logout | ✗ (Phase 2) | — | not load-bearing; Phase 2 may add |
-| No session on protected route | ✗ | — | not a "failure" per se; just an unauthenticated visit |
-| Session expired during /api call | ✗ | — | the refresh attempt's failure is what gets logged |
+  Bonus 8: JWKS cache refresh on unknown `kid` (key rotation handling)
+- `npm test -- supabase.test.ts` — 2 cases: client factory shape; throws on missing env vars
 
-### 8.4 Retention (Phase 1A)
+**DoD:** Supabase clients installed; `pyjwt[crypto]` installed; 9 tests green; 525 existing tests preserved.
 
-No active retention policy. Table grows unbounded.
+### Step 2 — Backend `require_caller` rewrite + `/profiles` guard (closes #41)
 
-**Realistic Phase 1A volume estimate (corrected per audit A7):**
-- 11 users active during demo prep + demo
-- Refresh-token events fire ~hourly per active user (dominant source — the audit caught that the earlier estimate omitted this)
-- Login events (initial + occasional re-login): ~2-5 per user per day
-- Estimate: 11 users × ~8 active hours × 30 days = ~2,640 refresh events + ~660 login events = ~3,300 rows
-- With failure cases + edge cases, realistic upper bound: ~5,000 rows over the Phase 1A window
+**Rewrite `require_caller` in `api/actions.py`** (audit-verified location — NOT `api/dependencies.py` which does not exist):
+- Old: reads `X-User-Id` + `X-User-Role` headers; constructs Caller from header values
+- New: reads `Authorization: Bearer <jwt>` header; validates JWT via `jwt_verify.py` (asymmetric RS256/ES256 + JWKS); extracts email from JWT claims; looks up email in `DEMO_USERS` (from `core/auth/demo_users.py` per spec 042); if found → constructs Caller from DEMO_USERS row; if not found → raises HTTPException(403, detail={code: "FORBIDDEN_NOT_IN_ALLOWLIST", message: "Your account is not authorized for Pulse.", context: {email}})
+- Preserves spec 042 Caller shape exactly
+- **DEV BYPASS:** If `os.getenv("PULSE_AUTH_DEV_BYPASS") == "true"` AND header `X-User-Id` present, fall back to spec 042 header behavior. Default off. Production Fly secrets MUST keep this `false`.
 
-5,000 rows is well within "unbounded acceptable" for Postgres; the `ts DESC` index keeps queries sub-millisecond.
+**Add guard to `/profiles`:**
+- `api/profiles.py`: add `dependencies=[Depends(require_caller)]` to router
+- Verify GET `/profiles/{type}/{id}` and PUT `/profiles/{type}/{id}` both require auth
 
-**Phase 2 carryforward:** retention policy (e.g. 90 days hot + S3 archive cold). Real production volume after EDGE-wide rollout could be 100x-1000x the demo-window estimate.
+**Validation tests (12 net new + ~30 existing updated):**
+- `pytest tests/test_require_caller_jwt.py` — 8 cases: valid RS256 JWT in DEMO_USERS; valid JWT not in DEMO_USERS; expired JWT; malformed JWT; missing Authorization header; dev bypass enabled with X-User-Id; dev bypass disabled with X-User-Id (rejected); valid JWT with manager role (Caller.executive=false)
+- `pytest tests/test_profiles_auth.py` — 4 cases: GET without auth → 401; GET with auth → 200; PUT without auth → 401; PUT with auth → 200
+- ~30 existing backend tests using `X-User-*` headers updated to set `PULSE_AUTH_DEV_BYPASS=true` env var (±5 range allowance)
 
----
+**DoD:** `require_caller` validates Supabase asymmetric JWTs; `/profiles` guarded; 12 net new tests green; existing 284 backend tests preserved via dev bypass.
 
-## 9. Admin audit viewer (`/admin/audit`)
+### Step 3 — Frontend `/login` page + Supabase Auth integration
 
-### 9.1 Route + access
+**New file `front/src/pages/Login.tsx`:**
+- Renders Pulse brand + "Sign in with Google" button
+- Button click → `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/auth/callback' } })`
+- Error state: display "Sign-in failed. Try again." with retry button
+- Loading state: button spinner during OAuth redirect
+- Design: matches spec 041 Constellation visual language (Tier-0 design tokens, brand `#4a0f70`)
 
-New sub-route on AdminLayout: `/admin/audit`. AdminLayout is already wrapped in `RoleGuard(['admin'])` per spec 042 Step 3. No new RoleGuard needed.
+**New file `front/src/pages/AuthCallback.tsx`:**
+- On mount: call `supabase.auth.getSession()`
+- If session → redirect to `/` (role-defaulted per spec 042)
+- If no session after 3s → redirect to `/login?error=callback_failed`
+- Loading state: full-screen "Signing you in..." with Pulse breathing orb
 
-Adding to AdminLayout sub-nav:
-- `/admin` (existing — admin home)
-- `/admin/audit` ← new
+**Update `front/src/App.tsx`:**
+- Add `<Route path="/login" element={<Login />} />` (outside `<AppShell>`)
+- Add `<Route path="/auth/callback" element={<AuthCallback />} />` (outside `<AppShell>`)
 
-### 9.2 View composition
+**Validation tests (6 net new):**
+- `npm test -- Login.test.tsx` — 3 cases
+- `npm test -- AuthCallback.test.tsx` — 3 cases
+- Manual smoke: `npm run dev` → `localhost:5173/login` → Google button → consent screen → land at `/`
 
-Reverse-chronological table; last 100 events; expandable rows:
+**DoD:** Routes functional; 6 tests green; manual smoke passes.
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ Auth audit log                                          Last 100 events  │
-├──────────────────────────────────────────────────────────────────────────┤
-│ Timestamp           Email                       Result      Code         │
-├──────────────────────────────────────────────────────────────────────────┤
-│ 2026-05-22 14:32:18 iffi.wahla@edgeonline.co    ✓ success                │ ◀ click
-│ 2026-05-22 14:28:04 sajjal@onedge.co            ✗ failure  user_not_pr… │
-│ 2026-05-22 14:27:51 sajjal.shaheedi@onedge.co   ✓ success                │
-│ 2026-05-22 14:21:00 eddy@gmail.com              ✗ failure  domain_not…  │
-│ ...                                                                       │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+### Step 4 — Frontend `AsyncAuthProvider` refactor (12 useAuth consumers)
 
-**Row coloring:**
-- Success rows: subtle good-on-brand left border
-- Failure rows: subtle risk-on-brand left border + error code chip
+**Rewrite `front/src/contexts/AuthContext.tsx`:**
+- Old: synchronous resolver from `localStorage.pulse_dev_user_id`
+- New: `AsyncAuthProvider` with loading state:
+  - On mount: call `supabase.auth.getSession()`
+  - While loading: `user = null, loading = true`
+  - After resolution: `user = <DEMO_USERS lookup by JWT email>, loading = false`
+  - On `supabase.auth.onAuthStateChange`: re-resolve user
+  - Logout: `supabase.auth.signOut()` + clear `localStorage.pulse_dev_user_id`
+- **All 12 useAuth consumers** (audit v2 verified; spec 042 close-out added 4 to original 8) must handle `loading === true` state
+- Dev user-switcher (`Header.tsx`): preserved; gated `import.meta.env.DEV` AND `!supabase.auth.session()`
 
-**Click row to expand:**
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ 2026-05-22 14:28:04 sajjal@onedge.co            ✗ failure  user_not_pr…  │
-│   ┌──────────────────────────────────────────────────────────────┐      │
-│   │ Attempted email:  sajjal@onedge.co                           │      │
-│   │ Attempted domain: onedge.co                                  │      │
-│   │ Error code:       user_not_provisioned                       │      │
-│   │ Remediation:      Contact your admin to be added.            │      │
-│   │ IP address:       192.168.1.50                               │      │
-│   │ User agent:       Mozilla/5.0 ... Chrome/...                 │      │
-│   │ Diagnostics:      { ... }                                    │      │
-│   └──────────────────────────────────────────────────────────────┘      │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+**Validation tests (8 net new + ~16 existing updated):**
+- `npm test -- AuthContext.test.tsx` — UPDATE + 6 new cases: loading state initial; loading false after session resolves; user populated from Supabase email; logout clears session; onAuthStateChange re-resolves; dev switcher disabled when real session present
+- `npm test -- AppShell.test.tsx` — UPDATE + 2 new cases: shows loading state while AuthContext loading; redirects to /login if user null after loading false
 
-The "user agent" + "IP" should make demo-day debugging trivial: admin sees a failed login, opens audit, sees exactly what email was attempted and from where.
+**DoD:** AsyncAuthProvider live; `grep -rn "useAuth\|useAuthContext" front/src/` returns 12 sites all updated; 8 net new tests green.
 
-### 9.3 Backend endpoint
+### Step 5 — Frontend logout flow + Header dropdown UI
 
-```
-GET /api/auth/audit?limit=100  → admin-only; returns last N events
+**Update `front/src/components/Header.tsx`:**
+- Current: static avatar `<div>` with initials
+- New: clickable avatar opens dropdown menu (net-new UI — no existing dropdown pattern per reconnaissance)
+- **Explicit npm install:** `npm install @radix-ui/react-popover@^1.0.7` (audit-verified NOT transitive)
+- Menu: user name + email (read-only), divider, "Sign out" button → calls AuthContext `logout()` → redirects to `/login`
+- Accessibility: `aria-haspopup`, `aria-expanded`, keyboard navigation (Esc closes, Tab cycles)
 
-Caller role check: must be 'admin' (NOT executive — audit is admin observability, not executive insight)
-```
+**Validation tests (4 net new):**
+- `npm test -- Header.test.tsx` — UPDATE + 4 new cases
 
-Response shape:
-```json
-{
-  "events": [
-    {
-      "id": "...",
-      "ts": "2026-05-22T14:32:18Z",
-      "attempted_email": "iffi.wahla@edgeonline.co",
-      "attempted_domain": "edgeonline.co",
-      "user_id": "iffi-wahla",
-      "role": "executive",
-      "success": true,
-      "error_code": null,
-      "ip_address": "192.168.1.10",
-      "user_agent": "Mozilla/...",
-      "diagnostics": null
-    }
-  ]
-}
-```
+**DoD:** Logout end-to-end functional; `@radix-ui/react-popover` in package.json + lockfile; 4 net new tests green.
 
-### 9.4 Phase 2 carryforwards (NOT in this spec)
+### Step 6 — `/admin/audit` viewer (closes #40)
 
-- Real-time updates (WebSocket / Server-Sent Events) — Phase 1A is on-load fetch
-- Filter/search by email, error code, date range
-- Pagination beyond first 100
-- Alerting (e.g., email admin on 3+ failures for same email in 1 hour)
-- Replay capability
-- Export to CSV
+**Backend `api/admin/audit.py` (NEW file):**
+- New router: `APIRouter(prefix="/admin/audit", dependencies=[Depends(require_admin_role)])`
+- `require_admin_role` (NEW dependency): wraps `require_caller`, checks `caller.role == "admin"` BEFORE service-role query (prevents privilege escalation). If not admin → 403 with `code: "FORBIDDEN_INSUFFICIENT_ROLE"`
+- GET `/admin/audit`: queries `auth.audit_log_entries` via Supabase service-role client. Query params: `?event_type=`, `?email=`, `?limit=` (default 100, max 1000), `?offset=` (default 0)
+- Returns JSON: `[{ timestamp, event_type, email, ip_address, user_agent }, ...]`
+- Register router in `api/main.py` (5 routers total post-Step-6)
 
----
+**Frontend `front/src/pages/AdminAudit.tsx` (NEW file):**
+- Route `/admin/audit` (inside `<AdminLayout>` sub-route)
+- Table view with event-type + email filter dropdowns; pagination
+- Admin-only route guard
 
-## 10. Token lifecycle
+**Validation tests (10 net new):**
+- `pytest tests/test_admin_audit_api.py` — 6 cases
+- `npm test -- AdminAudit.test.tsx` — 4 cases
 
-### 10.1 Token shape
+**DoD:** `/admin/audit` route live; 10 net new tests green; manual smoke: admin sign-in → /admin/audit → see login events.
 
-**Access token (`pulse_session` cookie):**
-```json
-{
-  "sub": "iffi-wahla",
-  "email": "iffi.wahla@edgeonline.co",
-  "role": "executive",
-  "iat": 1716394338,
-  "exp": 1716397938,
-  "iss": "pulse-api",
-  "aud": "pulse-frontend"
-}
-```
+### Step 7 — 403 detail format normalization (closes #37)
 
-**Refresh token (`pulse_refresh` cookie):**
-```json
-{
-  "sub": "iffi-wahla",
-  "type": "refresh",
-  "iat": 1716394338,
-  "exp": 1718986338,
-  "iss": "pulse-api",
-  "aud": "pulse-frontend"
-}
-```
+**Backend updates:**
+- `require_caller` (Step 2): already uses new format
+- `require_admin` (`api/admin/kill_switch.py`): `{code: "FORBIDDEN_INSUFFICIENT_ROLE", message: "..."}`
+- `require_internal_token` (`api/dispatch.py`): `{code: "FORBIDDEN_INVALID_TOKEN", message: "..."}`
+- Spec 042 executive-403 (`api/actions.py`): `{code: "FORBIDDEN_INSUFFICIENT_ROLE", message: "...", context: {required_role: "manager_or_above"}}`
+- `require_admin_role` (Step 6): uses new format
 
-Both signed with same HS256 secret (env var `PULSE_JWT_SECRET`, 32+ bytes random).
+**Frontend update `front/src/lib/api.ts`:**
+- `ApiError.detail` type → discriminated union with legacy string fallback:
+  ```typescript
+  type ApiErrorDetail =
+    | { code: 'FORBIDDEN_NOT_IN_ALLOWLIST'; message: string; context: { email: string } }
+    | { code: 'FORBIDDEN_INSUFFICIENT_ROLE'; message: string; context?: { required_role: string } }
+    | { code: 'FORBIDDEN_OUT_OF_SCOPE'; message: string }
+    | { code: 'FORBIDDEN_INVALID_TOKEN'; message: string }
+    | string; // legacy fallback for unknown codes
+  ```
+- Update 4 consumer sites per reconnaissance grep
 
-### 10.2 Cookie attributes
+**Validation tests (10 net new + ~4 existing updated):**
+- `pytest tests/test_403_format.py` — 5 cases
+- `npm test -- api.test.ts` — UPDATE + 5 new cases
 
-```
-Set-Cookie: pulse_session=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=3600
-Set-Cookie: pulse_refresh=<JWT>; HttpOnly; Secure; SameSite=Lax; Path=/api/auth/refresh; Max-Age=2592000
-```
+**DoD:** All 403 responses structured; 10 net new tests green.
 
-`Path=/api/auth/refresh` on refresh cookie restricts its exposure — only the refresh endpoint sees it.
+### Step 8 — Service-to-service auth preservation verification
 
-`Secure` flag required in production (HTTPS); dev override via env `PULSE_COOKIE_INSECURE_DEV=true` for `localhost`.
+**Verification only — no code changes.**
+- `pytest tests/test_dispatch_internal_token.py` — verify `POST /dispatch/{action_id}` still requires `PULSE_INTERNAL_API_TOKEN`
+- `pytest tests/test_kill_switch_internal_token.py` — verify `GET/POST /admin/kill-switch` still requires `PULSE_INTERNAL_API_TOKEN`
+- Manual: simulate Activepieces cron call with `PULSE_INTERNAL_API_TOKEN` header → 200 (not 401, not redirected)
 
-### 10.3 Refresh flow
+**DoD:** Existing service-to-service tests green; Activepieces integration paths preserved.
 
-```
-[Front-end API call] → 401 from any /api/* endpoint
-  │
-  ▼
-[Front-end fetch wrapper detects 401]
-  │
-  ▼
-POST /api/auth/refresh                  # refresh cookie sent (Path matches)
-  │
-  ├─ refresh token valid
-  │   ├─ verify signature + expiry
-  │   ├─ look up user in DEMO_USERS by sub claim
-  │   ├─ mint new access token (1h)
-  │   ├─ Set-Cookie: pulse_session=<new JWT>
-  │   ├─ write audit log (success, refresh event)
-  │   └─ return 200
-  │
-  └─ refresh token invalid/expired
-      ├─ write audit log (failure, session_expired)
-      ├─ clear both cookies
-      └─ return 401 with structured detail
-  │
-  ▼
-[Front-end: 200 → retry original API call] OR [401 → redirect to /login?error=session_expired]
-```
+### Step 9 — Integration + close-out
 
-### 10.4 Forced logout
+**Integration test (`pytest tests/test_auth_integration.py` — 5 cases, NEW):**
+1. Unauthenticated request to `/actions` → 401 (no Authorization header)
+2. Valid JWT for DEMO_USERS user → `/actions` returns 200 with caller-scoped data
+3. Valid JWT for non-DEMO_USERS user → `/actions` returns 403 with structured FORBIDDEN_NOT_IN_ALLOWLIST detail
+4. **Valid RS256/ES256 JWT for `onedge.co` DEMO_USERS user (e.g., Sidra Zia)** → `/actions` returns 200; verifies onedge.co domain accepted
+5. **Valid RS256/ES256 JWT for `edgeonline.co` DEMO_USERS user (Iffi Wahla)** → `/actions` returns 200 with executive=true; verifies edgeonline.co domain accepted
 
-`POST /api/auth/logout`:
-- Clears `pulse_session` cookie (Set-Cookie with Max-Age=0)
-- Clears `pulse_refresh` cookie
-- No audit log Phase 1A (Phase 2 may add)
-- Returns 200 with empty body
+Cases 4 + 5 close #30 automated coverage (manual smoke retained for end-to-end).
 
-Front-end redirects to `/login` after success.
+**Manual smoke test (operator-executed):**
+1. Sign in as Iffi Wahla (`iffi.wahla@edgeonline.co`) → executive view
+2. Sign in as Sidra Zia (`sidra.zia@onedge.co`) → action queue
+3. Sign in as `test@onedge.co` (not in DEMO_USERS) → "Your account is not authorized for Pulse" error
+4. Click avatar → Sign out → land at `/login`
+5. As admin → `/admin/audit` → see all 4 login events
+
+**DoD criteria (13 rows):**
+
+| # | Criterion | Verification |
+|---|---|---|
+| 1 | ADR-006 v1.1 honored (Supabase Auth, asymmetric, not hand-rolled) | Code review: no JWT minting in pulse-api |
+| 2 | No backend `/auth/*` router mounted | `grep "/auth" api/main.py` returns no router registration |
+| 3 | `/login` + `/auth/callback` frontend routes functional | Manual smoke steps 1-2 |
+| 4 | AsyncAuthProvider with loading state live | npm test AuthContext.test.tsx green |
+| 5 | All 12 useAuth consumers handle loading state | `grep -rn "useAuth" front/src/` returns 12; no flash-of-unauthenticated |
+| 6 | `/profiles` guarded (closes #41) | pytest test_profiles_auth.py green |
+| 7 | `/admin/audit` viewer functional (closes #40) | Manual smoke step 5 |
+| 8 | 403 detail format normalized (closes #37) | pytest test_403_format.py green |
+| 9 | Multi-domain SSO works (closes #30) | Manual smoke + integration cases 4+5 (automated) |
+| 10 | `PULSE_INTERNAL_API_TOKEN` preserved | pytest service-to-service tests green |
+| 11 | Logout flow end-to-end | Manual smoke step 4 |
+| 12 | All 525 existing tests preserved | full pytest + vitest green |
+| 13 | **JWT verification asymmetric only** | `grep "HS256" 03_build/api/` returns zero matches in production code paths; `jwt_verify.py` algorithm allowlist = `["RS256", "ES256"]`; `pyjwt[crypto]` in pyproject.toml |
+
+**Close-out commit:** `[SPEC-043] Step 9 DoD close-out — Supabase Auth (asymmetric JWT) integration CLOSED`. Updates this spec §17 with full DoD report + watched-concerns closures.
 
 ---
 
-## 11. Cross-spec coordination
+## §4 Test count summary
 
-### 11.1 Spec 042 (RBAC) — interface preserved, population source changes
+| Step | Net new tests | Updates to existing tests |
+|---|---|---|
+| 1 | 9 (7 pytest + 2 vitest) | 0 |
+| 2 | 12 (8 + 4) | ~30 spec 042 backend tests (PULSE_AUTH_DEV_BYPASS setup; ±5 range) |
+| 3 | 6 (0 + 6) | 0 |
+| 4 | 8 (0 + 8) | ~4 AppShell + ~12 useAuth consumer tests (±5 range) |
+| 5 | 4 (0 + 4) | 0 |
+| 6 | 10 (6 + 4) | 0 |
+| 7 | 10 (5 + 5) | ~4 ApiError consumer tests |
+| 8 | 0 | 0 |
+| 9 | 5 (5 + 0) | 0 |
+| **Total** | **~64 new** | **~50 updated (±5 range)** |
 
-AuthContext interface unchanged:
-- `user: DemoUser`
-- `accountScope: AccountScope`
-- `switchUser: (id: string) => void` (DEV-only consumer; production builds may exclude)
-
-Backend `Caller` model unchanged. `require_queue_caller` defense-in-depth wrapper continues to work.
-
-Migration (H2 disposition — non-null `user` contract preserved):
-- `AuthProvider` **retains** the optional `initialUserId` prop (DEV + test path, synchronous hydration)
-- In production (no `initialUserId`), AuthProvider takes the async path: calls `GET /api/auth/me` on mount, renders an internal loading boundary while in flight, hydrates `user` + `accountScope` on success, redirects to `/login` on failure
-- The loading/null state is **encapsulated inside AuthProvider** — `useAuth().user` remains non-null for every consumer, so no downstream component changes
-- **Existing 525-test baseline does not break:** all test files mount `AuthProvider initialUserId={...}` and take the synchronous path (see §3.3 implementation pattern)
-
-Dev user-switcher (added in spec 042 Step 9) remains gated `import.meta.env.DEV`. Production build excludes it. Local development still allows persona switching via the UI affordance.
-
-### 11.2 Spec 031 (Action Queue API) — backend Caller source changes
-
-`get_caller()` reads from cookie+JWT instead of `X-User-*` headers. Caller shape unchanged.
-
-`X-User-*` header convention removed Phase 1B (pulse-api Week 4 deploy is the natural cutover). Watched concern #29 (dev JWT injector) was retired earlier; this spec retires the dev header convention itself.
-
-### 11.3 Pulse-api Week 4 deploy — natural pairing
-
-Spec 043 and pulse-api deploy land in the same Week 4 window. Pulse-api deploy enables:
-- Real signal extraction → real Action Queue cards (replaces DEMO_ACTIONS fixture)
-- Real Caller-from-JWT on protected endpoints
-- Real audit log Postgres table writes
-
-Operator coordination: ratify pulse-api environment config (Postgres URL, JWT secret) at spec 043 audit time so deploy steps don't block.
-
-### 11.4 Settings panel (spec 042 §9 / Step 7) — no changes
-
-`/settings/users` continues to show user list. Audit log surfaces separately at `/admin/audit`. The two surfaces are conceptually distinct (user management vs admin observability) and live on separate routes.
+**Final test posture target:** ~589 tests green (525 existing + ~64 new). Range allowance ±5 for implementation discovery.
 
 ---
 
-## 12. Implementation sequence
+## §5 Files touched
 
-Estimated 7 steps. Total ~5-6h Claude Code.
+**Backend (new):** `api/auth/__init__.py`, `api/auth/supabase_client.py`, `api/auth/jwt_verify.py`, `api/admin/audit.py`, 6 new test files
 
-| Step | Description | Effort | Order constraint |
-|---|---|---|---|
-| 1 | Backend OAuth foundation: env config, JWT secret, Google client config, token mint/verify helpers, audit log table migration | ~45 min | First (foundation) |
-| 2 | Backend OAuth endpoints: `/api/auth/google`, callback, `/api/auth/me`, refresh, logout, error code taxonomy | ~75 min | After Step 1 |
-| 3 | Audit log write path on all auth terminal points + admin audit GET endpoint | ~30 min | After Step 2 |
-| 4 | Front-end login page (`/login`) + error banner + "Sign in with Google" CTA | ~30 min | Can parallel with Step 5 |
-| 5 | Front-end AuthContext refactor: `/api/auth/me` on mount + auto-refresh wrapper + logout dropdown | ~60 min | After Step 2 backend ready |
-| 6 | Admin audit viewer (`/admin/audit`): route + table + expandable rows + row coloring | ~45 min | After Step 3 backend ready |
-| 7 | Backend scope 403 normalization (watched concern #37) + DoD verification + spec 043 close | ~30 min | Last |
+**Backend (modified):** `pyproject.toml` (add `supabase`, `pyjwt[crypto]`), `api/actions.py` (rewrite `require_caller`), `api/main.py` (register admin/audit router), `api/profiles.py` (add `require_caller` guard), `api/admin/kill_switch.py` (403 format), `api/dispatch.py` (403 format), ~30 existing backend tests (PULSE_AUTH_DEV_BYPASS setup)
 
-**Total: ~5-5.5h Claude Code. PM drafting per step prompt: ~10 min × 7 = ~70 min.**
+**Frontend (new):** `front/src/lib/supabase.ts`, `front/src/pages/Login.tsx`, `front/src/pages/AuthCallback.tsx`, `front/src/pages/AdminAudit.tsx`, 4 new test files
 
-**Step 1 dependencies (A2 disposition — added to `pyproject.toml`; codebase currently has neither):**
-- `pyjwt[crypto]` — JWT mint + verify; HS256 signing per §10.1
-- `google-auth` — Google ID token verification (signature, issuer, audience)
+**Frontend (modified):** `package.json` + lockfile (add `@supabase/supabase-js@^2.39.0` + `@radix-ui/react-popover@^1.0.7` — both explicit installs), `src/contexts/AuthContext.tsx`, `src/components/Header.tsx`, `src/components/AppShell.tsx`, `src/lib/api.ts`, `src/App.tsx`, all 12 useAuth consumers, ~4 existing tests
 
-(`httpx>=0.27` already present — used for the Google `/token` code exchange; no new dep needed there.) Both added libraries are lightweight, well-maintained, and broadly used. No alternative library is justified by current codebase patterns. Step 1's ~45 min estimate is revised to **~60 min** to absorb dependency selection + Google JWKS verification wiring + the `0009` migration.
+**Config:** `.env.example` (add `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `PULSE_AUTH_DEV_BYPASS=false`, `PULSE_JWKS_CACHE_TTL_SEC=3600`)
 
-Operator coordination: deployment env vars must be ratified at audit time (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, PULSE_JWT_SECRET, PULSE_COOKIE_INSECURE_DEV). Real Google Workspace OAuth client must be configured at Google Cloud console before Step 2 — operator action item.
+**No migration files needed** (Supabase manages `auth.*` schema).
 
 ---
 
-## 13. DoD criteria
+## §6 Environment variables required
 
-When spec 043 closes, the following must be true:
+**Already in operator's local `.env` (verified Session 19 late-late stream extended further v3):**
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY` (frontend-safe; aka anon key)
+- `SUPABASE_SERVICE_ROLE_KEY` (backend admin operations; sensitive)
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`
+- `PULSE_INTERNAL_API_TOKEN` (operator added 2026-05-23 per audit v4 correction; previously absent from local `.env` despite reconnaissance framing; **production Fly secret must also be set at Step 9 close**; Activepieces must send matching value)
 
-1. ✓ Google Workspace OAuth client configured for `onedge.co` + `edgeonline.co`
-2. ✓ Backend OAuth flow end-to-end: initiate, callback, token mint, cookie set
-3. ✓ Front-end `/login` page with error banner + Sign in with Google CTA
-4. ✓ AuthContext hydrates from `/api/auth/me`; falls back to `/login` on no session
-5. ✓ Token refresh works transparently on access-token expiry
-6. ✓ Logout clears both cookies; redirects to `/login`
-7. ✓ Domain allowlist enforced (`onedge.co`, `edgeonline.co`)
-8. ✓ Allowlist-only provisioning (must be in DEMO_USERS by email)
-9. ✓ Structured error codes returned at all auth failure points (10 codes per §5.1)
-10. ✓ Auth audit log table created + migrations applied
-11. ✓ Every login attempt writes to audit (success + 6+ failure types per §8.3)
-12. ✓ `/admin/audit` route accessible to admin only
-13. ✓ Audit viewer shows reverse-chronological last 100 events, expandable rows
-14. ✓ Dev user-switcher continues working in local dev (`import.meta.env.DEV`)
-15. ✓ Production build excludes dev user-switcher
-16. ✓ Existing scope 403s normalized to structured detail format (closes #37)
-17. ✓ Watched concerns #29 (retired), #30, #40 all closed
-18. ✓ Spec 042 AuthContext interface preserved (no breaking change)
-19. ✓ Spec 031 `Caller` model preserved (no breaking change)
-20. ✓ All cross-spec tests continue to pass (no regressions in spec 042 525 test count baseline)
-21. ✓ New tests landed (~25-32 estimated; see §14)
-22. ✓ Build green (front + back)
-23. ✓ All commits tagged `[SPEC-043]`
-24. ✓ Branch discipline: all on operator-designated branch
-25. ✓ Spec doc closure section appended
+**New in spec 043 v3.2 (operator adds at Step 1):**
+- `VITE_SUPABASE_URL` (frontend build-time mirror of `SUPABASE_URL`)
+- `VITE_SUPABASE_PUBLISHABLE_KEY` (frontend build-time mirror of `SUPABASE_PUBLISHABLE_KEY`)
+- `PULSE_AUTH_DEV_BYPASS` (default `false`; MUST stay `false` in Fly production secrets)
+- `PULSE_JWKS_CACHE_TTL_SEC` (default `3600`; optional tuning)
+
+**Explicitly NOT needed under asymmetric path:**
+- ❌ `SUPABASE_JWT_SECRET` — not needed; asymmetric verification uses public keys from JWKS endpoint, not a shared secret. Setting this env var would be a no-op and a security smell.
+- ❌ `PULSE_JWT_SECRET` (legacy from hand-rolled v1/v2 drafts)
+- ❌ `PULSE_COOKIE_INSECURE_DEV`, `PULSE_COOKIE_DOMAIN` (Supabase manages cookies)
 
 ---
 
-## 14. Estimated test count (clarified per audit A4)
+## §7 Operator pre-work
 
-The default `pytest` run excludes `db` + `integration` markers (`addopts = "-m 'not integration and not db'"`); the 525 baseline = 241 front-end + 284 default-run backend. Tests that touch Postgres (audit-log write/read, callback-success persistence) must carry the `db` marker — they run only when Postgres is reachable (CI / local), NOT in the default suite. Google `/token` + JWKS verification is stubbed (httpx mock / monkeypatched verifier) so the DB-free path stays default-runnable, mirroring `test_rbac_executive.py`.
+**File:** `00_research/operator_prework/043-v3-prework.md` (placed by operator Session 19 late-late stream extended further v3).
 
-**Default-run tests (no DB; mock Google token verification):**
-- Front-end Vitest: ~12-15 (Login page + error banner per code, AuthContext mount, auto-refresh on 401, logout, audit viewer render + expand, dev switcher gating, integration)
-- Backend default pytest: ~6-8 (OAuth initiate/state nonce, callback success + failures [domain/provision/state/token], `/api/auth/me` success + 401, refresh logic, logout, structured 401/403 shapes)
+**Status:** Seven tasks dispositioned (see §3 Step 0 status table). All confirmed by operator. Step 3 unblocked.
 
-Subtotal default-run new tests: **~18-22**
-
-**`db`-marked tests (CI with Postgres):**
-- Audit log write paths: ~3-4
-- Admin `/api/auth/audit` endpoint (read + admin-only): ~2-3
-- Cross-cutting integration: ~2-3
-
-Subtotal `db`-marked new tests: **~7-10**
-
-**Total new tests: ~25-32.** Spec 042 baseline 525 (default-run); spec 043 expected close at **~543-547 default-run** + the `db`-marked subtotal exercised under Postgres CI. The "~550-557" combined figure spans default + db runs.
+Production Fly secrets to set at Step 9 close:
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (on Vercel project, not Fly — frontend env)
+- `PULSE_AUTH_DEV_BYPASS=false` (Fly pulse-api)
+- `PULSE_JWKS_CACHE_TTL_SEC=3600` (Fly pulse-api, optional)
+- Verify `PULSE_INTERNAL_API_TOKEN` set on Fly pulse-api + matching value sent by Activepieces
 
 ---
 
-## 15. Watched concerns
+## §8 Watched concerns closure tracking
 
-### 15.1 Closing with this spec
+Closes at Step 9 DoD: #30 (multi-domain SSO via backend DEMO_USERS check + automated integration cases 4+5), #37 (403 format normalization), #40 (`/admin/audit` viewer + Supabase audit log), #41 (`/profiles` guard).
 
-- **#29 (retired)** — Dev JWT injector — retired at spec 042 audit; this spec retires the dev `X-User-*` header convention as well
-- **#30** — Multi-domain SSO (`onedge.co` + `edgeonline.co`) — single Google Workspace OAuth client covers both
-- **#37** — Backend 403 detail format normalization — Step 7 normalizes existing scope 403s
-- **#40 (NEW Session 19 late-late stream extended further)** — Auth observability — full structured error + audit log + admin viewer per Hybrid disposition
-
-### 15.2 Carrying forward to Phase 2 (NOT in this spec)
-
-- **(NEW)** Auth observability extensions: real-time updates, filter/search, alerting, replay, export, retention policy. Filed for Phase 2.
-- **(NEW)** Auto-provisioning flow on Settings panel. When EDGE onboards new RMs post-demo, admin should add users via UI without code change. Filed for Phase 2.
-- **(NEW)** Logout audit log entry. Phase 1A doesn't log logouts (not load-bearing for debugging); Phase 2 may add for completeness.
-- **(NEW)** Multi-provider OAuth (Microsoft Entra) if needed. Filed for Phase 2 based on operator-stated Phase 1A scope (Google Workspace only).
-
-### 15.3 Other concerns (unrelated, preserved)
-
-- #15, #16, #17, #23, #24, #25, #28, #36, #38, #39 — all preserved per spec 042 close-out
+Does NOT close: #42 (ADR-supersession process — codified as standing rule), #43 (AWS migration scope — Path C deferred post-demo).
 
 ---
 
-## 16. Closure criteria
+## §9 Rollback strategy
 
-Spec 043 closes when:
-1. All 25 DoD criteria met
-2. All 25-32 new tests green
-3. No regressions in spec 042 baseline (525)
-4. Operator has performed at least one successful login end-to-end via real Google Workspace OAuth
-5. Operator has triggered at least one failure case (e.g., wrong-domain email) and confirmed audit log captures it correctly
-6. Admin user has navigated to `/admin/audit` and confirmed visibility
-7. Spec doc closure section appended with date + DoD verification + carry-forward + cross-spec coordination notes
+If implementation surfaces post-deploy blocker:
 
----
+1. Frontend rollback: revert AuthContext to spec 042 synchronous resolver; remove `/login` + `/auth/callback` routes; revert Header dropdown. Dev user-switcher remains functional. ~30 min.
+2. Backend rollback: `fly secrets set --app pulse-api PULSE_AUTH_DEV_BYPASS=true` → Fly auto-restarts → spec 042 X-User-* header behavior resumes. `/profiles` guard remains active (no functional regression). ~5 min.
+3. Supabase Auth state: leave configured (no rollback needed at Supabase layer).
 
-## 17. Risks + mitigations
-
-### 17.1 Google Workspace config delays
-
-**Risk:** Google Cloud console OAuth setup requires operator action; if delayed, blocks Step 2+ implementation.
-
-**Mitigation:** Operator action item at audit time — provision OAuth client BEFORE Step 1 starts. If unavailable in time, Step 1 can use mock token verification (env override) until real client lands.
-
-**Dependency note (A2, informational — no risk surfaced):** Step 1 adds `pyjwt[crypto]` + `google-auth` to `pyproject.toml`. Both are stable, widely-adopted libraries; the addition is routine and carries no integration risk for the current stack.
-
-### 17.2 Cookie + CORS in production — OPERATOR DECISION REQUIRED PRE-STEP-5
-
-**Risk:** SameSite=Lax cookies behave differently across deployment topologies:
-1. **Single-domain deployment** (frontend + backend behind same domain via reverse proxy, e.g. `pulse.onedge.co/` serves both `/app/*` and `/api/*`) — Lax cookies work cleanly; minimal CORS config needed
-2. **Split-domain deployment** (e.g. `app.onedge.co` + `api.onedge.co`) — requires explicit CORS allowlist + careful SameSite handling; some browsers reject SameSite=Lax cross-origin in this configuration
-
-**Operator action item BEFORE Step 5 implementation begins:** ratify deployment topology. PM recommendation: single-domain via reverse proxy (simpler operationally; lower risk for cookie/CORS).
-
-**Vite dev environment:** Step 1 implementation must configure the Vite proxy (`vite.config.ts`) to forward `/api/*` to the backend, allowing `Set-Cookie` to propagate to `localhost:5173` without dev-specific cookie attributes. (The dev proxy must preserve `Set-Cookie` on the OAuth callback 302 — verify during Step 1.)
-
-If the operator hasn't ratified topology by Step 5 readiness, Claude Code HALTs for PM disposition.
-
-### 17.3 JWT secret rotation
-
-**Risk:** Phase 1A uses a single JWT secret. If secret leaks, all existing tokens are forgeable.
-
-**Mitigation:** Phase 1A acceptable risk (small attack surface, fixed user set). Phase 2 implements key-rotation pattern (multiple keys with kid claim).
-
-### 17.4 Audit log unbounded growth
-
-**Risk:** Table grows without bound; Phase 1A doesn't retention-policy.
-
-**Mitigation:** Phase 1A expected volume <1000 rows. Phase 2 adds retention. Index on `ts DESC` keeps queries fast.
-
-### 17.5 Demo-day failure mode
-
-**Risk:** OAuth flow fails during demo; investor sees blank screen.
-
-**Mitigation:** This is exactly what spec 043 is designed to prevent. Structured errors + audit log + visible error banner ensures any failure is debuggable in seconds. Operator can pull up `/admin/audit` on a second device during demo if anything looks off.
-
-### 17.6 Multi-domain OAuth consent screen warnings
-
-**Risk:** Google Workspace may surface domain-verification warnings for `edgeonline.co` if not properly verified.
-
-**Mitigation:** Operator pre-flight task: verify both domains in Google Cloud console before Step 1 starts.
+**Acceptance:** All 525 spec 042 tests green; 11 demo personas usable via dev switcher.
 
 ---
 
-## 18. Open questions (resolved before audit)
+## §10 Audit pointers for any future re-audit
 
-All resolved at draft time per Session 19 late-late stream extended further operator dispositions:
+Any future audit should verify:
 
-1. ✓ OAuth provider: Google Workspace only (Q1 ratified)
-2. ✓ Provisioning model: Allowlist-only Phase 1A (Q2 ratified)
-3. ✓ Audit viewer location: AdminLayout sub-route (Q3 ratified)
-4. ✓ Production-grade scope: Hybrid (structured errors + audit log + minimal viewer; alerting/replay/etc Phase 2)
-5. ✓ Multi-domain config: single OAuth client covers both domains
-6. ✓ Email canonicalization: lowercase normalization, `{first}.{last}@` convention for non-Iffi users
-7. ✓ Audit log retention: unbounded Phase 1A; Phase 2 carryforward
-
----
-
-## 19. Notes for pre-spec audit
-
-Suggested audit focus areas:
-- **§3 architecture** — verify the OAuth flow + cookie pattern is right for this deployment context
-- **§4 multi-domain config** — verify Google Workspace setup handles `edgeonline.co` cleanly under single client
-- **§5 error code taxonomy** — verify codes are comprehensive (every realistic failure path has a code)
-- **§7 backend** — verify Caller model compatibility (no breaking changes to spec 031 / 042)
-- **§8 audit schema** — verify Postgres schema choices (indexes, JSONB for diagnostics)
-- **§9 admin viewer** — verify route + component approach matches AdminLayout patterns
-- **§11 cross-spec** — verify spec 042 AuthContext refactor doesn't break existing tests
-- **§12 implementation sequence** — verify step ordering + effort estimates
-
-Audit should produce: 0-2 HALTs maximum, with most findings as advisories or informational. If audit produces 3+ HALTs, spec needs revision before implementation.
+1. ADR cross-reference: spec cites `ADR-006-authentication.md` v1.1
+2. Reconnaissance grounding: infrastructure claims trace to `acc6ed1`
+3. Service-to-service preservation: `PULSE_INTERNAL_API_TOKEN` integrity (Step 8)
+4. Test count claims within ±5 range allowance
+5. Operator pre-work completeness (7 tasks including Task 7 asymmetric verification)
+6. Dev-bypass safety: production Fly secrets keep `PULSE_AUTH_DEV_BYPASS=false`
+7. **JWT signing algorithm asymmetric:** `grep "HS256" 03_build/api/` returns zero matches in production code paths; `jwt_verify.py` algorithm allowlist is `["RS256", "ES256"]`; `pyjwt[crypto]` listed in pyproject.toml
+8. **NO `SUPABASE_JWT_SECRET` env var read by backend code:** asymmetric verification uses JWKS public keys only
+9. JWKS caching strategy: refresh on unknown `kid`; cache TTL configurable
+10. Multi-domain test coverage: integration cases 4-5 cover both onedge.co + edgeonline.co
+11. 403 discriminated union safety with legacy string fallback
+12. No hand-rolled JWT remnants: zero `jwt.encode()` calls in `03_build/api/`
+13. `require_caller` correct file location: `api/actions.py`
+14. useAuth consumer count: 12
+15. `@radix-ui/react-popover` explicit install in package.json + lockfile
 
 ---
 
-*End of spec 043 draft. Awaiting PM/operator ratification → pre-spec audit → revision → implementation.*
+*End of Spec 043 v3.2.*
