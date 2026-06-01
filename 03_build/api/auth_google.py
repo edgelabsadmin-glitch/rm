@@ -61,7 +61,7 @@ ALLOWED_EMAILS: dict[str, str] = {
     "amir.zaidi@onedge.co":           "amir-zaidi",
     "mubeen.sohail@onedge.co":        "mubeen-sohail",
     "sheryl.stephen@onedge.co":       "sheryl-stephen",
-    "admin@onedge.co":                "pulse-admin",
+    "edgelabs.admin@onedge.co":       "pulse-admin",
 }
 
 

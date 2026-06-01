@@ -156,7 +156,7 @@ export function formatARR(usd: number): string {
 // Email convention: {first}.{last}@onedge.co for everyone except Iffi Wahla
 // on edgeonline.co (single executive on secondary domain per Session 19
 // late-late stream extended operator confirmation).
-// Pulse Admin = admin@onedge.co (functional alias, not a person).
+// Pulse Admin = edgelabs.admin@onedge.co (functional alias, not a person).
 // Spec 043 OAuth Week 4 requires Google Workspace multi-domain configuration.
 // RM/Manager ids match canonical DEMO_RMS / DEMO_MANAGERS (verified).
 export interface DemoUser {
@@ -198,7 +198,7 @@ export const DEMO_USERS: ReadonlyArray<DemoUser> = [
   { id: "mubeen-sohail", displayName: "Mubeen Sohail", email: "mubeen.sohail@onedge.co", role: "rm", rmId: "mubeen-sohail", sfUserId: "005U100000Blr0vIAB", avatarInitials: "MS" },
   { id: "sheryl-stephen", displayName: "Sheryl Stephen", email: "sheryl.stephen@onedge.co", role: "rm", rmId: "sheryl-stephen", sfUserId: "005U100000Blr5lIAB", avatarInitials: "SR" },
   // Admin (functional alias)
-  { id: "pulse-admin", displayName: "Pulse Admin", email: "admin@onedge.co", role: "admin", avatarInitials: "PA" },
+  { id: "pulse-admin", displayName: "Pulse Admin", email: "edgelabs.admin@onedge.co", role: "admin", avatarInitials: "PA" },
 ];
 
 /**
