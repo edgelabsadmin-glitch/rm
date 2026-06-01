@@ -101,3 +101,65 @@ export function filterDemoActions(filters: QueueFilters = {}): ActionsResponse {
   }
   return { actions, count: actions.length, limit: 200, offset: 0 };
 }
+
+// Three action templates — cycled per-account so each account shows varied cards.
+const _TEMPLATES = [
+  {
+    suffix: "renewal",
+    urgency: "high" as const,
+    tier_class: "Enterprise",
+    action_type: "renewal",
+    headline: "Schedule renewal review",
+    why_oneline: "Contract renewal window opening in 30 days — initiate RM outreach now.",
+    why_detail:
+      "<bad>Renewal in 30 days</bad> with no outreach logged yet. " +
+      "Book this week to avoid last-minute pressure on terms.",
+  },
+  {
+    suffix: "checkin",
+    urgency: "medium" as const,
+    tier_class: "Mid-Market",
+    action_type: "check-in",
+    headline: "Proactive health check-in",
+    why_oneline: "Engagement cadence lapsed — schedule a touchpoint this week.",
+    why_detail:
+      "Activity has been quieter than the account's baseline. " +
+      "A <em>proactive check-in</em> now is lower-cost than a reactive recovery later.",
+  },
+  {
+    suffix: "talent",
+    urgency: "medium-low" as const,
+    tier_class: "SMB",
+    action_type: "talent-care",
+    headline: "Review active talent satisfaction",
+    why_oneline: "Talent feedback cycle due — verify satisfaction before next renewal.",
+    why_detail:
+      "Active placements are due for a satisfaction pulse. " +
+      "<good>Positive scores strengthen the renewal position</good> and surface early risk.",
+  },
+] as const;
+
+/**
+ * Generate 2 deterministic test actions for any account that has no real demo data.
+ * Used as the DEV fallback when a real SF account ID is passed as customer_id.
+ */
+export function generateAccountActions(customerId: string): ActionDTO[] {
+  const idx = customerId.charCodeAt(customerId.length - 1) % _TEMPLATES.length;
+  return [_TEMPLATES[idx], _TEMPLATES[(idx + 1) % _TEMPLATES.length]].map((t, i) => ({
+    action_id: `demo-${customerId}-${t.suffix}`,
+    customer_id: customerId,
+    talent_id: null,
+    rm_id: STUB_SESSION.id,
+    tier_class: t.tier_class,
+    urgency: t.urgency,
+    action_card: { headline: t.headline, action_type: t.action_type },
+    why_oneline: t.why_oneline,
+    why_detail: t.why_detail,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: [`sfdc:${customerId}-placements`],
+    proposed_at: new Date(Date.now() - i * 3_600_000).toISOString(),
+    status: "pending" as const,
+    rank_score: 0.8 - i * 0.15,
+    skill_id: null,
+  }));
+}

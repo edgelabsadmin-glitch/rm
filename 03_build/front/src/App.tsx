@@ -11,6 +11,11 @@ import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { ExecutiveView } from "@/features/executive/ExecutiveView";
 import { QueueList } from "@/features/queue/QueueList";
+import { AdminSettings } from "@/features/admin/AdminSettings";
+import { OutcomeTracking } from "@/features/admin/OutcomeTracking";
+import { SignalPerformance } from "@/features/admin/SignalPerformance";
+import { SubmitPage } from "@/features/submit/SubmitPage";
+import { SupportPage } from "@/features/support/SupportPage";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
 
@@ -45,48 +50,13 @@ export default function App() {
           }
         />
         <Route path="/executive" element={<ExecutiveView />} />
-        <Route
-          path="/submit"
-          element={
-            <Placeholder
-              spec="Spec 039"
-              title="Submit a note"
-              blurb="Type or paste a quick note; Pulse ingests it, extracts signals, and surfaces follow-ups in your queue. (Reframed from a Slack command to this web route.)"
-            />
-          }
-        />
+        <Route path="/submit" element={<SubmitPage />} />
+        <Route path="/support" element={<SupportPage />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/signals" replace />} />
-          <Route
-            path="signals"
-            element={
-              <Placeholder
-                spec="Spec 044"
-                title="Signal Performance"
-                blurb="Layer-8 Mechanism 1 — how each signal definition is performing (fire rate, precision, RM feedback)."
-              />
-            }
-          />
-          <Route
-            path="outcomes"
-            element={
-              <Placeholder
-                spec="Spec 045"
-                title="Outcome Tracking"
-                blurb="Layer-8 Mechanism 3 — did the actions Pulse proposed lead to good outcomes? Closed-loop learning."
-              />
-            }
-          />
-          <Route
-            path="settings"
-            element={
-              <Placeholder
-                spec="Spec 010"
-                title="Settings"
-                blurb="Admin governance — the kill switch and policy controls."
-              />
-            }
-          />
+          <Route path="signals"  element={<SignalPerformance />} />
+          <Route path="outcomes" element={<OutcomeTracking />} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/accounts" replace />} />

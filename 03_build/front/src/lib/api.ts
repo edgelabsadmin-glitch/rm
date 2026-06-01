@@ -61,25 +61,137 @@ function qs(params: Record<string, string | number | undefined>): string {
   return s ? `?${s}` : "";
 }
 
+export interface AccountSummaryDTO {
+  account_id: string;
+  name: string;
+  composite_health: number;
+  risk: "Low" | "Medium" | "High";
+  meeting: string;
+  tier: string;
+  rm_name: string;
+  active_talent: number;
+  arr_usd: number;
+}
+
+export interface AccountHealthDTO extends AccountSummaryDTO {
+  positioning: string;
+  signal_vector: { label: string; pct: number }[];
+  themes: string[];
+  churn_probability: number | null;
+  last_ebr: string | null;
+}
+
+export interface AccountListDTO {
+  accounts: AccountSummaryDTO[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export const api = {
+  listAccounts: async (
+    session: Session,
+    params: { page?: number; page_size?: number; tier?: string; rm_id?: string } = {},
+  ) => {
+    try {
+      return await request<AccountListDTO>(`/accounts${qs(params)}`, session);
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        const { getAccountSummaries } = await import("@/features/hero/fixtures");
+        const { accountARR } = await import("@/fixtures/demo_characters");
+        const sums = getAccountSummaries();
+        return {
+          accounts: sums.map((a) => ({
+            ...a,
+            tier: "Core",
+            rm_name: "",
+            active_talent: 0,
+            arr_usd: accountARR(a.account_id),
+          })),
+          total: sums.length,
+          page: 1,
+          page_size: 50,
+        };
+      }
+      throw err;
+    }
+  },
+
+  getAccountHealth: async (session: Session, accountId: string) => {
+    try {
+      return await request<AccountHealthDTO>(`/accounts/${accountId}`, session);
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        const { getAccountHealthFixture } = await import("@/features/hero/fixtures");
+        const { accountARR } = await import("@/fixtures/demo_characters");
+        const h = getAccountHealthFixture(accountId);
+        return {
+          ...h,
+          rm_name: "",
+          active_talent: 0,
+          arr_usd: accountARR(h.account_id),
+          churn_probability: null,
+          last_ebr: null,
+        };
+      }
+      throw err;
+    }
+  },
+
+  getOpportunities: async (session: Session, accountId: string) => {
+    interface OppItem {
+      opportunity_id: string;
+      name: string;
+      stage: string;
+      close_date: string | null;
+      amount: number | null;
+    }
+    try {
+      return await request<OppItem[]>(`/submit/opportunities?account_id=${accountId}`, session);
+    } catch {
+      return [] as OppItem[];
+    }
+  },
+
+  createOutreach: async (session: Session, body: Record<string, unknown>) =>
+    request<{ record_id: string; message: string }>("/submit/outreach", session, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   listActions: async (
     session: Session,
     params: Record<string, string | number | undefined> = {},
   ) => {
     type ActionsResponse = import("@/features/queue/types").ActionsResponse;
-    try {
-      return await request<ActionsResponse>(`/actions${qs(params)}`, session);
-    } catch (err) {
-      // DEV-only: with no FastAPI behind the /api proxy, serve the Phase-1 demo
-      // fixture so the queue renders. Prod surfaces the error (Week-4 live wiring).
-      if (import.meta.env.DEV) {
-        const { filterDemoActions } = await import("@/features/queue/demo_actions");
-        return filterDemoActions({
-          rm_id: params.rm_id as string | undefined,
-          tier: params.tier as string | undefined,
-          customer_id: params.customer_id as string | undefined,
-        });
+    const customerId = params.customer_id as string | undefined;
+
+    const devFallback = async () => {
+      const { filterDemoActions, generateAccountActions } = await import(
+        "@/features/queue/demo_actions"
+      );
+      const result = filterDemoActions({
+        rm_id: params.rm_id as string | undefined,
+        tier: params.tier as string | undefined,
+        customer_id: customerId,
+      });
+      if (customerId && result.actions.length === 0) {
+        const generated = generateAccountActions(customerId);
+        return { actions: generated, count: generated.length, limit: 200, offset: 0 };
       }
+      return result;
+    };
+
+    try {
+      const data = await request<ActionsResponse>(`/actions${qs(params)}`, session);
+      // In DEV, if the backend returned zero actions for a specific account, show
+      // generated test data so the queue is never empty during development.
+      if (import.meta.env.DEV && customerId && data.actions.length === 0) {
+        return devFallback();
+      }
+      return data;
+    } catch (err) {
+      if (import.meta.env.DEV) return devFallback();
       throw err;
     }
   },

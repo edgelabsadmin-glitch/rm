@@ -15,6 +15,7 @@ const NAV = [
   { to: "/constellation", label: "Constellation" },
   { to: "/executive", label: "Executive View" },
   { to: "/submit", label: "Submit" },
+  { to: "/support", label: "Support" },
 ];
 
 function initials(name: string): string {

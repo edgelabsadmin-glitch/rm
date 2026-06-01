@@ -1,23 +1,25 @@
 /*
- * SPEC-036 — Situational Hero card (Tier-0 §8.7, one of the two heroes per §6 #25).
- * Saturated Edge-Purple card, white type, the §6-#26 tinted-shadow signature, the
- * 270° Composite Health Ring inset in a glass tile, and the four static Pulse-Facts
- * pills. Binds to the selected account (Helix Labs by default). Fade-and-lift on
- * account switch (Tier-0 §7), keyed by account id.
- *
- * Mock data now (fixtures.ts); GET /accounts/{id}/health wires in Week 4 — see the
- * contract + normalization flag in fixtures.ts.
+ * SPEC-036 — Situational Hero card (Tier-0 §8.7). Accepts AccountHealthDTO from
+ * AccountWorkspace (which owns the single useAccountHealth fetch). Falls back to a
+ * loading skeleton while data is in flight.
  */
 import { Sparkles } from "lucide-react";
 import { CompositeHealthRing } from "@/components/CompositeHealthRing";
 import { FadeLift } from "@/components/FadeLift";
-import { accountARR, formatARR } from "@/fixtures/demo_characters";
-import { useSelectedAccount } from "@/session/SelectedAccountProvider";
-import { getAccountHealthFixture, PULSE_FACTS } from "./fixtures";
+import { formatARR } from "@/fixtures/demo_characters";
+import type { AccountHealthDTO } from "@/lib/api";
+import { PULSE_FACTS } from "./fixtures";
 
-export function SituationalHero() {
-  const { selectedAccountId } = useSelectedAccount();
-  const account = getAccountHealthFixture(selectedAccountId);
+interface Props {
+  account: AccountHealthDTO | undefined;
+}
+
+export function SituationalHero({ account }: Props) {
+  if (!account) {
+    return (
+      <div className="animate-pulse rounded-4xl bg-brand/20 h-64" />
+    );
+  }
 
   return (
     <FadeLift motionKey={account.account_id}>
@@ -40,7 +42,7 @@ export function SituationalHero() {
           </div>
         </div>
 
-        {/* Bottom: 4 explainability Pulse-fact pills + a 5th concrete-stat ARR pill. */}
+        {/* Bottom: 4 Pulse-fact pills + ARR pill. */}
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           {PULSE_FACTS.map((fact) => (
             <div
@@ -53,7 +55,7 @@ export function SituationalHero() {
           <div className="rounded-2xl border border-surface-glass-border bg-surface-glass-light px-3 py-3 text-xs text-ink-on-brand-strip">
             <span className="text-ink-on-brand-faint">Book value</span>{" "}
             <span className="font-mono font-semibold text-ink-on-brand">
-              {formatARR(accountARR(account.account_id))}
+              {formatARR(account.arr_usd)}
             </span>
           </div>
         </div>

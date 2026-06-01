@@ -1,13 +1,12 @@
 /*
- * SPEC-035/038 — Action Queue list. Ranked pending cards from GET /actions (10s
- * polling via useActions). Bucket selector (Design 03 §"Left-rail navigation"):
- * My Queue / Overall (pending) + Approved / Dispatched. Tier filter chips. Selections
- * persisted in localStorage (Q36). Fade-and-lift entrance + AnimatePresence exit.
+ * SPEC-035/038 — Action Queue list. Two modes:
  *
- * Buckets note (option-b, spec 038 req 4): GET /actions is pending-only, so the
- * Approved/Dispatched buckets render a flagged empty state — wiring them needs a
- * `status` filter param on the spec-031 API (Week-4 follow-up). My Queue/Overall
- * work today.
+ * Per-account (customerId prop set): right-rail inside AccountWorkspace. Shows
+ * actions scoped to the selected account; no bucket tabs.
+ *
+ * Global (no customerId): standalone /actions route. My Queue / Overall + Approved /
+ * Dispatched buckets + tier chips. Constellation deep-link (?rm= / ?manager=) still
+ * works here.
  */
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Sparkles } from "lucide-react";
@@ -28,8 +27,6 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "dispatched", label: "Dispatched" },
 ];
 const PENDING_VIEWS: View[] = ["mine", "overall"];
-// EDGE white-label segment names (display) → spec-031 policy tier_class keys (API).
-// The display sweep does NOT touch Design-04 policy keys (per ruling: out of scope).
 const TIERS: { label: string; key: string }[] = [
   { label: "Core", key: "SMB" },
   { label: "Growth", key: "Mid-Market" },
@@ -61,28 +58,32 @@ function Chip({
   );
 }
 
-export function QueueList() {
+interface Props {
+  /** When set, shows only this account's actions (per-account mode). */
+  customerId?: string;
+  accountName?: string;
+}
+
+export function QueueList({ customerId, accountName }: Props = {}) {
   const session = useSession();
   const reduce = useReducedMotion();
   const [view, setView] = useLocalStorage<View>("pulse.queue.view", "mine");
   const [tier, setTier] = useLocalStorage<string | null>("pulse.queue.tier", null);
 
-  // SPEC-041 routing: Constellation RM/manager clicks deep-link here with ?rm= / ?manager=.
-  // Present params override the local view; absent → existing My-Queue/Overall behavior.
   const [sp] = useSearchParams();
   const rmParam = sp.get("rm");
   const managerParam = sp.get("manager");
   const constellationFilter = rmParam || managerParam;
-  const isPendingView = constellationFilter ? true : PENDING_VIEWS.includes(view);
+
+  const isPerAccount = !!customerId;
+  const isPendingView = isPerAccount || (constellationFilter ? true : PENDING_VIEWS.includes(view));
 
   const filters: QueueFilters = useMemo(() => {
+    if (isPerAccount) return { customer_id: customerId };
     if (rmParam) return { rm_id: rmParam, tier: tier ?? undefined };
-    // NOTE: the API filters by rm_id, not manager — manager scoping is a Week-4
-    // API add (visible_rm_ids). Until then a ?manager= deep-link shows the banner
-    // + the caller's scope.
     if (managerParam) return { tier: tier ?? undefined };
     return { rm_id: view === "mine" ? session.id : undefined, tier: tier ?? undefined };
-  }, [rmParam, managerParam, view, tier, session.id]);
+  }, [isPerAccount, customerId, rmParam, managerParam, view, tier, session.id]);
 
   const { data, isLoading, isError, error } = useActions(filters);
   const actions = data?.actions ?? [];
@@ -90,13 +91,20 @@ export function QueueList() {
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-semibold uppercase tracking-[0.18em] text-ink-secondary">
-          Action Queue
-        </h1>
-        {isPendingView && <span className="text-xs text-ink-secondary">{actions.length} pending</span>}
+        <div>
+          <h1 className="text-lg font-semibold uppercase tracking-[0.18em] text-ink-secondary">
+            Action Queue
+          </h1>
+          {isPerAccount && accountName && (
+            <p className="mt-0.5 text-xs text-ink-muted truncate max-w-[200px]">{accountName}</p>
+          )}
+        </div>
+        {isPendingView && (
+          <span className="text-xs text-ink-secondary">{actions.length} pending</span>
+        )}
       </div>
 
-      {constellationFilter && (
+      {!isPerAccount && constellationFilter && (
         <div className="mb-4 flex items-center justify-between rounded-2xl bg-brand-muted px-3 py-2 text-xs text-brand">
           <span>
             From the constellation —{" "}
@@ -115,30 +123,31 @@ export function QueueList() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {VIEWS.map((v) => (
-          <Chip key={v.id} active={view === v.id} onClick={() => setView(v.id)}>
-            {v.label}
-          </Chip>
-        ))}
-        {isPendingView && (
-          <>
-            <span className="mx-1 h-4 w-px bg-line-strong" />
-            {TIERS.map((t) => (
-              <Chip
-                key={t.key}
-                active={tier === t.key}
-                onClick={() => setTier(tier === t.key ? null : t.key)}
-              >
-                {t.label}
-              </Chip>
-            ))}
-          </>
-        )}
-      </div>
+      {!isPerAccount && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {VIEWS.map((v) => (
+            <Chip key={v.id} active={view === v.id} onClick={() => setView(v.id)}>
+              {v.label}
+            </Chip>
+          ))}
+          {isPendingView && (
+            <>
+              <span className="mx-1 h-4 w-px bg-line-strong" />
+              {TIERS.map((t) => (
+                <Chip
+                  key={t.key}
+                  active={tier === t.key}
+                  onClick={() => setTier(tier === t.key ? null : t.key)}
+                >
+                  {t.label}
+                </Chip>
+              ))}
+            </>
+          )}
+        </div>
+      )}
 
-      {/* Approved/Dispatched buckets: API status filter is a Week-4 follow-up. */}
-      {!isPendingView && (
+      {!isPerAccount && !isPendingView && (
         <p className="text-sm leading-6 text-ink-secondary">
           {view === "approved" ? "Approved" : "Dispatched"} history wires in Week 4 — it needs a{" "}
           <span className="font-mono">status</span> filter on{" "}
@@ -151,7 +160,7 @@ export function QueueList() {
           {isLoading && <p className="text-sm text-ink-secondary">Loading queue…</p>}
           {isError && (
             <p className="text-sm text-risk-high-fg">
-              Couldn’t load the queue: {(error as Error)?.message ?? "unknown error"}
+              Couldn't load the queue: {(error as Error)?.message ?? "unknown error"}
             </p>
           )}
           {!isLoading && !isError && actions.length === 0 && (
