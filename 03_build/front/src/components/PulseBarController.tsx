@@ -6,16 +6,26 @@
  *   - keeps the header badge count live,
  *   - fires a heartbeat when new action_ids appear (id-diff vs the previous poll).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { usePulseState } from "@/components/PulseStateProvider";
 import { useActions } from "@/features/queue/hooks";
-import { useSession } from "@/session/useSession";
+import { applyStatusFilter, scopeAndRefineCards } from "@/features/queue/queue_scope";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 export function PulseBarController() {
-  const session = useSession();
+  const { user } = useAuth();
   const { setQueueCount, setProcessing, notifyNewActions } = usePulseState();
-  const { data, isFetching } = useActions({ rm_id: session.id });
+  // SPEC-042 Step-5 follow-up (Q2): the header badge reflects the caller's ROLE SCOPE, not
+  // just their own rm_id — so a Manager sees their team total. Fetch the role book (no rm_id
+  // filter), narrow to scope, then count only PENDING (actionable) cards — approved cards
+  // shouldn't inflate the "queue" badge.
+  const { data, isFetching } = useActions({});
   const prevIds = useRef<Set<string> | null>(null);
+
+  const scoped = useMemo(
+    () => applyStatusFilter(scopeAndRefineCards(data?.actions ?? [], user.role, user.id), "active"),
+    [data, user.role, user.id],
+  );
 
   useEffect(() => {
     setProcessing(isFetching);
@@ -23,7 +33,7 @@ export function PulseBarController() {
 
   useEffect(() => {
     if (!data) return;
-    const ids = new Set(data.actions.map((a) => a.action_id));
+    const ids = new Set(scoped.map((a) => a.action_id));
     setQueueCount(ids.size);
     if (prevIds.current !== null) {
       let added = 0;
@@ -33,7 +43,7 @@ export function PulseBarController() {
       if (added > 0) notifyNewActions(added); // one heartbeat per poll-batch with arrivals
     }
     prevIds.current = ids;
-  }, [data, setQueueCount, notifyNewActions]);
+  }, [data, scoped, setQueueCount, notifyNewActions]);
 
   return null;
 }

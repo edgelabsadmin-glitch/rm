@@ -1,6 +1,7 @@
 """SPEC-033 unit tests — outcome plan (type + window) logic (no DB)."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 
 from core.outcomes.watchers import WINDOW_DAYS, plan_for
 

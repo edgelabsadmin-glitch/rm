@@ -12,7 +12,8 @@ emits health-tier-changed on a debounced (>=24h) tier transition.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 from typing import Any
 
 from langfuse.decorators import observe

@@ -18,12 +18,32 @@ import {
   managerBookARR,
   rmBookARR,
 } from "@/fixtures/demo_characters";
+import { DEMO_ACTIONS } from "@/features/queue/demo_actions";
+import {
+  composeTeamWorkload,
+  type ThroughputIndicator,
+} from "@/features/executive/composers/team_workload_composer";
+import type { UserRole } from "@/lib/rbac/types";
 import type { ConstellationGraph, ConstellationLink, ConstellationNode } from "./fixtures";
+
+const THROUGHPUT_LABEL: Record<ThroughputIndicator, string> = {
+  rising: "↑ Rising",
+  steady: "→ Steady",
+  declining: "↓ Declining",
+  flat: "→ Flat",
+};
 
 // Hover tooltip text per node type, carrying ARR via the revenue heuristic helpers
 // (SPEC-041 Step-4 revenue enrichment). Globe = total book; manager/RM = aggregate
 // book + span; account = book value + owning RM. Talent keeps the plain name.
-function nodeTooltip(n: ConstellationNode): string {
+//
+// SPEC-042 Step-8 (§6.7): for Executive + Admin viewers ONLY, RM nodes append a second
+// workload line (pending · approved this week · throughput) derived from the same
+// composeTeamWorkload pure function the Team workload panel uses. Other roles (RM /
+// Manager) and other node types are unchanged. `nodeLabel` is rendered as HTML by
+// react-force-graph, so the <br/> produces a real second line. Exported for unit testing
+// (the canvas tooltip itself never mounts under jsdom — Step-8 constraint).
+export function nodeTooltip(n: ConstellationNode, viewerRole?: UserRole): string {
   switch (n.type) {
     case "globe":
       return `EDGE Pulse · ${formatARR(bookARR())} total book`;
@@ -33,7 +53,14 @@ function nodeTooltip(n: ConstellationNode): string {
     }
     case "rm": {
       const accounts = DEMO_ACCOUNTS.filter((a) => a.rmId === n.id).length;
-      return `${n.label} · ${formatARR(rmBookARR(n.id))} book · ${accounts} account${accounts === 1 ? "" : "s"}`;
+      const base = `${n.label} · ${formatARR(rmBookARR(n.id))} book · ${accounts} account${accounts === 1 ? "" : "s"}`;
+      if (viewerRole === "executive" || viewerRole === "admin") {
+        const w = composeTeamWorkload(DEMO_RMS, DEMO_ACTIONS).find((r) => r.rmId === n.id);
+        if (w) {
+          return `${base}<br/>${w.pendingCount} pending · ${w.approvedThisWeek} approved this week · ${THROUGHPUT_LABEL[w.throughputIndicator]}`;
+        }
+      }
+      return base;
     }
     case "account": {
       const rmName = DEMO_RMS.find((r) => r.id === n.rm_id)?.name;
@@ -125,6 +152,8 @@ export interface ForceGraphProps {
   // and zoom/pan transforms. Both trigger a graph2ScreenCoords recompute in the parent.
   onEngineTick?: () => void;
   onZoom?: () => void;
+  // SPEC-042 Step-8: viewer role drives the RM-node workload tooltip extension (Exec/Admin only).
+  viewerRole?: UserRole;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fgRef?: MutableRefObject<any>;
 }
@@ -137,6 +166,7 @@ export function ForceGraph({
   onBackgroundClick,
   onEngineTick,
   onZoom,
+  viewerRole,
   fgRef,
 }: ForceGraphProps) {
   return (
@@ -146,7 +176,7 @@ export function ForceGraph({
       height={height}
       graphData={graph}
       nodeId="id"
-      nodeLabel={(n: ConstellationNode) => nodeTooltip(n)}
+      nodeLabel={(n: ConstellationNode) => nodeTooltip(n, viewerRole)}
       nodeCanvasObject={(n: ConstellationNode, ctx: CanvasRenderingContext2D) => drawNode(n, ctx)}
       nodePointerAreaPaint={(n: ConstellationNode, color: string, ctx: CanvasRenderingContext2D) => {
         const x = (n as { x?: number }).x ?? 0;

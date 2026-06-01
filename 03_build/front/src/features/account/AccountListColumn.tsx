@@ -6,26 +6,27 @@
  *
  * Data: real SFDC accounts via GET /accounts. Falls back to demo fixtures in DEV when
  * the FastAPI backend is unreachable (same pattern as listActions).
+ * SPEC-042: accountScope from AuthContext filters the rail to the caller's book/team.
  */
-import { useEffect } from "react";
 import { CalendarDays } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
 import { formatARR } from "@/fixtures/demo_characters";
-import { DEFAULT_ACCOUNT_ID, useSelectedAccount } from "@/session/SelectedAccountProvider";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { cn } from "@/lib/utils";
 import { useAccounts } from "./hooks";
 
 export function AccountListColumn() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
+  const { accountScope } = useAuth();
   const { data, isLoading } = useAccounts();
-  const accounts = data?.accounts ?? [];
 
-  // Auto-select the first real SF account once the list loads.
-  useEffect(() => {
-    if (accounts.length > 0 && selectedAccountId === DEFAULT_ACCOUNT_ID) {
-      setSelectedAccountId(accounts[0].account_id);
-    }
-  }, [accounts, selectedAccountId, setSelectedAccountId]);
+  // SPEC-042 Step-5: show only accounts in the caller's scope. Exec/Admin scope = all;
+  // RM/Manager see their book/team. SF accounts use real IDs so scope must match them.
+  const allAccounts = data?.accounts ?? [];
+  const accounts = accountScope
+    ? allAccounts.filter((a) => accountScope.includes(a.account_id))
+    : allAccounts;
 
   return (
     <aside className="col-span-12 border-b border-line-subtle bg-surface-sidebar p-5 lg:col-span-3 lg:border-b-0 lg:border-r">

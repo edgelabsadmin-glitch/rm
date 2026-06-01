@@ -1,6 +1,7 @@
 """SPEC-032 unit tests — channel routing + message composition (no DB)."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 
 import pytest
 

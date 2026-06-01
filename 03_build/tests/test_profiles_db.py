@@ -96,7 +96,8 @@ async def test_api_get_and_put():
     reason="needs ANTHROPIC_API_KEY + OPENAI_API_KEY",
 )
 async def test_regenerate_real_opus():
-    from datetime import UTC, datetime, timedelta
+    from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 
     from core.memory.graph import add_pulse_episode, make_graphiti
     from core.profiles import regenerator

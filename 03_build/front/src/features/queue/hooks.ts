@@ -6,7 +6,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useSession } from "@/session/useSession";
+import { useAuth } from "@/lib/auth/AuthContext";
 import type { ActionsResponse, QueueFilters } from "./types";
 
 const QUEUE_KEY = ["actions"] as const;
@@ -16,19 +16,19 @@ const QUEUE_KEY = ["actions"] as const;
 export const POLL_MS = 10_000;
 
 export function useActions(filters: QueueFilters = {}) {
-  const session = useSession();
+  const { user } = useAuth();
   return useQuery({
     queryKey: [...QUEUE_KEY, filters],
-    queryFn: () => api.listActions(session, { ...filters, limit: 200 }),
+    queryFn: () => api.listActions(user, { ...filters, limit: 200 }),
     refetchInterval: POLL_MS,
   });
 }
 
 export function useActionDetail(id: string | null) {
-  const session = useSession();
+  const { user } = useAuth();
   return useQuery({
     queryKey: [...QUEUE_KEY, "detail", id],
-    queryFn: () => api.getAction(session, id!),
+    queryFn: () => api.getAction(user, id!),
     enabled: !!id,
   });
 }
@@ -39,30 +39,30 @@ function useInvalidateQueue() {
 }
 
 export function useApprove() {
-  const session = useSession();
+  const { user } = useAuth();
   const invalidate = useInvalidateQueue();
   return useMutation({
-    mutationFn: (id: string) => api.approve(session, id),
+    mutationFn: (id: string) => api.approve(user, id),
     onSuccess: invalidate,
   });
 }
 
 export function useModify() {
-  const session = useSession();
+  const { user } = useAuth();
   const invalidate = useInvalidateQueue();
   return useMutation({
     mutationFn: ({ id, diff }: { id: string; diff: Record<string, unknown> }) =>
-      api.modify(session, id, diff),
+      api.modify(user, id, diff),
     onSuccess: invalidate,
   });
 }
 
 export function useReject() {
-  const session = useSession();
+  const { user } = useAuth();
   const invalidate = useInvalidateQueue();
   return useMutation({
     mutationFn: ({ id, reason, freeText }: { id: string; reason: string; freeText?: string }) =>
-      api.reject(session, id, reason, freeText),
+      api.reject(user, id, reason, freeText),
     onSuccess: invalidate,
   });
 }

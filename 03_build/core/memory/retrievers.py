@@ -18,7 +18,8 @@ so the demo's named anchors (e.g. "Acrisure") resolve.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from langfuse.decorators import observe

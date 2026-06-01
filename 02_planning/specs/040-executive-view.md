@@ -1,6 +1,8 @@
-# Spec 040 — CEO View page
+# Spec 040 — Executive View page
 
-**Maps to:** §14 UI surfaces (CEO View); Design 08; §13.5 row "Regular leadership reports"; §13.6 #7.
+**Renamed from `040-ceo-view-page.md` Session 19 late stream per the Executive View reframe** (route `/ceo`→`/executive`, component `CeoView.tsx`→`ExecutiveView.tsx`, Design 08 → `08-executive-view.md` all landed prior; this is the spec-doc filename catch-up). Recipients are CEO Iffi Wahla + VP-CS Eddy Chen, hence "Executive" not "CEO" (white-label discipline + audience accuracy). NOTE: this doc still describes the original weekly-digest framing; the shipped surface is the three-column agentic workspace per the revised Design 08 — a content revision is a separate follow-up, not this naming rename.
+
+**Maps to:** §14 UI surfaces (Executive View); Design 08; §13.5 row "Regular leadership reports"; §13.6 #7.
 **Depends on:** specs 030 (health), 008 (events for throughput), 029 (per-account narratives), 034 (shell), 038 (Pulse Bar).
 **Effort:** 1.5 days.
 
@@ -19,7 +21,7 @@ Per Design 08. Purple-rich (most-brand-moment surface). Weekly composer skill tr
 ## Outputs
 
 - Weekly composer skill at `03_build/pulse/skills/ceo_view_composer.py` (runs Friday 16:00 from Activepieces).
-- Page at `03_build/front/src/features/ceo/CeoView.tsx`.
+- Page at `03_build/front/src/features/executive/ExecutiveView.tsx`.
 - Email digest HTML template at `03_build/pulse/dispatch/email_templates/ceo_view_weekly.html`.
 - Static-HTML renderer extension that consumes the same JSON.
 
@@ -41,7 +43,7 @@ Per Design 08. Purple-rich (most-brand-moment surface). Weekly composer skill tr
 
 ## Signal definitions involved
 
-The CEO View aggregates outcomes across all signals; no signal-specific role.
+The Executive View aggregates outcomes across all signals; no signal-specific role.
 
 ## Open questions
 

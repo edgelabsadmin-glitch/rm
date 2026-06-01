@@ -8,10 +8,33 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
+import {
+  DEMO_ACCOUNTS,
+  DEMO_RMS,
+  DEMO_TALENT,
+  type DemoAccountId,
+} from "@/fixtures/demo_characters";
+import { DEMO_TIER_JUMP_EVENTS } from "@/fixtures/demo_tier_jump_events";
+import {
+  composeCapacityImbalance,
+  type CapacityImbalanceCard,
+} from "./composers/rm_capacity_composer";
+import {
+  composeEscalationTierJumps,
+  type EscalationTierJumpCard,
+} from "./composers/escalation_tier_jump_composer";
 import { clusterCentroid, DEMO_PATTERNS, type PatternCard } from "./demo_patterns";
 import { ClusterPatternOverlay } from "./overlays/ClusterPatternOverlay";
+import { EscalationTierJumpOverlay } from "./overlays/EscalationTierJumpOverlay";
+import { RmCapacityImbalanceOverlay } from "./overlays/RmCapacityImbalanceOverlay";
+import {
+  ConstellationEmpty,
+  ConstellationError,
+  ConstellationLoading,
+} from "./states/ConstellationStates";
 import {
   buildConstellationGraph,
   buildTalentFor,
@@ -19,7 +42,10 @@ import {
   type ConstellationNode,
 } from "./fixtures";
 
-const BASE = buildConstellationGraph();
+// Phase-1 data is derived synchronously, so 'loading'/'error' are reached only by the
+// Phase-2 async pulse-api fetch (the state components exist + are tested for that wiring).
+// Phase-1 resolves to 'empty' (scope yields zero accounts) or 'ready'.
+type Status = "loading" | "error" | "empty" | "ready";
 
 declare global {
   interface Window {
@@ -29,12 +55,25 @@ declare global {
   }
 }
 
-export function Constellation() {
+export interface ConstellationProps {
+  /**
+   * RBAC visibility scope (spec 042, Week 4): whitelist of account ids the viewer may see.
+   * undefined = no scoping (all accounts, the Phase-1 default). [] = nothing in scope →
+   * empty state. The manager/RM scaffold always renders; only account leaves are scoped.
+   */
+  accountScope?: DemoAccountId[];
+}
+
+export function Constellation({ accountScope }: ConstellationProps = {}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { setSelectedAccountId } = useSelectedAccount();
+  // SPEC-042 Step-4: scope comes from the logged-in user (AuthContext). An explicit
+  // `accountScope` prop still overrides (RBAC test harness / future server scope).
+  const { user, accountScope: authScope } = useAuth();
+  const effectiveScope = accountScope ?? authScope;
 
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [fps, setFps] = useState(0);
@@ -42,15 +81,50 @@ export function Constellation() {
   // Step-5: screen positions for the cluster-pattern overlays (centroid of each
   // pattern's support accounts, in screen px). Recomputed on engine tick + zoom/pan.
   const [overlays, setOverlays] = useState<{ pattern: PatternCard; x: number; y: number }[]>([]);
+  const [capacityOverlays, setCapacityOverlays] = useState<
+    { card: CapacityImbalanceCard; x: number; y: number }[]
+  >([]);
+  const [escalationOverlays, setEscalationOverlays] = useState<
+    { card: EscalationTierJumpCard; x: number; y: number }[]
+  >([]);
+
+  // Base graph, scoped by the effective RBAC whitelist (spec 042). Memoized on the scope.
+  const base = useMemo(() => buildConstellationGraph(effectiveScope), [effectiveScope]);
+
+  // Phase-1 status: empty when a scope is given but resolves to zero accounts; else ready.
+  // (loading/error are Phase-2 async states — components exist + tested, not reached here.)
+  const status = useMemo<Status>(() => {
+    if (effectiveScope && base.nodes.every((n) => n.type !== "account")) return "empty";
+    return "ready";
+  }, [effectiveScope, base]);
+
+  // Step-4: overlay composers honor the effective scope (closes watched concern #26).
+  const capacityCards = useMemo(
+    () => composeCapacityImbalance(DEMO_ACCOUNTS, DEMO_RMS, effectiveScope),
+    [effectiveScope],
+  );
+  const escalationCards = useMemo(
+    () => composeEscalationTierJumps(DEMO_TIER_JUMP_EVENTS, effectiveScope),
+    [effectiveScope],
+  );
+  // Cluster patterns: partial-scope filter-out — a pattern is hidden unless ALL of its
+  // support accounts are in scope (spec §6 edge case).
+  const scopedPatterns = useMemo(
+    () =>
+      effectiveScope
+        ? DEMO_PATTERNS.filter((p) => p.support_account_ids.every((id) => effectiveScope.includes(id)))
+        : DEMO_PATTERNS,
+    [effectiveScope],
+  );
 
   // Compose the rendered graph = base + (talent for the expanded account).
   const graph: ConstellationGraph = useMemo(() => {
-    if (!expanded) return BASE;
-    const acct = BASE.nodes.find((n) => n.id === expanded);
-    if (!acct) return BASE;
+    if (!expanded) return base;
+    const acct = base.nodes.find((n) => n.id === expanded);
+    if (!acct) return base;
     const t = buildTalentFor(acct);
-    return { nodes: [...BASE.nodes, ...t.nodes], links: [...BASE.links, ...t.links] };
-  }, [expanded]);
+    return { nodes: [...base.nodes, ...t.nodes], links: [...base.links, ...t.links] };
+  }, [base, expanded]);
 
   // Measure container.
   useEffect(() => {
@@ -108,7 +182,7 @@ export function Constellation() {
     const fg = fgRef.current;
     if (!fg?.graph2ScreenCoords) return;
     const next: { pattern: PatternCard; x: number; y: number }[] = [];
-    for (const pattern of DEMO_PATTERNS) {
+    for (const pattern of scopedPatterns) {
       const c = clusterCentroid(pattern.support_account_ids, graph.nodes);
       if (!c) continue;
       const s = fg.graph2ScreenCoords(c.x, c.y);
@@ -123,10 +197,55 @@ export function Constellation() {
       }
       return next;
     });
-  }, [graph]);
+
+    // Step-6: capacity-imbalance overlays, anchored at the top-loaded RM's account cluster.
+    const cap: { card: CapacityImbalanceCard; x: number; y: number }[] = [];
+    for (const card of capacityCards) {
+      const ids = DEMO_ACCOUNTS.filter((a) => a.rmId === card.topLoadedRmId).map((a) => a.id);
+      const c = clusterCentroid(ids, graph.nodes);
+      if (!c) continue;
+      const s = fg.graph2ScreenCoords(c.x, c.y);
+      cap.push({ card, x: s.x, y: s.y });
+    }
+    setCapacityOverlays((prev) => {
+      if (
+        prev.length === cap.length &&
+        prev.every((p, i) => Math.abs(p.x - cap[i].x) < 0.5 && Math.abs(p.y - cap[i].y) < 0.5)
+      ) {
+        return prev;
+      }
+      return cap;
+    });
+
+    // Step-7: escalation tier-jump overlays, anchored directly at the affected account node.
+    const esc: { card: EscalationTierJumpCard; x: number; y: number }[] = [];
+    for (const card of escalationCards) {
+      const c = clusterCentroid([card.accountId], graph.nodes);
+      if (!c) continue;
+      const s = fg.graph2ScreenCoords(c.x, c.y);
+      esc.push({ card, x: s.x, y: s.y });
+    }
+    setEscalationOverlays((prev) => {
+      if (
+        prev.length === esc.length &&
+        prev.every((p, i) => Math.abs(p.x - esc[i].x) < 0.5 && Math.abs(p.y - esc[i].y) < 0.5)
+      ) {
+        return prev;
+      }
+      return esc;
+    });
+  }, [graph, scopedPatterns, capacityCards, escalationCards]);
 
   function handleInvestigate(pattern: PatternCard) {
     navigate(`/actions?pattern=${encodeURIComponent(pattern.id)}`);
+  }
+
+  function handleInvestigateCapacity(card: CapacityImbalanceCard) {
+    navigate(`/actions?rm=${encodeURIComponent(card.topLoadedRmId)}`);
+  }
+
+  function handleInvestigateEscalation(card: EscalationTierJumpCard) {
+    navigate(`/accounts/${encodeURIComponent(card.accountId)}`);
   }
 
   function handleNodeClick(n: ConstellationNode, event: MouseEvent) {
@@ -159,13 +278,30 @@ export function Constellation() {
     }
   }
 
+  // Defensive states. Phase-1 only reaches 'empty'; 'loading'/'error' are wired by the
+  // Phase-2 async pulse-api fetch (components exist + are unit-tested for that).
+  if (status !== "ready") {
+    return (
+      <div className="relative h-[calc(100vh-160px)] w-full">
+        {status === "loading" && <ConstellationLoading />}
+        {status === "error" && <ConstellationError onRetry={() => window.location.reload()} />}
+        {status === "empty" && <ConstellationEmpty />}
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-[calc(100vh-160px)] w-full" ref={boxRef}>
-      <div className="absolute left-4 top-4 z-10 rounded-2xl border border-line-strong bg-surface-card/90 px-3 py-2 text-xs text-ink-secondary">
-        <span className="font-mono text-ink-primary">{graph.nodes.length}</span> nodes ·{" "}
-        <span className="font-mono text-ink-primary">{fps}</span> fps
-        {expanded && <span className="ml-1 text-brand">· talent shown</span>}
-      </div>
+      {/* Polish #27: dev mode shows perf instrumentation; production shows live counts. */}
+      {import.meta.env.DEV ? (
+        <DevPerfChip nodes={graph.nodes.length} fps={fps} expanded={!!expanded} />
+      ) : (
+        <ProductionCountsChip
+          accountCount={DEMO_ACCOUNTS.length}
+          talentCount={DEMO_TALENT.filter((t) => t.stage === "Active").length}
+          rmCount={DEMO_RMS.length}
+        />
+      )}
       <ForceGraph
         fgRef={fgRef}
         graph={graph}
@@ -175,6 +311,7 @@ export function Constellation() {
         onBackgroundClick={() => setExpanded(null)}
         onEngineTick={recomputeOverlays}
         onZoom={recomputeOverlays}
+        viewerRole={user.role}
       />
 
       {/* Step-5: cluster-pattern alert overlays, positioned over the canvas. */}
@@ -187,6 +324,61 @@ export function Constellation() {
           onInvestigate={handleInvestigate}
         />
       ))}
+
+      {/* Step-6: RM capacity-imbalance overlays. */}
+      {capacityOverlays.map(({ card, x, y }) => (
+        <RmCapacityImbalanceOverlay
+          key={card.id}
+          card={card}
+          x={x}
+          y={y}
+          onInvestigate={handleInvestigateCapacity}
+        />
+      ))}
+
+      {/* Step-7: escalation tier-jump overlays. */}
+      {escalationOverlays.map(({ card, x, y }) => (
+        <EscalationTierJumpOverlay
+          key={card.id}
+          card={card}
+          x={x}
+          y={y}
+          onInvestigate={handleInvestigateEscalation}
+        />
+      ))}
+    </div>
+  );
+}
+
+const CHIP_CLASS =
+  "absolute left-4 top-4 z-10 rounded-md border border-line-strong bg-surface-card/90 px-3 py-2 text-[11px] tracking-wider text-ink-secondary";
+
+/** Dev-only perf instrumentation (node count + FPS). */
+function DevPerfChip({ nodes, fps, expanded }: { nodes: number; fps: number; expanded: boolean }) {
+  return (
+    <div className={CHIP_CLASS}>
+      <span className="font-mono text-ink-primary">{nodes}</span> nodes ·{" "}
+      <span className="font-mono text-ink-primary">{fps}</span> fps
+      {expanded && <span className="ml-1 text-brand">· talent shown</span>}
+    </div>
+  );
+}
+
+/** Production chip — live book counts (all derived from demo_characters.ts). */
+function ProductionCountsChip({
+  accountCount,
+  talentCount,
+  rmCount,
+}: {
+  accountCount: number;
+  talentCount: number;
+  rmCount: number;
+}) {
+  return (
+    <div className={CHIP_CLASS}>
+      <span className="font-mono text-ink-primary">{accountCount}</span> accounts ·{" "}
+      <span className="font-mono text-ink-primary">{talentCount}</span> active talent ·{" "}
+      <span className="font-mono text-ink-primary">{rmCount}</span> RMs
     </div>
   );
 }

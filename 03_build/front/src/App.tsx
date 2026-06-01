@@ -16,6 +16,10 @@ import { OutcomeTracking } from "@/features/admin/OutcomeTracking";
 import { SignalPerformance } from "@/features/admin/SignalPerformance";
 import { SubmitPage } from "@/features/submit/SubmitPage";
 import { SupportPage } from "@/features/support/SupportPage";
+import { SettingsUsersPanel } from "@/features/settings/SettingsUsersPanel";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { defaultRouteForRole } from "@/lib/auth/defaultRoute";
+import { RoleGuard, AccountScopeGuard } from "@/lib/auth/RoleGuard";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
 
@@ -25,34 +29,94 @@ const Constellation = lazy(() =>
 );
 
 export default function App() {
+  // SPEC-042 Step 3: the root route lands each role on their default surface.
+  const { user } = useAuth();
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<AccountWorkspace />} />
-        <Route path="/accounts" element={<AccountWorkspace />} />
+        <Route index element={<Navigate to={defaultRouteForRole(user.role)} replace />} />
+        <Route
+          path="/accounts"
+          element={
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <AccountWorkspace />
+            </RoleGuard>
+          }
+        />
         <Route
           path="/accounts/:id"
           element={
-            <Placeholder
-              spec="Spec 036-037"
-              title="Account detail"
-              blurb="Per-account view with opt-in depth: 270° composite-health ring, dual-sided signal vector, verified themes, and the AI-RM briefing voice."
-            />
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <AccountScopeGuard executiveBypass>
+                {/* Placeholder until spec 037 builds PerAccountView; the scope guard
+                    still enforces RM/Manager out-of-scope redirects today. */}
+                <Placeholder
+                  spec="Spec 036-037"
+                  title="Account detail"
+                  blurb="Per-account view with opt-in depth: 270° composite-health ring, dual-sided signal vector, verified themes, and the AI-RM briefing voice."
+                />
+              </AccountScopeGuard>
+            </RoleGuard>
           }
         />
-        <Route path="/actions" element={<QueueList />} />
+        <Route
+          path="/actions"
+          element={
+            <RoleGuard allowedRoles={["rm", "manager", "admin"]}>
+              <QueueList />
+            </RoleGuard>
+          }
+        />
         <Route
           path="/constellation"
           element={
-            <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
-              <Constellation />
-            </Suspense>
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
+                <Constellation />
+              </Suspense>
+            </RoleGuard>
           }
         />
-        <Route path="/executive" element={<ExecutiveView />} />
-        <Route path="/submit" element={<SubmitPage />} />
-        <Route path="/support" element={<SupportPage />} />
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route
+          path="/executive"
+          element={
+            <RoleGuard allowedRoles={["executive", "admin"]}>
+              <ExecutiveView />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/settings/users"
+          element={
+            <RoleGuard allowedRoles={["admin"]}>
+              <SettingsUsersPanel />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/submit"
+          element={
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <SubmitPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/support"
+          element={
+            <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+              <SupportPage />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RoleGuard allowedRoles={["admin"]}>
+              <AdminLayout />
+            </RoleGuard>
+          }
+        >
           <Route index element={<Navigate to="/admin/signals" replace />} />
           <Route path="signals"  element={<SignalPerformance />} />
           <Route path="outcomes" element={<OutcomeTracking />} />

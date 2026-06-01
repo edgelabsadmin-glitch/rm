@@ -8,7 +8,8 @@ the `integration` marker + CHORUS_API_TOKEN.
 import hashlib
 import hmac
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 
 import pytest
 
