@@ -22,6 +22,7 @@ import { deriveAccountScope } from "@/lib/rbac/accountScope";
 import type { AccountScope } from "@/lib/rbac/types";
 
 const STORAGE_KEY = "pulse_user_id";
+const LOGGED_OUT_KEY = "pulse_logged_out";
 const DEV_DEFAULT_USER = "pulse-admin";
 
 interface AuthContextValue {
@@ -71,7 +72,8 @@ export function AuthProvider({ children, initialUserId }: AuthProviderProps) {
     }
 
     // DEV only: auto-login so the persona switcher works without Google OAuth.
-    if (import.meta.env.DEV) {
+    // Skip if the user explicitly logged out this session.
+    if (import.meta.env.DEV && !sessionStorage.getItem(LOGGED_OUT_KEY)) {
       setUserId(DEV_DEFAULT_USER);
     }
     setLoading(false);
@@ -85,6 +87,7 @@ export function AuthProvider({ children, initialUserId }: AuthProviderProps) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.setItem(LOGGED_OUT_KEY, "1");
     setUserId(null);
     // Hard-navigate so all React Query caches are cleared.
     window.location.href = "/login";
