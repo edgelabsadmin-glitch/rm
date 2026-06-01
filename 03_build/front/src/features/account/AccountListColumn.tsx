@@ -8,7 +8,7 @@ import { useState, useMemo } from "react";
 import { CalendarDays, Search, X } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
 import { buildAccountFilter, formatARR } from "@/fixtures/demo_characters";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useUser } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { cn } from "@/lib/utils";
 import { useAccounts } from "./hooks";
@@ -47,7 +47,7 @@ function FilterChip({
 
 export function AccountListColumn() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
-  const { user } = useAuth();
+  const user = useUser();
 
   const [search, setSearch] = useState("");
   const [riskFilter, setRiskFilter] = useState<RiskLevel>("All");

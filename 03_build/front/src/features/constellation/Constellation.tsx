@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useAuth, useUser } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { ForceGraph } from "./ForceGraph";
 import {
@@ -72,7 +72,8 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
   const { setSelectedAccountId } = useSelectedAccount();
   // SPEC-042 Step-4: scope comes from the logged-in user (AuthContext). An explicit
   // `accountScope` prop still overrides (RBAC test harness / future server scope).
-  const { user, accountScope: authScope } = useAuth();
+  const user = useUser();
+  const { accountScope: authScope } = useAuth();
   const effectiveScope = accountScope ?? authScope;
 
   const [size, setSize] = useState({ w: 800, h: 600 });

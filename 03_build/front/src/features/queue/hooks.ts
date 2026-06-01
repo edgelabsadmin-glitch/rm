@@ -6,7 +6,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useUser } from "@/lib/auth/AuthContext";
 import type { ActionsResponse, QueueFilters } from "./types";
 
 const QUEUE_KEY = ["actions"] as const;
@@ -16,7 +16,7 @@ const QUEUE_KEY = ["actions"] as const;
 export const POLL_MS = 10_000;
 
 export function useActions(filters: QueueFilters = {}) {
-  const { user } = useAuth();
+  const user = useUser();
   return useQuery({
     queryKey: [...QUEUE_KEY, filters],
     queryFn: () => api.listActions(user, { ...filters, limit: 200 }),
@@ -25,7 +25,7 @@ export function useActions(filters: QueueFilters = {}) {
 }
 
 export function useActionDetail(id: string | null) {
-  const { user } = useAuth();
+  const user = useUser();
   return useQuery({
     queryKey: [...QUEUE_KEY, "detail", id],
     queryFn: () => api.getAction(user, id!),
@@ -39,7 +39,7 @@ function useInvalidateQueue() {
 }
 
 export function useApprove() {
-  const { user } = useAuth();
+  const user = useUser();
   const invalidate = useInvalidateQueue();
   return useMutation({
     mutationFn: (id: string) => api.approve(user, id),
@@ -48,7 +48,7 @@ export function useApprove() {
 }
 
 export function useModify() {
-  const { user } = useAuth();
+  const user = useUser();
   const invalidate = useInvalidateQueue();
   return useMutation({
     mutationFn: ({ id, diff }: { id: string; diff: Record<string, unknown> }) =>
@@ -58,7 +58,7 @@ export function useModify() {
 }
 
 export function useReject() {
-  const { user } = useAuth();
+  const user = useUser();
   const invalidate = useInvalidateQueue();
   return useMutation({
     mutationFn: ({ id, reason, freeText }: { id: string; reason: string; freeText?: string }) =>

@@ -34,11 +34,20 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+interface AuthProviderProps {
+  children: ReactNode;
+  /** Test / Storybook override — bypasses localStorage + URL detection. */
+  initialUserId?: string;
+}
+
+export function AuthProvider({ children, initialUserId }: AuthProviderProps) {
+  const [userId, setUserId] = useState<string | null>(initialUserId ?? null);
+  const [loading, setLoading] = useState(initialUserId === undefined);
 
   useEffect(() => {
+    // Test override — skip all detection.
+    if (initialUserId !== undefined) return;
+
     // Check if Google OAuth just completed — backend redirects here with these params.
     const params = new URLSearchParams(window.location.search);
     const googleUserId = params.get("google_user_id");
@@ -66,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserId(DEV_DEFAULT_USER);
     }
     setLoading(false);
-  }, []);
+  }, [initialUserId]);
 
   const switchUser = useCallback((newId: string) => {
     setUserId(newId);
@@ -83,9 +92,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => {
     const user = userId ? (DEMO_USERS.find((u) => u.id === userId) ?? null) : null;
+    // When initialUserId is explicitly set (test / Storybook) and not found → throw so
+    // tests that check for unknown-ID errors still work as before.
+    if (userId && !user && initialUserId !== undefined) {
+      throw new Error(`AuthProvider: unknown user id '${userId}'`);
+    }
     const accountScope = user ? deriveAccountScope(user.role, user.id) : [];
     return { user, loading, accountScope, switchUser, logout };
-  }, [userId, loading, switchUser, logout]);
+  }, [userId, loading, switchUser, logout, initialUserId]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -94,4 +108,15 @@ export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth() must be called within an AuthProvider");
   return ctx;
+}
+
+/**
+ * Like useAuth(), but asserts user is non-null.
+ * Safe to call inside any component rendered within the authenticated shell
+ * (App.tsx guarantees user is set before any of those components mount).
+ */
+export function useUser(): DemoUser {
+  const { user } = useAuth();
+  if (!user) throw new Error("useUser() called outside the authenticated shell");
+  return user;
 }

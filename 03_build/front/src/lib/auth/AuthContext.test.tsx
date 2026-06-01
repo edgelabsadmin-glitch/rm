@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { AuthProvider, useAuth } from "./AuthContext";
+import { AuthProvider, useAuth, useUser } from "./AuthContext";
 
 function Probe() {
-  const { user, accountScope, switchUser } = useAuth();
+  const { accountScope, switchUser } = useAuth();
+  const user = useUser();
   return (
     <div>
       <div data-testid="role">{user.role}</div>

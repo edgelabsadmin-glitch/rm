@@ -10,10 +10,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { usePulseState } from "@/components/PulseStateProvider";
 import { useActions } from "@/features/queue/hooks";
 import { applyStatusFilter, scopeAndRefineCards } from "@/features/queue/queue_scope";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useUser } from "@/lib/auth/AuthContext";
 
 export function PulseBarController() {
-  const { user } = useAuth();
+  const user = useUser();
   const { setQueueCount, setProcessing, notifyNewActions } = usePulseState();
   // SPEC-042 Step-5 follow-up (Q2): the header badge reflects the caller's ROLE SCOPE, not
   // just their own rm_id — so a Manager sees their team total. Fetch the role book (no rm_id

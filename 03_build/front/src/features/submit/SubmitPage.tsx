@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { CheckCircle2, ChevronDown, Loader2, Search, X } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useUser } from "@/lib/auth/AuthContext";
 import { useAccounts } from "@/features/account/hooks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -237,7 +237,7 @@ interface FormValues {
 }
 
 export function SubmitPage() {
-  const { user } = useAuth();
+  const user = useUser();
   const [oppSearch, setOppSearch] = useState("");
   const [submitted, setSubmitted] = useState<{ record_id: string; message: string } | null>(null);
 

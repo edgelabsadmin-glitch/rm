@@ -10,9 +10,9 @@ import { useEffect } from "react";
 import { FadeLift } from "@/components/FadeLift";
 import { SituationalHero } from "@/features/hero/SituationalHero";
 import { QueueList } from "@/features/queue/QueueList";
-import { useAuth } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { buildAccountFilter } from "@/fixtures/demo_characters";
+import { useUser } from "@/lib/auth/AuthContext";
 import { AccountListColumn } from "./AccountListColumn";
 import { useAccountHealth, useAccounts } from "./hooks";
 import { MeetingBriefPanel } from "./MeetingBriefPanel";
@@ -21,7 +21,7 @@ import { VerifiedThemesPanel } from "./VerifiedThemesPanel";
 
 export function AccountWorkspace() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
-  const { user } = useAuth();
+  const user = useUser();
 
   // Same filter as AccountListColumn so auto-select picks from the right scoped set.
   const { data: accountList } = useAccounts(buildAccountFilter(user));

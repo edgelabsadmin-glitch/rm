@@ -11,7 +11,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useUser } from "@/lib/auth/AuthContext";
 import { useLocalStorage } from "@/lib/useLocalStorage";
 import { cn } from "@/lib/utils";
 import { useActions } from "./hooks";
@@ -74,7 +74,7 @@ interface Props {
 }
 
 export function QueueList({ customerId, accountName }: Props = {}) {
-  const { user } = useAuth();
+  const user = useUser();
   const reduce = useReducedMotion();
   const [tier, setTier] = useLocalStorage<string | null>("pulse.queue.tier", null);
   const [statusFilter, setStatusFilter] = useLocalStorage<StatusFilter>(

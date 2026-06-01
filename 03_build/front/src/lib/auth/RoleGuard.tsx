@@ -8,7 +8,7 @@ import { type ReactNode } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import type { DemoAccountId } from "@/fixtures/demo_characters";
 import type { UserRole } from "@/lib/rbac/types";
-import { useAuth } from "./AuthContext";
+import { useAuth, useUser } from "./AuthContext";
 import { defaultRouteForRole } from "./defaultRoute";
 
 interface RoleGuardProps {
@@ -21,7 +21,7 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ allowedRoles, fallbackRoute, children }: RoleGuardProps) {
-  const { user } = useAuth();
+  const user = useUser();
   if (!allowedRoles.includes(user.role)) {
     return <Navigate to={fallbackRoute ?? defaultRouteForRole(user.role)} replace />;
   }
@@ -35,7 +35,8 @@ interface AccountScopeGuardProps {
 }
 
 export function AccountScopeGuard({ executiveBypass = false, children }: AccountScopeGuardProps) {
-  const { user, accountScope } = useAuth();
+  const user = useUser();
+  const { accountScope } = useAuth();
   const { id } = useParams();
 
   // Executive + Admin bypass when the flag is set (read-only navigation to any account).
