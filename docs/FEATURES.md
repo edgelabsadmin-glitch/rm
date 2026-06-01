@@ -14,9 +14,9 @@
 |---|---|---|
 | Authentication & RBAC | ✅ Done | Google OAuth live; 4-role model |
 | Account List Rail | ✅ Done | Search + risk/tier chips + scope |
-| Account Workspace (3-col hero) | ✅ Done | Health ring, signal vector, themes |
+| Account Workspace (3-col hero) | ✅ Done | Health ring, signal vector, themes, meetings panel |
 | Action Queue UI | ✅ Done | Approve/modify/reject; 10s polling |
-| Constellation View | ✅ Done | Force-graph + 3 overlay types |
+| Constellation View | ✅ Done | Force-graph + sidebar action items + RBAC filters |
 | Executive Dashboard (CEO View) | ✅ Done | Stat cards, asks, team table |
 | Outreach Submit Form | ✅ Done | Creates RM_Outreach__c in SFDC |
 | Support AI Chat | ✅ Done | Claude + SOQL tool |
@@ -25,7 +25,11 @@
 | Pulse Bar (Agent Presence) | ✅ Done | Breathing indicator on every screen |
 | Salesforce Signal Source Adapter | ✅ Done | Accounts, RM_Outreach, Associates, Cases |
 | Salesforce DB Sync (12-hr background task) | ✅ Done | Upserts to `pulse.sf_accounts` |
-| Chorus Signal Source Adapter | ⚠️ Partial | Module exists (232 lines); not wired into live ingestion |
+| Chorus Signal Source Adapter + DB Sync | ✅ Done | Polls Chorus v3 API every 12h; 2,500+ episodes ingested; SF account fuzzy-match |
+| Zoom Signal Source Adapter + DB Sync | ✅ Done | Server-to-Server OAuth; polls Reports API per-user in 30-day windows; linked to SF accounts |
+| Meetings Panel (per-account) | ✅ Done | GET /accounts/{id}/meetings — Chorus + Zoom; source badge, duration, recording link |
+| Constellation Sidebar (Action Items) | ✅ Done | Floating overlays replaced with persistent sidebar; pattern/capacity/escalation alerts |
+| Constellation RBAC Filters | ✅ Done | Manager team-member dropdown; account filter to expand talent; per-user scope enforced |
 | Calendar Signal Source Adapter | ⚠️ Partial | Module exists (193 lines); not wired |
 | Opportunity-Tracker Adapter | ⚠️ Partial | Module exists (149 lines); not wired |
 | Memory Layer (Graphiti + Kuzu) | ⚠️ Partial | Driver + graph modules exist; not actively ingesting |
