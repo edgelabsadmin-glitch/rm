@@ -5,6 +5,7 @@
  * (visibility only — server-side scope is authoritative).
  */
 import { Bell, LogOut, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { usePulseState } from "@/components/PulseStateProvider";
 import { DEMO_USERS } from "@/fixtures/demo_characters";
@@ -42,6 +43,19 @@ export function Header() {
   const user = useUser();
   const { switchUser, logout } = useAuth();
   const { queueCount } = usePulseState();
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!avatarOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+        setAvatarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [avatarOpen]);
 
   return (
     <header className="flex items-center justify-between border-b border-line-subtle px-7 py-5">
@@ -126,22 +140,28 @@ export function Header() {
             )}
           </NavLink>
         )}
-        {/* Avatar + logout on hover */}
-        <div className="group relative">
+        {/* Avatar + logout dropdown (click-to-open) */}
+        <div className="relative" ref={avatarRef}>
           <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setAvatarOpen((o) => !o)}
+            onKeyDown={(e) => e.key === "Enter" && setAvatarOpen((o) => !o)}
             className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-ink-primary text-sm font-semibold text-ink-on-brand"
             title={`${user.displayName} · ${user.email}`}
           >
             {initials(user.displayName)}
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="absolute right-0 top-full mt-1 hidden items-center gap-1.5 whitespace-nowrap rounded-xl border border-line-subtle bg-white px-3 py-2 text-xs text-ink-secondary shadow-lg hover:text-ink-primary group-hover:flex"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Sign out
-          </button>
+          {avatarOpen && (
+            <button
+              type="button"
+              onClick={logout}
+              className="absolute right-0 top-full mt-1 flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-line-subtle bg-white px-3 py-2 text-xs text-ink-secondary shadow-lg hover:text-ink-primary"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </button>
+          )}
         </div>
       </div>
     </header>
