@@ -102,7 +102,7 @@ export interface AccountListDTO {
 export const api = {
   listAccounts: async (
     caller: ApiCaller,
-    params: { page?: number; page_size?: number; tier?: string; rm_id?: string; [key: string]: unknown } = {},
+    params: { page?: number; page_size?: number; tier?: string; rm_id?: string; rm_ids?: string; [key: string]: unknown } = {},
   ) => {
     try {
       return await request<AccountListDTO>(`/accounts${qs(params)}`, caller);

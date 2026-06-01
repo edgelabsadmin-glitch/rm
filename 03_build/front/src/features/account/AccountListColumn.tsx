@@ -12,7 +12,7 @@
  */
 import { CalendarDays } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
-import { formatARR } from "@/fixtures/demo_characters";
+import { buildAccountFilter, formatARR } from "@/fixtures/demo_characters";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { cn } from "@/lib/utils";
@@ -22,10 +22,8 @@ export function AccountListColumn() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
   const { user } = useAuth();
 
-  // Pass rm_id to API for RM role — server filters to their book.
-  // Use sfUserId (SF 18-char ID) because owner_id in DB is the SF User ID, not the demo slug.
-  const rmFilter = user.role === "rm" ? { rm_id: user.sfUserId ?? user.id } : {};
-  const { data, isLoading } = useAccounts(rmFilter);
+  // RM → their own accounts; Manager → their accounts + team's; Exec/Admin → all.
+  const { data, isLoading } = useAccounts(buildAccountFilter(user));
   const accounts = data?.accounts ?? [];
 
   return (

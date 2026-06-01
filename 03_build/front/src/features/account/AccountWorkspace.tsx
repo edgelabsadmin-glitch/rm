@@ -12,6 +12,7 @@ import { SituationalHero } from "@/features/hero/SituationalHero";
 import { QueueList } from "@/features/queue/QueueList";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
+import { buildAccountFilter } from "@/fixtures/demo_characters";
 import { AccountListColumn } from "./AccountListColumn";
 import { useAccountHealth, useAccounts } from "./hooks";
 import { MeetingBriefPanel } from "./MeetingBriefPanel";
@@ -22,10 +23,8 @@ export function AccountWorkspace() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
   const { user } = useAuth();
 
-  // Same rm_id filter as AccountListColumn so auto-select picks from the right set.
-  // Use sfUserId (SF 18-char ID) because owner_id in DB is the SF User ID, not the demo slug.
-  const rmFilter = user.role === "rm" ? { rm_id: user.sfUserId ?? user.id } : {};
-  const { data: accountList } = useAccounts(rmFilter);
+  // Same filter as AccountListColumn so auto-select picks from the right scoped set.
+  const { data: accountList } = useAccounts(buildAccountFilter(user));
   const { data: account } = useAccountHealth(selectedAccountId);
 
   // Auto-select the first account once the list loads.

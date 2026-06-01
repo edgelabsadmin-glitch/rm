@@ -113,6 +113,7 @@ async def list_accounts(
     page_size: int = Query(50, ge=1, le=200),
     tier: str | None = Query(None),
     rm_id: str | None = Query(None),
+    rm_ids: str | None = Query(None),  # comma-separated SF user IDs (manager team scope)
 ) -> AccountList:
     pool = await get_pool()
     async with pool.connection() as conn:
@@ -124,7 +125,14 @@ async def list_accounts(
         if tier:
             conditions.append("tier = %s")
             params.append(tier)
-        if rm_id:
+        # rm_ids (manager team) takes precedence over rm_id (single RM)
+        if rm_ids:
+            ids = [i.strip() for i in rm_ids.split(",") if i.strip()]
+            if ids:
+                placeholders = ", ".join(["%s"] * len(ids))
+                conditions.append(f"owner_id IN ({placeholders})")
+                params.extend(ids)
+        elif rm_id:
             conditions.append("owner_id = %s")
             params.append(rm_id)
 

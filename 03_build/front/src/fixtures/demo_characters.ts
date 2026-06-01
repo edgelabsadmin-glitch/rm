@@ -200,3 +200,34 @@ export const DEMO_USERS: ReadonlyArray<DemoUser> = [
   // Admin (functional alias)
   { id: "pulse-admin", displayName: "Pulse Admin", email: "admin@onedge.co", role: "admin", avatarInitials: "PA" },
 ];
+
+/**
+ * Returns the SF User IDs for a manager + all their direct reports.
+ * Used to build the rm_ids filter so managers see their book + team's book.
+ */
+export function managerSfUserIds(managerId: string): string[] {
+  const mgr = DEMO_USERS.find((u) => u.id === managerId);
+  const teamSlugIds = DEMO_RMS.filter((r) => r.managerId === managerId).map((r) => r.id);
+  const teamSfIds = DEMO_USERS
+    .filter((u) => teamSlugIds.includes(u.id) && u.sfUserId)
+    .map((u) => u.sfUserId!);
+  const result: string[] = [];
+  if (mgr?.sfUserId) result.push(mgr.sfUserId);
+  result.push(...teamSfIds);
+  return result;
+}
+
+/**
+ * Builds the API filter params based on the current user's role:
+ *   RM       → { rm_id: sfUserId }       their own accounts
+ *   Manager  → { rm_ids: "id1,id2,..." } their accounts + team's accounts
+ *   Exec/Admin → {}                       all accounts (no filter)
+ */
+export function buildAccountFilter(user: DemoUser): { rm_id?: string; rm_ids?: string } {
+  if (user.role === "rm") return { rm_id: user.sfUserId ?? user.id };
+  if (user.role === "manager") {
+    const ids = managerSfUserIds(user.id);
+    return ids.length ? { rm_ids: ids.join(",") } : {};
+  }
+  return {};
+}
