@@ -1,30 +1,56 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Zap } from "lucide-react";
+import { DEMO_USERS } from "@/fixtures/demo_characters";
+import { useAuth } from "@/lib/auth/AuthContext";
 
-// Read the error/unauthorized state from the URL Google OAuth puts there.
-function useOAuthError() {
+const STORAGE_KEY = "pulse_user_id";
+
+// Read the Google OAuth outcome from the URL params FastAPI puts there.
+function useOAuthParams() {
   const params = new URLSearchParams(window.location.search);
   const status = params.get("google");
-  if (status === "error") return "Something went wrong during sign-in. Please try again.";
-  if (status === "unauthorized")
-    return "Your Google account is not authorized to access Pulse. Use your onedge.co or edgeonline.co account.";
-  return null;
+  const userId = params.get("google_user_id");
+  return { status, userId };
 }
 
 export function LoginPage() {
-  const [loading, setLoading] = useState(false);
-  const error = useOAuthError();
+  const { switchUser } = useAuth();
+  const [buttonLoading, setButtonLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { status, userId } = useOAuthParams();
 
-  // Clean the error param from the URL so a refresh doesn't re-show it.
+  // Handle Google OAuth callback landing on /login.
   useEffect(() => {
-    if (error) {
+    if (status === "success" && userId && DEMO_USERS.find((u) => u.id === userId)) {
+      localStorage.setItem(STORAGE_KEY, userId);
+      sessionStorage.removeItem("pulse_logged_out");
+      window.history.replaceState({}, "", window.location.pathname);
+      switchUser(userId);
+      return;
+    }
+    if (status === "error") {
+      setError("Something went wrong during sign-in. Please try again.");
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [error]);
+    if (status === "unauthorized") {
+      setError("Your Google account is not authorised. Use your onedge.co or edgeonline.co account.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [status, userId, switchUser]);
+
+  // Clean up timeout on unmount.
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
   function handleGoogleSignIn() {
-    setLoading(true);
-    // Full page navigation — Vite proxies /api → FastAPI which redirects to Google.
+    setError(null);
+    setButtonLoading(true);
+    // Safety net: if the page hasn't navigated after 8s, the backend is probably
+    // not running — reset the button and show an actionable error.
+    timeoutRef.current = setTimeout(() => {
+      setButtonLoading(false);
+      setError("Could not reach the sign-in service. Make sure the backend is running on port 8000.");
+    }, 8000);
     window.location.href = "/api/auth/google/start";
   }
 
@@ -62,10 +88,10 @@ export function LoginPage() {
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            disabled={loading}
+            disabled={buttonLoading}
             className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:shadow disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? (
+            {buttonLoading ? (
               <svg className="h-4 w-4 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -79,7 +105,7 @@ export function LoginPage() {
                 <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" />
               </svg>
             )}
-            {loading ? "Redirecting…" : "Sign in with Google"}
+            {buttonLoading ? "Redirecting…" : "Sign in with Google"}
           </button>
         </div>
 

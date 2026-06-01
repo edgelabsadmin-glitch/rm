@@ -163,7 +163,7 @@ async def google_callback(
         )
 
     return RedirectResponse(
-        f"{_FRONTEND_URL}?google=success&google_user_id={user_id}"
+        f"{_FRONTEND_URL}/login?google=success&google_user_id={user_id}"
     )
 
 

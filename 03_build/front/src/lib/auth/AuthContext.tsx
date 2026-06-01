@@ -56,6 +56,8 @@ export function AuthProvider({ children, initialUserId }: AuthProviderProps) {
 
     if (googleUserId && googleStatus === "success") {
       localStorage.setItem(STORAGE_KEY, googleUserId);
+      // Clear the logged-out flag so Google sign-in works after a logout.
+      sessionStorage.removeItem(LOGGED_OUT_KEY);
       // Strip the OAuth params from the URL without a page reload.
       window.history.replaceState({}, "", window.location.pathname);
       setUserId(googleUserId);
