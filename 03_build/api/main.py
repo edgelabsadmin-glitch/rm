@@ -36,6 +36,23 @@ async def _sf_sync_loop() -> None:
         await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
 
 
+async def _chorus_sync_loop() -> None:
+    """Poll Chorus for completed meetings at startup then every 12 hours.
+    Waits 30s after startup so the SF sync can populate the account index first."""
+    await asyncio.sleep(30)
+    from core.chorus.sync import pull_and_ingest
+    while True:
+        try:
+            result = await pull_and_ingest()
+            log.info(
+                "Chorus sync done — fetched=%d ingested=%d duplicates=%d errors=%d",
+                result["fetched"], result["ingested"], result["duplicates"], result["errors"],
+            )
+        except Exception as exc:
+            log.error("Chorus sync error (will retry in %dh): %s", SYNC_INTERVAL_HOURS, exc)
+        await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
+
+
 async def _ensure_schema() -> None:
     """Create tables that may not exist yet (idempotent)."""
     from core.db import get_pool
@@ -54,20 +71,49 @@ async def _ensure_schema() -> None:
                 updated_at           TIMESTAMPTZ DEFAULT NOW()
             )
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.episodes (
+                episode_id          UUID PRIMARY KEY,
+                dedup_key           TEXT        NOT NULL UNIQUE,
+                source              TEXT        NOT NULL,
+                source_event_id     TEXT,
+                source_url          TEXT,
+                source_timestamp    TIMESTAMPTZ,
+                content_type        TEXT        NOT NULL,
+                content             JSONB       NOT NULL,
+                subject             TEXT,
+                description         TEXT,
+                candidate_entities  JSONB       NOT NULL DEFAULT '[]'::jsonb,
+                tags                TEXT[]      NOT NULL DEFAULT '{}',
+                processing_state    TEXT        NOT NULL DEFAULT 'received',
+                ingested_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_episodes_source_time "
+            "ON pulse.episodes (source, source_timestamp DESC);"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_episodes_state "
+            "ON pulse.episodes (processing_state);"
+        )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_env()
     await _ensure_schema()
-    # Start background SF sync — runs immediately then every 12 hours.
-    sync_task = asyncio.create_task(_sf_sync_loop())
+    # Start background syncs — SF runs immediately; Chorus waits 30s for SF index.
+    sf_task = asyncio.create_task(_sf_sync_loop())
+    chorus_task = asyncio.create_task(_chorus_sync_loop())
     yield
-    sync_task.cancel()
-    try:
-        await sync_task
-    except asyncio.CancelledError:
-        pass
+    sf_task.cancel()
+    chorus_task.cancel()
+    for task in (sf_task, chorus_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     from core.db import close_pool
     await close_pool()
 

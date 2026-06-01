@@ -13,7 +13,7 @@ can authenticate. Everyone else gets an "unauthorized" redirect.
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
@@ -130,7 +130,7 @@ async def google_callback(
         return RedirectResponse(f"{_FRONTEND_URL}/login?google=unauthorized")
 
     # Persist tokens so future API calls (Gmail, Calendar) can act on behalf of user
-    expiry = (datetime.now(UTC) + timedelta(seconds=expires_in)).isoformat()
+    expiry = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()
     pool = await get_pool()
     async with pool.connection() as conn:
         await conn.execute(
