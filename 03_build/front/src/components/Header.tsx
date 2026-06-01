@@ -4,7 +4,7 @@
  * the stubbed session. Admin nav is hidden unless the session role is admin
  * (visibility only — server-side scope is authoritative).
  */
-import { Bell, Zap } from "lucide-react";
+import { Bell, LogOut, Zap } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { usePulseState } from "@/components/PulseStateProvider";
 import { DEMO_USERS } from "@/fixtures/demo_characters";
@@ -39,7 +39,7 @@ function initials(name: string): string {
 }
 
 export function Header() {
-  const { user, switchUser } = useAuth();
+  const { user, switchUser, logout } = useAuth();
   const { queueCount } = usePulseState();
 
   return (
@@ -125,11 +125,25 @@ export function Header() {
             )}
           </NavLink>
         )}
-        <div
-          className="grid h-10 w-10 place-items-center rounded-full bg-ink-primary text-sm font-semibold text-ink-on-brand"
-          title={`${user.displayName} · ${user.email}`}
-        >
-          {initials(user.displayName)}
+        {/* Avatar + logout */}
+        <div className="group relative">
+          <div
+            className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-ink-primary text-sm font-semibold text-ink-on-brand"
+            title={`${user.displayName} · ${user.email}`}
+          >
+            {initials(user.displayName)}
+          </div>
+          {/* Logout tooltip on hover */}
+          {!import.meta.env.DEV && (
+            <button
+              type="button"
+              onClick={logout}
+              className="absolute right-0 top-full mt-1 hidden items-center gap-1.5 whitespace-nowrap rounded-xl border border-line-subtle bg-white px-3 py-2 text-xs text-ink-secondary shadow-lg hover:text-ink-primary group-hover:flex"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </button>
+          )}
         </div>
       </div>
     </header>

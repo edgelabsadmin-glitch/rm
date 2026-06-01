@@ -36,9 +36,30 @@ async def _sf_sync_loop() -> None:
         await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
 
 
+async def _ensure_schema() -> None:
+    """Create tables that may not exist yet (idempotent)."""
+    from core.db import get_pool
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.google_sessions (
+                user_id              TEXT PRIMARY KEY,
+                email                TEXT NOT NULL,
+                google_access_token  TEXT,
+                google_refresh_token TEXT,
+                google_token_expiry  TIMESTAMPTZ,
+                google_name          TEXT,
+                google_picture       TEXT,
+                connected_at         TIMESTAMPTZ DEFAULT NOW(),
+                updated_at           TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_env()
+    await _ensure_schema()
     # Start background SF sync — runs immediately then every 12 hours.
     sync_task = asyncio.create_task(_sf_sync_loop())
     yield
@@ -72,6 +93,7 @@ def create_app() -> FastAPI:
     from api.dispatch import router as dispatch_router
     from api.profiles import router as profiles_router
     from api.support import router as support_router
+    from api.auth_google import router as auth_google_router
 
     app.include_router(kill_switch_router)
     app.include_router(profiles_router)
@@ -80,6 +102,7 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router)
     app.include_router(submit_router)
     app.include_router(support_router)
+    app.include_router(auth_google_router)
 
     return app
 
