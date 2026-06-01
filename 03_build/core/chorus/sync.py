@@ -31,7 +31,8 @@ from core.db import get_pool
 log = logging.getLogger(__name__)
 
 UTC = timezone.utc
-_BACKFILL_DAYS = 90  # how far back the very first run fetches
+# First-run backfill anchor — before Chorus existed, so we get every meeting.
+_ALL_TIME_SINCE = datetime(2015, 1, 1, tzinfo=UTC)
 
 
 async def _load_account_index() -> list[dict]:
@@ -118,7 +119,7 @@ async def pull_and_ingest(since: datetime | None = None) -> dict:
     # Determine cutoff — use last sync watermark or backfill 90 days
     if since is None:
         last = await _last_synced_at()
-        since = last if last else datetime.now(UTC) - timedelta(days=_BACKFILL_DAYS)
+        since = last if last else _ALL_TIME_SINCE
         log.info("Chorus sync since %s", since.isoformat())
 
     account_index = await _load_account_index()
