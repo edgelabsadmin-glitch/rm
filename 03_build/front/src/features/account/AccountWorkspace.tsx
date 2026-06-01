@@ -16,6 +16,7 @@ import { useUser } from "@/lib/auth/AuthContext";
 import { AccountListColumn } from "./AccountListColumn";
 import { useAccountHealth, useAccounts } from "./hooks";
 import { MeetingBriefPanel } from "./MeetingBriefPanel";
+import { RecentMeetingsPanel } from "./RecentMeetingsPanel";
 import { SignalVectorPanel } from "./SignalVectorPanel";
 import { VerifiedThemesPanel } from "./VerifiedThemesPanel";
 
@@ -44,6 +45,7 @@ export function AccountWorkspace() {
           <div className="space-y-5">
             <SignalVectorPanel vector={account?.signal_vector ?? []} />
             <VerifiedThemesPanel themes={account?.themes ?? []} />
+            <RecentMeetingsPanel />
             <MeetingBriefPanel />
           </div>
         </FadeLift>

@@ -23,3 +23,22 @@ export function useAccountHealth(accountId: string | null) {
     staleTime: 60_000,
   });
 }
+
+export interface MeetingItem {
+  episode_id: string;
+  subject: string | null;
+  description: string | null;
+  source_timestamp: string | null;
+  source_url: string | null;
+  duration_mins: number | null;
+}
+
+export function useMeetings(accountId: string | null) {
+  const user = useUser();
+  return useQuery({
+    queryKey: [...ACCOUNTS_KEY, "meetings", accountId],
+    queryFn: () => api.getMeetings(user, accountId!) as Promise<MeetingItem[]>,
+    enabled: !!accountId,
+    staleTime: 5 * 60_000,
+  });
+}

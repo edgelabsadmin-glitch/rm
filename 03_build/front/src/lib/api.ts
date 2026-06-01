@@ -202,6 +202,25 @@ export const api = {
     }
   },
 
+  getMeetings: async (caller: ApiCaller, accountId: string, limit = 10) => {
+    interface MeetingItem {
+      episode_id: string;
+      subject: string | null;
+      description: string | null;
+      source_timestamp: string | null;
+      source_url: string | null;
+      duration_mins: number | null;
+    }
+    try {
+      return await request<MeetingItem[]>(
+        `/accounts/${accountId}/meetings?limit=${limit}`,
+        caller,
+      );
+    } catch {
+      return [] as MeetingItem[];
+    }
+  },
+
   getAction: (caller: ApiCaller, id: string) =>
     request<import("@/features/queue/types").ActionDTO>(`/actions/${id}`, caller),
 

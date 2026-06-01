@@ -178,3 +178,47 @@ async def get_account_health(account_id: str) -> AccountHealth:
     return _row_to_health(row)
 
 
+class MeetingItem(BaseModel):
+    episode_id: str
+    subject: str | None
+    description: str | None
+    source_timestamp: str | None
+    source_url: str | None
+    duration_mins: int | None
+
+
+@router.get("/{account_id}/meetings", response_model=list[MeetingItem])
+async def list_account_meetings(
+    account_id: str,
+    limit: int = Query(10, ge=1, le=50),
+) -> list[MeetingItem]:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        rows = await (await conn.execute(
+            """
+            SELECT episode_id, subject, description,
+                   source_timestamp, source_url,
+                   (content->>'duration_mins')::int AS duration_mins
+            FROM pulse.episodes
+            WHERE source = 'chorus'
+              AND candidate_entities @> %s::jsonb
+            ORDER BY source_timestamp DESC
+            LIMIT %s
+            """,
+            [f'[{{"sfdc_id":"{account_id}"}}]', limit],
+        )).fetchall()
+
+    return [
+        MeetingItem(
+            episode_id=str(r["episode_id"]),
+            subject=r["subject"],
+            description=r["description"],
+            source_timestamp=r["source_timestamp"].isoformat() if r["source_timestamp"] else None,
+            source_url=r["source_url"],
+            duration_mins=r["duration_mins"],
+        )
+        for r in rows
+    ]
+
+
