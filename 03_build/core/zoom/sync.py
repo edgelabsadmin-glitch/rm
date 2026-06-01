@@ -23,7 +23,7 @@ from core.db import get_pool
 
 log = logging.getLogger(__name__)
 UTC = timezone.utc
-_ALL_TIME_SINCE = datetime(2020, 1, 1, tzinfo=UTC)
+_ALL_TIME_SINCE = datetime(2024, 1, 1, tzinfo=UTC)  # Zoom reporting retention is typically 12 months
 
 _INSERT_EPISODE = """
 INSERT INTO pulse.episodes (

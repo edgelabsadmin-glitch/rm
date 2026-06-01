@@ -87,6 +87,7 @@ class ZoomAdapter(SignalSourceAdapter):
     # ── User list ─────────────────────────────────────────────────────────────
 
     async def _list_user_ids(self) -> list[str]:
+        """Return IDs of licensed users only (type=2/3). Basic users can't access reporting."""
         ids: list[str] = []
         npt: str | None = None
         while True:
@@ -95,7 +96,8 @@ class ZoomAdapter(SignalSourceAdapter):
                 params["next_page_token"] = npt
             data = await self._get("/users", params)
             for u in data.get("users", []):
-                ids.append(u["id"])
+                if u.get("type", 1) != 1:  # skip basic (type=1) users
+                    ids.append(u["id"])
             npt = data.get("next_page_token") or ""
             if not npt:
                 break
@@ -131,8 +133,9 @@ class ZoomAdapter(SignalSourceAdapter):
         pages_used = 0
 
         for uid in user_ids:
+            user_has_access = True  # set False on first 400 to skip remaining windows
             for from_dt, to_dt in windows:
-                if pages_used >= max_pages:
+                if not user_has_access or pages_used >= max_pages:
                     break
                 npt: str | None = None
                 while pages_used < max_pages:
@@ -147,6 +150,7 @@ class ZoomAdapter(SignalSourceAdapter):
                         data = await self._get(f"/report/users/{uid}/meetings", params)
                     except httpx.HTTPStatusError as exc:
                         if exc.response.status_code in (400, 404):
+                            user_has_access = False
                             break
                         raise
                     pages_used += 1
