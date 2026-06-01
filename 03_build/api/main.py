@@ -53,6 +53,23 @@ async def _chorus_sync_loop() -> None:
         await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
 
 
+async def _zoom_sync_loop() -> None:
+    """Poll Zoom Reports for past meetings at startup then every 12 hours.
+    Waits 60s after startup so SF sync has time to populate the account index."""
+    await asyncio.sleep(60)
+    from core.zoom.sync import pull_and_ingest as zoom_ingest
+    while True:
+        try:
+            result = await zoom_ingest()
+            log.info(
+                "Zoom sync done — fetched=%d ingested=%d duplicates=%d errors=%d",
+                result["fetched"], result["ingested"], result["duplicates"], result["errors"],
+            )
+        except Exception as exc:
+            log.error("Zoom sync error (will retry in %dh): %s", SYNC_INTERVAL_HOURS, exc)
+        await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
+
+
 async def _ensure_schema() -> None:
     """Create tables that may not exist yet (idempotent)."""
     from core.db import get_pool
@@ -106,10 +123,12 @@ async def lifespan(app: FastAPI):
     # Start background syncs — SF runs immediately; Chorus waits 30s for SF index.
     sf_task = asyncio.create_task(_sf_sync_loop())
     chorus_task = asyncio.create_task(_chorus_sync_loop())
+    zoom_task = asyncio.create_task(_zoom_sync_loop())
     yield
     sf_task.cancel()
     chorus_task.cancel()
-    for task in (sf_task, chorus_task):
+    zoom_task.cancel()
+    for task in (sf_task, chorus_task, zoom_task):
         try:
             await task
         except asyncio.CancelledError:
