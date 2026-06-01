@@ -1,0 +1,225 @@
+"""
+Salesforce → Postgres account sync.
+
+pull_and_upsert() fetches every Client account from the Edge SF org in parallel,
+computes composite health + derived fields, then bulk-upserts into pulse.sf_accounts.
+
+Called at:
+  - FastAPI startup (first run, cold cache)
+  - Every 12 hours via the background scheduler in api/main.py
+
+Safe to call concurrently — Postgres ON CONFLICT DO UPDATE is atomic per row.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from datetime import datetime, timezone
+
+from core.db import get_pool
+from core.salesforce import SalesforceClient
+
+log = logging.getLogger(__name__)
+
+# ── constants (mirrors api/accounts.py) ──────────────────────────────────────
+
+SEGMENT_TO_TIER: dict[str | None, str] = {
+    "ENT": "Strategic",
+    "MID-MKT": "Growth",
+    "SMB": "Core",
+    "Insurance": "Core",
+    None: "Core",
+}
+
+HEALTH_LABEL_TO_SCORE: dict[str | None, float] = {
+    "Healthy": 8.5,
+    "Neutral": 6.0,
+    "At Risk": 4.0,
+    "Escalated": 2.0,
+    None: 5.0,
+}
+
+ARR_PER_TALENT = 10_000
+SIGNAL_AXES = ["Engagement", "Satisfaction", "Retention safety", "Growth orientation"]
+
+
+# ── derived field helpers ─────────────────────────────────────────────────────
+
+def _score(outreach: dict | None) -> tuple[float, float | None]:
+    if not outreach:
+        return 5.0, None
+    label = outreach.get("Customer_Health__c")
+    churn = outreach.get("Churn_Probability__c")
+    score = HEALTH_LABEL_TO_SCORE.get(label, 5.0)
+    churn_f = float(churn) if churn is not None else None
+    if churn_f is not None and churn_f >= 0.5:
+        score = min(score, 5.2)
+    return score, churn_f
+
+
+def _risk(score: float, churn_prob: float | None) -> str:
+    if churn_prob is not None and churn_prob >= 0.5:
+        return "High"
+    if score >= 7.0:
+        return "Low"
+    if score >= 4.5:
+        return "Medium"
+    return "High"
+
+
+def _vector(score: float) -> list[dict]:
+    return [
+        {"label": l, "pct": max(10, min(100, round(score * 10 - i * 7)))}
+        for i, l in enumerate(SIGNAL_AXES)
+    ]
+
+
+def _themes(score: float, churn_prob: float | None, has_open_case: bool) -> list[str]:
+    if score >= 7.0:
+        return [
+            "Strong placement continuity",
+            "Positive talent feedback trend",
+            "Account engagement stable",
+        ]
+    if (churn_prob is not None and churn_prob >= 0.5) or score < 5.0:
+        themes = ["Churn risk signal detected", "Engagement drop observed"]
+        if has_open_case:
+            themes.append("<bad>Open escalation case</bad>")
+        return themes
+    return [
+        "<em>Renewal window approaching</em>" if has_open_case else "Account health stable",
+        "Monitor engagement cadence",
+    ]
+
+
+# ── SF fetchers (same queries as api/accounts.py) ────────────────────────────
+
+async def _fetch_all(client: SalesforceClient) -> tuple[
+    list[dict], dict[str, dict], dict[str, int], set[str]
+]:
+    accounts, outreach_rows, talent_rows, case_rows = await asyncio.gather(
+        client.query_all(
+            "SELECT Id, Name, Segment__c, Type, OwnerId, Owner.Name "
+            "FROM Account WHERE Type = 'Client' ORDER BY Name"
+        ),
+        client.query_all(
+            "SELECT Id, Account__c, Customer_Health__c, Churn_Probability__c, "
+            "EBR_Date__c, LastModifiedDate "
+            "FROM RM_Outreach__c WHERE Account__c != null "
+            "ORDER BY LastModifiedDate DESC"
+        ),
+        client.query_all(
+            "SELECT Account__c, COUNT(Id) cnt FROM Associates__c "
+            "WHERE Stage__c = 'Active' AND Account__c != null "
+            "GROUP BY Account__c"
+        ),
+        client.query_all(
+            "SELECT AccountId FROM Case "
+            "WHERE IsClosed = false AND AccountId != null AND Categories__c != null"
+        ),
+    )
+
+    # Build lookup maps
+    outreach_map: dict[str, dict] = {}
+    for row in outreach_rows:
+        aid = row.get("Account__c")
+        if aid and aid not in outreach_map:
+            outreach_map[aid] = row
+
+    talent_map = {r["Account__c"]: int(r.get("cnt") or 0) for r in talent_rows}
+    open_cases = {r["AccountId"] for r in case_rows}
+
+    return accounts, outreach_map, talent_map, open_cases
+
+
+# ── upsert ────────────────────────────────────────────────────────────────────
+
+UPSERT_SQL = """
+INSERT INTO pulse.sf_accounts (
+    account_id, name, segment, tier, owner_id, rm_name,
+    active_talent, arr_usd, composite_health, risk,
+    customer_health, churn_probability, last_ebr, has_open_case,
+    signal_vector, themes, synced_at
+) VALUES (
+    %(account_id)s, %(name)s, %(segment)s, %(tier)s, %(owner_id)s, %(rm_name)s,
+    %(active_talent)s, %(arr_usd)s, %(composite_health)s, %(risk)s,
+    %(customer_health)s, %(churn_probability)s, %(last_ebr)s, %(has_open_case)s,
+    %(signal_vector)s, %(themes)s, %(synced_at)s
+)
+ON CONFLICT (account_id) DO UPDATE SET
+    name              = EXCLUDED.name,
+    segment           = EXCLUDED.segment,
+    tier              = EXCLUDED.tier,
+    owner_id          = EXCLUDED.owner_id,
+    rm_name           = EXCLUDED.rm_name,
+    active_talent     = EXCLUDED.active_talent,
+    arr_usd           = EXCLUDED.arr_usd,
+    composite_health  = EXCLUDED.composite_health,
+    risk              = EXCLUDED.risk,
+    customer_health   = EXCLUDED.customer_health,
+    churn_probability = EXCLUDED.churn_probability,
+    last_ebr          = EXCLUDED.last_ebr,
+    has_open_case     = EXCLUDED.has_open_case,
+    signal_vector     = EXCLUDED.signal_vector,
+    themes            = EXCLUDED.themes,
+    synced_at         = EXCLUDED.synced_at
+"""
+
+
+async def pull_and_upsert() -> int:
+    """Fetch all SF accounts and upsert to pulse.sf_accounts. Returns row count."""
+    log.info("SF account sync starting…")
+    client = SalesforceClient()
+
+    try:
+        accounts, outreach_map, talent_map, open_cases = await _fetch_all(client)
+    except Exception as exc:
+        log.error("SF fetch failed: %s", exc)
+        raise
+
+    now = datetime.now(timezone.utc)
+    rows = []
+    for acct in accounts:
+        acct_id = acct["Id"]
+        outreach = outreach_map.get(acct_id)
+        score, churn_prob = _score(outreach)
+        active_talent = talent_map.get(acct_id, 0)
+        has_open_case = acct_id in open_cases
+        segment = acct.get("Segment__c")
+        tier = SEGMENT_TO_TIER.get(segment, "Core")
+        owner = acct.get("Owner") or {}
+        rm_name = owner.get("Name", "") if isinstance(owner, dict) else ""
+
+        rows.append({
+            "account_id": acct_id,
+            "name": acct["Name"],
+            "segment": segment,
+            "tier": tier,
+            "owner_id": acct.get("OwnerId"),
+            "rm_name": rm_name,
+            "active_talent": active_talent,
+            "arr_usd": active_talent * ARR_PER_TALENT,
+            "composite_health": round(score, 1),
+            "risk": _risk(score, churn_prob),
+            "customer_health": outreach.get("Customer_Health__c") if outreach else None,
+            "churn_probability": churn_prob,
+            "last_ebr": outreach.get("EBR_Date__c") if outreach else None,
+            "has_open_case": has_open_case,
+            "signal_vector": json.dumps(_vector(score)),
+            "themes": json.dumps(_themes(score, churn_prob, has_open_case)),
+            "synced_at": now,
+        })
+
+    if not rows:
+        log.warning("SF sync: no accounts returned from Salesforce.")
+        return 0
+
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.executemany(UPSERT_SQL, rows)
+        await conn.commit()
+
+    log.info("SF account sync complete — %d accounts upserted.", len(rows))
+    return len(rows)

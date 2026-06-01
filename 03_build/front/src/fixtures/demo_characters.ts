@@ -49,12 +49,24 @@ export const DEMO_MANAGERS: ReadonlyArray<DemoManager> = [
 ];
 
 export const DEMO_RMS: ReadonlyArray<DemoRM> = [
-  { id: "sajjal-shaheedi", name: "Sajjal Shaheedi", managerId: "sarah-hooper" },
+  // Sarah Hooper's team (7 RMs)
   { id: "sidra-zia", name: "Sidra Zia", managerId: "sarah-hooper" },
+  { id: "sajjal-shaheedi", name: "Sajjal Shaheedi", managerId: "sarah-hooper" },
+  { id: "michael-vasquez", name: "Michael Vasquez", managerId: "sarah-hooper" },
   { id: "yozeline-candia", name: "Yozeline Candia", managerId: "sarah-hooper" },
+  { id: "tanveer-shoukat", name: "Tanveer Shoukat", managerId: "sarah-hooper" },
+  { id: "muhammad-dawar", name: "Muhammad Dawar Khan", managerId: "sarah-hooper" },
+  { id: "attiya-arooj", name: "Attiya Arooj", managerId: "sarah-hooper" },
+  // Muhammad Ibrahim's team (9 RMs)
   { id: "ameer-ali", name: "Ameer Ali", managerId: "muhammad-ibrahim" },
-  { id: "mubeen-sohail", name: "Mubeen Sohail", managerId: "muhammad-ibrahim" },
+  { id: "abbas-haider", name: "Abbas Haider", managerId: "muhammad-ibrahim" },
+  { id: "zeeshan-hassan", name: "Zeeshan Hassan", managerId: "muhammad-ibrahim" },
+  { id: "ghaeen-salam", name: "Ghaeen Us Salam", managerId: "muhammad-ibrahim" },
   { id: "akash-tahir", name: "Akash Tahir", managerId: "muhammad-ibrahim" },
+  { id: "ammar-ashique", name: "Ammar Ashique", managerId: "muhammad-ibrahim" },
+  { id: "amir-zaidi", name: "Amir Zaidi", managerId: "muhammad-ibrahim" },
+  { id: "mubeen-sohail", name: "Mubeen Sohail", managerId: "muhammad-ibrahim" },
+  { id: "sheryl-stephen", name: "Sheryl Stephen", managerId: "muhammad-ibrahim" },
 ];
 
 export const DEMO_ACCOUNTS: ReadonlyArray<DemoAccount> = [
@@ -155,22 +167,36 @@ export interface DemoUser {
   rmId?: string; // for RM role; identifies which RM this user IS
   managerId?: string; // for Manager role; identifies which Manager this user IS
   avatarInitials: string;
+  /** Real Salesforce User ID (15/18-char). Used as rm_id when filtering /accounts
+   *  by owner_id — the DB stores SF IDs, not demo slugs. */
+  sfUserId?: string;
 }
 
 export const DEMO_USERS: ReadonlyArray<DemoUser> = [
   // Executives
   { id: "iffi-wahla", displayName: "Iffi Wahla", email: "iffi.wahla@edgeonline.co", role: "executive", avatarInitials: "IW" },
-  { id: "eddy-chen", displayName: "Eddy Chen", email: "eddy.chen@onedge.co", role: "executive", avatarInitials: "EC" },
+  { id: "eddy-chen", displayName: "Eddy Chen", email: "eddy.chen@onedge.co", role: "executive", sfUserId: "005U1000005qMJJIA2", avatarInitials: "EC" },
   // Managers
-  { id: "sarah-hooper", displayName: "Sarah Hooper", email: "sarah.hooper@onedge.co", role: "manager", managerId: "sarah-hooper", avatarInitials: "SH" },
-  { id: "muhammad-ibrahim", displayName: "Muhammad Ibrahim", email: "muhammad.ibrahim@onedge.co", role: "manager", managerId: "muhammad-ibrahim", avatarInitials: "MI" },
-  // RMs
-  { id: "sidra-zia", displayName: "Sidra Zia", email: "sidra.zia@onedge.co", role: "rm", rmId: "sidra-zia", avatarInitials: "SZ" },
-  { id: "sajjal-shaheedi", displayName: "Sajjal Shaheedi", email: "sajjal.shaheedi@onedge.co", role: "rm", rmId: "sajjal-shaheedi", avatarInitials: "SS" },
-  { id: "yozeline-candia", displayName: "Yozeline Candia", email: "yozeline.candia@onedge.co", role: "rm", rmId: "yozeline-candia", avatarInitials: "YC" },
-  { id: "ameer-ali", displayName: "Ameer Ali", email: "ameer.ali@onedge.co", role: "rm", rmId: "ameer-ali", avatarInitials: "AA" },
-  { id: "mubeen-sohail", displayName: "Mubeen Sohail", email: "mubeen.sohail@onedge.co", role: "rm", rmId: "mubeen-sohail", avatarInitials: "MS" },
-  { id: "akash-tahir", displayName: "Akash Tahir", email: "akash.tahir@onedge.co", role: "rm", rmId: "akash-tahir", avatarInitials: "AT" },
+  { id: "sarah-hooper", displayName: "Sarah Hooper", email: "sarah.hooper@onedge.co", role: "manager", managerId: "sarah-hooper", sfUserId: "005U1000000z4ujIAA", avatarInitials: "SH" },
+  { id: "muhammad-ibrahim", displayName: "Muhammad Ibrahim", email: "muhammad.ibrahim@onedge.co", role: "manager", managerId: "muhammad-ibrahim", sfUserId: "005U10000075k1OIAQ", avatarInitials: "MI" },
+  // RMs — Sarah Hooper's team
+  { id: "sidra-zia", displayName: "Sidra Zia", email: "sidra.zia@onedge.co", role: "rm", rmId: "sidra-zia", sfUserId: "0056S00000F13rsQAB", avatarInitials: "SZ" },
+  { id: "sajjal-shaheedi", displayName: "Sajjal Shaheedi", email: "sajjal.shaheedi@edgeonline.co", role: "rm", rmId: "sajjal-shaheedi", sfUserId: "0056S00000H7On5QAF", avatarInitials: "SS" },
+  { id: "michael-vasquez", displayName: "Michael Vasquez", email: "michael.vasquez@onedge.co", role: "rm", rmId: "michael-vasquez", sfUserId: "005U10000032bOLIAY", avatarInitials: "MV" },
+  { id: "yozeline-candia", displayName: "Yozeline Candia", email: "yozeline.candia@onedge.co", role: "rm", rmId: "yozeline-candia", sfUserId: "005U10000032bZdIAI", avatarInitials: "YC" },
+  { id: "tanveer-shoukat", displayName: "Tanveer Shoukat", email: "tanveer.shoukat@onedge.co", role: "rm", rmId: "tanveer-shoukat", sfUserId: "005U100000BaAiTIAV", avatarInitials: "TS" },
+  { id: "muhammad-dawar", displayName: "Muhammad Dawar Khan", email: "muhammad.dawar@onedge.co", role: "rm", rmId: "muhammad-dawar", sfUserId: "005U100000BaBHxIAN", avatarInitials: "MD" },
+  { id: "attiya-arooj", displayName: "Attiya Arooj", email: "attiya.arooj@onedge.co", role: "rm", rmId: "attiya-arooj", sfUserId: "005U100000BlqxhIAB", avatarInitials: "AR" },
+  // RMs — Muhammad Ibrahim's team
+  { id: "ameer-ali", displayName: "Ameer Ali", email: "ameer.ali@onedge.co", role: "rm", rmId: "ameer-ali", sfUserId: "005U1000007UP09IAG", avatarInitials: "AA" },
+  { id: "abbas-haider", displayName: "Abbas Haider", email: "abbas.haider@onedge.co", role: "rm", rmId: "abbas-haider", sfUserId: "005U1000007UPBRIA4", avatarInitials: "AH" },
+  { id: "zeeshan-hassan", displayName: "Zeeshan Hassan", email: "zeeshan.hassan@onedge.co", role: "rm", rmId: "zeeshan-hassan", sfUserId: "005U1000007nCtdIAE", avatarInitials: "ZH" },
+  { id: "ghaeen-salam", displayName: "Ghaeen Us Salam", email: "ghaeen.salam@onedge.co", role: "rm", rmId: "ghaeen-salam", sfUserId: "005U100000B4AGzIAN", avatarInitials: "GS" },
+  { id: "akash-tahir", displayName: "Akash Tahir", email: "akash.tahir@onedge.co", role: "rm", rmId: "akash-tahir", sfUserId: "005U100000Ba9b7IAB", avatarInitials: "AT" },
+  { id: "ammar-ashique", displayName: "Ammar Ashique", email: "ammar.ashique@onedge.co", role: "rm", rmId: "ammar-ashique", sfUserId: "005U100000BlpSLIAZ", avatarInitials: "AM" },
+  { id: "amir-zaidi", displayName: "Amir Zaidi", email: "amir.zaidi@onedge.co", role: "rm", rmId: "amir-zaidi", sfUserId: "005U100000BlqfxIAB", avatarInitials: "AZ" },
+  { id: "mubeen-sohail", displayName: "Mubeen Sohail", email: "mubeen.sohail@onedge.co", role: "rm", rmId: "mubeen-sohail", sfUserId: "005U100000Blr0vIAB", avatarInitials: "MS" },
+  { id: "sheryl-stephen", displayName: "Sheryl Stephen", email: "sheryl.stephen@onedge.co", role: "rm", rmId: "sheryl-stephen", sfUserId: "005U100000Blr5lIAB", avatarInitials: "SR" },
   // Admin (functional alias)
   { id: "pulse-admin", displayName: "Pulse Admin", email: "admin@onedge.co", role: "admin", avatarInitials: "PA" },
 ];

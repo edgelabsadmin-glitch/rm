@@ -7,6 +7,8 @@ Env is loaded with override=True at startup (Q116, via core.llm.config.load_env)
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -15,20 +17,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.middleware.timeout import RequestTimeoutMiddleware
 from core.llm.config import load_env
 
+log = logging.getLogger(__name__)
+
 __version__ = "0.1.0"
+
+SYNC_INTERVAL_HOURS = 12
+
+
+async def _sf_sync_loop() -> None:
+    """Run SF→DB account sync at startup then every 12 hours."""
+    from core.salesforce.sync import pull_and_upsert
+    while True:
+        try:
+            count = await pull_and_upsert()
+            log.info("SF sync done: %d accounts in DB.", count)
+        except Exception as exc:
+            log.error("SF sync error (will retry in %dh): %s", SYNC_INTERVAL_HOURS, exc)
+        await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: load env with override=True (Q116). Later specs add:
-    #   - Graphiti × PulseKuzuDriver init (spec 005)
-    #   - Langfuse client (ADR-003)
-    # The Postgres pool (spec 008) opens lazily on first use; close it here.
     load_env()
+    # Start background SF sync — runs immediately then every 12 hours.
+    sync_task = asyncio.create_task(_sf_sync_loop())
     yield
-    # Shutdown: close the Postgres pool (spec 008); later specs flush traces.
+    sync_task.cancel()
+    try:
+        await sync_task
+    except asyncio.CancelledError:
+        pass
     from core.db import close_pool
-
     await close_pool()
 
 

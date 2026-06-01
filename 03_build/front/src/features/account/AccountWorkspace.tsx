@@ -1,14 +1,12 @@
 /*
- * SPEC-037 — the three-column workspace (Tier-0 §9.3). Left = account list (sets
- * selectedAccountId), center = Hero card + opt-in-depth panels, right = Action Queue.
- * Desktop (lg+): 3-25/50-25 columns. md and below: stacks (list → center → queue).
+ * SPEC-037 — three-column workspace. Left = account list, center = hero + panels,
+ * right = per-account action queue.
  *
- * Data: single useAccountHealth fetch here; passed as props to SituationalHero and
- * the depth panels so they all reflect the same selected account with one request.
- * SPEC-042: scope auto-correct — if the selected account falls outside the caller's
- * scope, redirect to the first in-scope account.
+ * Auto-select: once the real SF account list loads, pick the first account if
+ * nothing is selected yet. No demo-slug-based scope filtering here — that breaks
+ * with real SF IDs. Scope is enforced server-side via the rm_id query param.
  */
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { FadeLift } from "@/components/FadeLift";
 import { SituationalHero } from "@/features/hero/SituationalHero";
 import { QueueList } from "@/features/queue/QueueList";
@@ -22,25 +20,20 @@ import { VerifiedThemesPanel } from "./VerifiedThemesPanel";
 
 export function AccountWorkspace() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
-  const { accountScope } = useAuth();
+  const { user } = useAuth();
+
+  // Same rm_id filter as AccountListColumn so auto-select picks from the right set.
+  // Use sfUserId (SF 18-char ID) because owner_id in DB is the SF User ID, not the demo slug.
+  const rmFilter = user.role === "rm" ? { rm_id: user.sfUserId ?? user.id } : {};
+  const { data: accountList } = useAccounts(rmFilter);
   const { data: account } = useAccountHealth(selectedAccountId);
-  const { data: accountList } = useAccounts();
 
-  // SPEC-042 Step-5: compute scope-visible IDs from the fetched SF account list.
-  // Exec/Admin scope = null (all accounts); RM/Manager = their book/team IDs.
-  const visibleIds = useMemo(() => {
-    const all = accountList?.accounts.map((a) => a.account_id) ?? [];
-    return accountScope ? all.filter((id) => accountScope.includes(id)) : all;
-  }, [accountList, accountScope]);
-
-  // Auto-correct: if selected account is out of scope or nothing is selected, land
-  // on the first visible account. Runs after the list is fetched.
+  // Auto-select the first account once the list loads.
   useEffect(() => {
-    if (!visibleIds.length) return;
-    if (!selectedAccountId || !visibleIds.includes(selectedAccountId)) {
-      setSelectedAccountId(visibleIds[0]);
+    if (!selectedAccountId && accountList?.accounts.length) {
+      setSelectedAccountId(accountList.accounts[0].account_id);
     }
-  }, [visibleIds, selectedAccountId, setSelectedAccountId]);
+  }, [accountList, selectedAccountId, setSelectedAccountId]);
 
   return (
     <div className="grid grid-cols-12 gap-0">
@@ -48,7 +41,6 @@ export function AccountWorkspace() {
 
       <section className="col-span-12 space-y-5 p-6 lg:col-span-6">
         <SituationalHero account={account} />
-        {/* Opt-in depth panels — keyed by account so they reset on switch. */}
         <FadeLift motionKey={`panels-${selectedAccountId}`}>
           <div className="space-y-5">
             <SignalVectorPanel vector={account?.signal_vector ?? []} />

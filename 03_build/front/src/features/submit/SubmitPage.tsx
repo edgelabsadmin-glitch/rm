@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { CheckCircle2, ChevronDown, Loader2, Search, X } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useSession } from "@/session/useSession";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { useAccounts } from "@/features/account/hooks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -237,7 +237,7 @@ interface FormValues {
 }
 
 export function SubmitPage() {
-  const session = useSession();
+  const { user } = useAuth();
   const [oppSearch, setOppSearch] = useState("");
   const [submitted, setSubmitted] = useState<{ record_id: string; message: string } | null>(null);
 
@@ -254,7 +254,7 @@ export function SubmitPage() {
   // Opportunities — server search
   const { data: opportunities, isFetching: oppsLoading } = useQuery({
     queryKey: ["opportunities", oppSearch],
-    queryFn: () => api.getOpportunities(session, ""),
+    queryFn: () => api.getOpportunities(user, ""),
     staleTime: 60_000,
   });
 
@@ -294,7 +294,7 @@ export function SubmitPage() {
       if (values.competitor_analysis) body.competitor_analysis = values.competitor_analysis;
       if (values.feedback_primary_category) body.feedback_primary_category = values.feedback_primary_category;
       if (values.structured_feedback_shared) body.structured_feedback_shared = values.structured_feedback_shared;
-      return api.createOutreach(session, body);
+      return api.createOutreach(user, body);
     },
     onSuccess: (data) => {
       setSubmitted(data);

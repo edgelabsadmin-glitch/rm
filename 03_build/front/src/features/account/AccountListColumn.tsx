@@ -1,12 +1,14 @@
 /*
- * SPEC-037 — left-rail account list (Tier-0 §8.12 + §9.3 left column). Scrollable
- * selectable cards: name, risk badge, next-key-event subtitle, composite-health bar.
- * Click writes selectedAccountId (the context spec 036 added); active card highlighted
- * (white-on-tinted-rail, purple-edged border, slate shadow).
+ * SPEC-037 — left-rail account list. Scrollable selectable cards with name,
+ * risk badge, next-key-event subtitle, composite-health bar.
  *
- * Data: real SFDC accounts via GET /accounts. Falls back to demo fixtures in DEV when
- * the FastAPI backend is unreachable (same pattern as listActions).
- * SPEC-042: accountScope from AuthContext filters the rail to the caller's book/team.
+ * Scope filtering is done server-side via the rm_id query param:
+ *   RM       → GET /accounts?rm_id=<user.id>   (their book)
+ *   Manager  → GET /accounts (all for now; team filtering is Week-4 server-side)
+ *   Admin/Exec → GET /accounts (full org)
+ *
+ * The dz-001 accountScope (demo slug IDs) cannot be used to filter real SF
+ * account IDs — those are Salesforce 18-char IDs, not slugs.
  */
 import { CalendarDays } from "lucide-react";
 import { RiskBadge } from "@/components/RiskBadge";
@@ -18,15 +20,13 @@ import { useAccounts } from "./hooks";
 
 export function AccountListColumn() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
-  const { accountScope } = useAuth();
-  const { data, isLoading } = useAccounts();
+  const { user } = useAuth();
 
-  // SPEC-042 Step-5: show only accounts in the caller's scope. Exec/Admin scope = all;
-  // RM/Manager see their book/team. SF accounts use real IDs so scope must match them.
-  const allAccounts = data?.accounts ?? [];
-  const accounts = accountScope
-    ? allAccounts.filter((a) => accountScope.includes(a.account_id))
-    : allAccounts;
+  // Pass rm_id to API for RM role — server filters to their book.
+  // Use sfUserId (SF 18-char ID) because owner_id in DB is the SF User ID, not the demo slug.
+  const rmFilter = user.role === "rm" ? { rm_id: user.sfUserId ?? user.id } : {};
+  const { data, isLoading } = useAccounts(rmFilter);
+  const accounts = data?.accounts ?? [];
 
   return (
     <aside className="col-span-12 border-b border-line-subtle bg-surface-sidebar p-5 lg:col-span-3 lg:border-b-0 lg:border-r">
@@ -46,7 +46,7 @@ export function AccountListColumn() {
           ))}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-y-auto" style={{ maxHeight: "calc(100vh - 14rem)" }}>
           {accounts.map((account) => {
             const active = account.account_id === selectedAccountId;
             return (
