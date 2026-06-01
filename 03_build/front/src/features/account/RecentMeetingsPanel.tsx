@@ -1,8 +1,8 @@
 /*
- * Chorus meeting history for the selected account. Fetches from
- * GET /accounts/{id}/meetings and renders a timeline list.
+ * Meeting history for the selected account — Chorus + Zoom.
+ * Fetches from GET /accounts/{id}/meetings and renders a source-tagged timeline.
  */
-import { CalendarDays, Clock, ExternalLink } from "lucide-react";
+import { CalendarDays, Clock, ExternalLink, Mic, Video } from "lucide-react";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { useMeetings } from "./hooks";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
@@ -27,11 +27,9 @@ export function RecentMeetingsPanel() {
 
   return (
     <CollapsibleSection title="Recent meetings">
-      {isLoading && (
-        <p className="text-sm text-ink-muted">Loading meetings…</p>
-      )}
+      {isLoading && <p className="text-sm text-ink-muted">Loading meetings…</p>}
       {!isLoading && (!meetings || meetings.length === 0) && (
-        <p className="text-sm text-ink-muted">No Chorus meetings on record for this account.</p>
+        <p className="text-sm text-ink-muted">No meetings on record for this account.</p>
       )}
       {!isLoading && meetings && meetings.length > 0 && (
         <ul className="divide-y divide-line-subtle">
@@ -39,9 +37,16 @@ export function RecentMeetingsPanel() {
             <li key={m.episode_id} className="py-3 first:pt-0 last:pb-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ink-primary">
-                    {m.subject ?? "Untitled meeting"}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    {m.source === "zoom" ? (
+                      <Video className="h-3 w-3 shrink-0 text-blue-500" />
+                    ) : (
+                      <Mic className="h-3 w-3 shrink-0 text-brand" />
+                    )}
+                    <p className="truncate text-sm font-medium text-ink-primary">
+                      {m.subject ?? "Untitled meeting"}
+                    </p>
+                  </div>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-ink-muted">
                     <span className="flex items-center gap-1">
                       <CalendarDays className="h-3 w-3" />
@@ -53,6 +58,7 @@ export function RecentMeetingsPanel() {
                         {fmtDuration(m.duration_mins)}
                       </span>
                     )}
+                    <span className="capitalize text-ink-muted/60">{m.source}</span>
                   </div>
                 </div>
                 {m.source_url && (

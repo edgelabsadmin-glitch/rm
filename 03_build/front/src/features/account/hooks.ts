@@ -26,6 +26,7 @@ export function useAccountHealth(accountId: string | null) {
 
 export interface MeetingItem {
   episode_id: string;
+  source: string;
   subject: string | null;
   description: string | null;
   source_timestamp: string | null;

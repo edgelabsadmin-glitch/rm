@@ -26,8 +26,10 @@ import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
 
 // Code-split: react-force-graph + d3 (~200kB gz) load only when /constellation opens.
-const Constellation = lazy(() =>
-  import("@/features/constellation/Constellation").then((m) => ({ default: m.Constellation })),
+const ConstellationPage = lazy(() =>
+  import("@/features/constellation/ConstellationPage").then((m) => ({
+    default: m.ConstellationPage,
+  })),
 );
 
 export default function App() {
@@ -89,7 +91,7 @@ export default function App() {
             element={
               <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
                 <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
-                  <Constellation />
+                  <ConstellationPage />
                 </Suspense>
               </RoleGuard>
             }

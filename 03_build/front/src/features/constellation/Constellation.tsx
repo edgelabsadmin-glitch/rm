@@ -62,9 +62,20 @@ export interface ConstellationProps {
    * empty state. The manager/RM scaffold always renders; only account leaves are scoped.
    */
   accountScope?: DemoAccountId[];
+  /** External control for the expanded account (talent drill-down). Controlled pattern. */
+  expandedAccountId?: string | null;
+  /** Called whenever the user toggles account expansion (click on node or background). */
+  onExpandedChange?: (id: string | null) => void;
+  /** When true, floating canvas overlays are suppressed (use when a sidebar shows alerts). */
+  hideOverlays?: boolean;
 }
 
-export function Constellation({ accountScope }: ConstellationProps = {}) {
+export function Constellation({
+  accountScope,
+  expandedAccountId: expandedProp,
+  onExpandedChange,
+  hideOverlays = false,
+}: ConstellationProps = {}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -78,7 +89,16 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
 
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [fps, setFps] = useState(0);
-  const [expanded, setExpanded] = useState<string | null>(null); // account id with talent shown
+  // Controlled/uncontrolled expanded state: external prop wins when provided.
+  const [expandedInternal, setExpandedInternal] = useState<string | null>(null);
+  const expanded = expandedProp !== undefined ? expandedProp : expandedInternal;
+  const setExpanded = useCallback(
+    (id: string | null) => {
+      setExpandedInternal(id);
+      onExpandedChange?.(id);
+    },
+    [onExpandedChange],
+  );
   // Step-5: screen positions for the cluster-pattern overlays (centroid of each
   // pattern's support accounts, in screen px). Recomputed on engine tick + zoom/pan.
   const [overlays, setOverlays] = useState<{ pattern: PatternCard; x: number; y: number }[]>([]);
@@ -283,7 +303,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
   // Phase-2 async pulse-api fetch (components exist + are unit-tested for that).
   if (status !== "ready") {
     return (
-      <div className="relative h-[calc(100vh-160px)] w-full">
+      <div className="relative h-full w-full">
         {status === "loading" && <ConstellationLoading />}
         {status === "error" && <ConstellationError onRetry={() => window.location.reload()} />}
         {status === "empty" && <ConstellationEmpty />}
@@ -292,7 +312,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
   }
 
   return (
-    <div className="relative h-[calc(100vh-160px)] w-full" ref={boxRef}>
+    <div className="relative h-full w-full" ref={boxRef}>
       {/* Polish #27: dev mode shows perf instrumentation; production shows live counts. */}
       {import.meta.env.DEV ? (
         <DevPerfChip nodes={graph.nodes.length} fps={fps} expanded={!!expanded} />
@@ -315,8 +335,8 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
         viewerRole={user.role}
       />
 
-      {/* Step-5: cluster-pattern alert overlays, positioned over the canvas. */}
-      {overlays.map(({ pattern, x, y }) => (
+      {/* Floating canvas overlays — suppressed when the parent renders a sidebar instead. */}
+      {!hideOverlays && overlays.map(({ pattern, x, y }) => (
         <ClusterPatternOverlay
           key={pattern.id}
           pattern={pattern}
@@ -325,9 +345,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
           onInvestigate={handleInvestigate}
         />
       ))}
-
-      {/* Step-6: RM capacity-imbalance overlays. */}
-      {capacityOverlays.map(({ card, x, y }) => (
+      {!hideOverlays && capacityOverlays.map(({ card, x, y }) => (
         <RmCapacityImbalanceOverlay
           key={card.id}
           card={card}
@@ -336,9 +354,7 @@ export function Constellation({ accountScope }: ConstellationProps = {}) {
           onInvestigate={handleInvestigateCapacity}
         />
       ))}
-
-      {/* Step-7: escalation tier-jump overlays. */}
-      {escalationOverlays.map(({ card, x, y }) => (
+      {!hideOverlays && escalationOverlays.map(({ card, x, y }) => (
         <EscalationTierJumpOverlay
           key={card.id}
           card={card}

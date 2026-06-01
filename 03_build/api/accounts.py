@@ -180,6 +180,7 @@ async def get_account_health(account_id: str) -> AccountHealth:
 
 class MeetingItem(BaseModel):
     episode_id: str
+    source: str
     subject: str | None
     description: str | None
     source_timestamp: str | None
@@ -197,11 +198,11 @@ async def list_account_meetings(
         conn.row_factory = dict_row
         rows = await (await conn.execute(
             """
-            SELECT episode_id, subject, description,
+            SELECT episode_id, source, subject, description,
                    source_timestamp, source_url,
                    (content->>'duration_mins')::int AS duration_mins
             FROM pulse.episodes
-            WHERE source = 'chorus'
+            WHERE source IN ('chorus', 'zoom')
               AND candidate_entities @> %s::jsonb
             ORDER BY source_timestamp DESC
             LIMIT %s
@@ -212,6 +213,7 @@ async def list_account_meetings(
     return [
         MeetingItem(
             episode_id=str(r["episode_id"]),
+            source=r["source"],
             subject=r["subject"],
             description=r["description"],
             source_timestamp=r["source_timestamp"].isoformat() if r["source_timestamp"] else None,
