@@ -40,6 +40,7 @@ class AccountSummary(BaseModel):
     rm_name: str
     active_talent: int
     arr_usd: int
+    owner_id: str
 
 
 class SignalAxis(BaseModel):
@@ -81,6 +82,7 @@ def _row_to_summary(row: dict) -> AccountSummary:
         rm_name=row["rm_name"] or "",
         active_talent=row["active_talent"],
         arr_usd=row["arr_usd"],
+        owner_id=row["owner_id"] or "",
     )
 
 
@@ -97,6 +99,7 @@ def _row_to_health(row: dict) -> AccountHealth:
         rm_name=row["rm_name"] or "",
         active_talent=row["active_talent"],
         arr_usd=row["arr_usd"],
+        owner_id=row.get("owner_id") or "",
         positioning=AI_RM_POSITIONING,
         signal_vector=[SignalAxis(**s) for s in sv],
         themes=themes,
@@ -110,7 +113,7 @@ def _row_to_health(row: dict) -> AccountHealth:
 @router.get("", response_model=AccountList)
 async def list_accounts(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
+    page_size: int = Query(50, ge=1, le=1000),
     tier: str | None = Query(None),
     rm_id: str | None = Query(None),
     rm_ids: str | None = Query(None),  # comma-separated SF user IDs (manager team scope)
@@ -147,7 +150,7 @@ async def list_accounts(
         offset = (page - 1) * page_size
         rows = await (await conn.execute(
             f"SELECT account_id, name, composite_health, risk, last_ebr, tier, "
-            f"rm_name, active_talent, arr_usd "
+            f"rm_name, active_talent, arr_usd, owner_id "
             f"FROM pulse.sf_accounts {where} "
             f"ORDER BY name "
             f"LIMIT %s OFFSET %s",

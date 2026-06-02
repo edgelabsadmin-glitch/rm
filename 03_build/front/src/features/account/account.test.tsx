@@ -37,19 +37,16 @@ describe("CollapsibleSection (opt-in depth, §22)", () => {
 });
 
 describe("AccountListColumn (account switch)", () => {
-  it("highlights the default account, and switches on click (admin → full list)", () => {
+  it("no account is pre-selected; clicking selects it (admin → full list)", () => {
     renderList("pulse-admin");
-    // DHR Health Clinics is the default (aria-current=true).
-    const dflt = screen.getByRole("button", { name: /DHR Health Clinics/i });
-    expect(dflt.getAttribute("aria-current")).toBe("true");
-    expect(DEFAULT_ACCOUNT_ID).toBe("dhr-health-clinics");
+    // Default is null — no account pre-selected.
+    expect(DEFAULT_ACCOUNT_ID).toBeNull();
 
-    const other = screen.getByRole("button", { name: /ReminderMedia/i });
-    expect(other.getAttribute("aria-current")).toBe("false");
+    const btn = screen.getByRole("button", { name: /ReminderMedia/i });
+    expect(btn.getAttribute("aria-current")).toBe("false");
 
-    fireEvent.click(other);
-    expect(other.getAttribute("aria-current")).toBe("true");
-    expect(dflt.getAttribute("aria-current")).toBe("false");
+    fireEvent.click(btn);
+    expect(btn.getAttribute("aria-current")).toBe("true");
   });
 });
 

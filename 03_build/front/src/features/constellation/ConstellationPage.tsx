@@ -13,8 +13,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, useUser } from "@/lib/auth/AuthContext";
-import { DEMO_ACCOUNTS, DEMO_RMS } from "@/fixtures/demo_characters";
+import { DEMO_ACCOUNTS, DEMO_RMS, DEMO_USERS, buildAccountFilter } from "@/fixtures/demo_characters";
 import { DEMO_TIER_JUMP_EVENTS } from "@/fixtures/demo_tier_jump_events";
+import { useAccounts } from "@/features/account/hooks";
 import {
   composeCapacityImbalance,
 } from "./composers/rm_capacity_composer";
@@ -36,11 +37,30 @@ export function ConstellationPage() {
   // Team members available to a manager for the filter dropdown
   const teamRMs = useMemo(() => {
     if (user.role !== "manager") return [];
-    // user.managerId is the manager's own slug in DEMO_MANAGERS/DEMO_RMS.
     return DEMO_RMS.filter((rm) => rm.managerId === user.managerId);
   }, [user]);
 
-  // When an RM is selected, narrow the account scope to that RM's accounts only
+  // Compute API filter: base scope from user role; narrow to selected RM if chosen.
+  const apiFilter = useMemo(() => {
+    if (selectedRmId) {
+      const sfId = DEMO_USERS.find((u) => u.id === selectedRmId)?.sfUserId;
+      return sfId ? { rm_id: sfId } : buildAccountFilter(user);
+    }
+    return buildAccountFilter(user);
+  }, [selectedRmId, user]);
+
+  // Fetch real accounts (all pages at once — max 1000)
+  const { data: accountsData, isLoading: accountsLoading } = useAccounts({
+    ...apiFilter,
+    page_size: 1000,
+  });
+
+  const realAccounts = accountsData?.accounts ?? [];
+
+  // Accounts visible in the current scope (for the account filter dropdown)
+  const scopedAccounts = realAccounts;
+
+  // Legacy fixture scope kept for sidebar composers (still fixture-based)
   const filteredScope = useMemo((): string[] | undefined => {
     if (!selectedRmId) return authScope as string[] | undefined;
     const rmAccountIds = DEMO_ACCOUNTS
@@ -50,15 +70,6 @@ export function ConstellationPage() {
       ? rmAccountIds.filter((id) => (authScope as string[]).includes(id))
       : rmAccountIds;
   }, [selectedRmId, authScope]);
-
-  // Accounts visible in the current scope (for the account filter dropdown)
-  const scopedAccounts = useMemo(
-    () =>
-      filteredScope === undefined
-        ? [...DEMO_ACCOUNTS]
-        : DEMO_ACCOUNTS.filter((a) => filteredScope.includes(a.id)),
-    [filteredScope],
-  );
 
   // Alert data — same pure composers as Constellation.tsx uses internally
   const capacityCards = useMemo(
@@ -104,12 +115,13 @@ export function ConstellationPage() {
             value={expandedAccountId ?? ""}
             onChange={(v) => setExpandedAccountId(v || null)}
             placeholder="All accounts"
-            options={scopedAccounts.map((a) => ({ value: a.id, label: a.name }))}
+            options={scopedAccounts.map((a) => ({ value: a.account_id, label: a.name }))}
           />
         </div>
 
         <Constellation
-          accountScope={filteredScope}
+          accounts={realAccounts}
+          accountsLoading={accountsLoading}
           expandedAccountId={expandedAccountId}
           onExpandedChange={setExpandedAccountId}
           hideOverlays

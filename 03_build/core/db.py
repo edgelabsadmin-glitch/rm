@@ -1,7 +1,7 @@
 """
 SPEC-008 — Postgres connection plumbing (also fulfils spec-001's deferred
 "Postgres init"). A single lazily-opened async psycopg connection pool keyed off
-DATABASE_URL (Supabase in Phase 1, ADR-002/ADR-008).
+DATABASE_URL (Aurora Serverless v2, us-east-1, ADR-002/ADR-008).
 
 Async-everything per ADR-001: callers `async with (await get_pool()).connection()
 as conn`. The pool is opened once on first use and closed at FastAPI shutdown
@@ -30,23 +30,17 @@ def database_url() -> str:
 
 
 async def get_pool() -> AsyncConnectionPool[Any]:
-    """Return the process-wide async connection pool, opening it on first use.
-
-    `prepare_threshold=None` disables server-side prepared statements: Supabase's
-    transaction pooler (pgbouncer transaction mode, :6543) reuses server
-    connections across clients and does not support session-scoped prepared
-    statements. Harmless on a direct connection too.
-    """
+    """Return the process-wide async connection pool, opening it on first use."""
     global _pool
     if _pool is None:
         pool: AsyncConnectionPool[Any] = AsyncConnectionPool(
             conninfo=database_url(),
-            min_size=1,
-            max_size=10,
+            min_size=0,
+            max_size=8,
             open=False,
             kwargs={"prepare_threshold": None},
         )
-        await pool.open(wait=True, timeout=10)
+        await pool.open(wait=True, timeout=30)
         _pool = pool
     return _pool
 

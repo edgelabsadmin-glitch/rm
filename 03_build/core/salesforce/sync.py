@@ -223,3 +223,63 @@ async def pull_and_upsert() -> int:
 
     log.info("SF account sync complete — %d accounts upserted.", len(rows))
     return len(rows)
+
+
+# ── Contacts sync ─────────────────────────────────────────────────────────────
+
+_CONTACTS_SOQL = """
+    SELECT Id, AccountId, Name, Email, Phone, Title
+    FROM Contact
+    WHERE AccountId != null AND Email != null
+"""
+
+_CONTACTS_UPSERT_SQL = """
+INSERT INTO pulse.sf_contacts (contact_id, account_id, name, email, phone, title, synced_at)
+VALUES (%(contact_id)s, %(account_id)s, %(name)s, %(email)s, %(phone)s, %(title)s, %(synced_at)s)
+ON CONFLICT (contact_id) DO UPDATE SET
+    account_id = EXCLUDED.account_id,
+    name       = EXCLUDED.name,
+    email      = EXCLUDED.email,
+    phone      = EXCLUDED.phone,
+    title      = EXCLUDED.title,
+    synced_at  = EXCLUDED.synced_at
+"""
+
+
+async def pull_and_upsert_contacts() -> int:
+    """Fetch all SF contacts with emails and upsert to pulse.sf_contacts. Returns row count."""
+    log.info("SF contact sync starting…")
+    client = SalesforceClient()
+    try:
+        contacts = await client.query_all(_CONTACTS_SOQL)
+    except Exception as exc:
+        log.error("SF contact fetch failed: %s", exc)
+        raise
+
+    if not contacts:
+        log.warning("SF contact sync: no contacts returned.")
+        return 0
+
+    now = datetime.now(timezone.utc)
+    rows = [
+        {
+            "contact_id": c["Id"],
+            "account_id": c["AccountId"],
+            "name": c.get("Name"),
+            "email": (c.get("Email") or "").lower().strip() or None,
+            "phone": c.get("Phone"),
+            "title": c.get("Title"),
+            "synced_at": now,
+        }
+        for c in contacts
+        if c.get("AccountId") and c.get("Email")
+    ]
+
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.executemany(_CONTACTS_UPSERT_SQL, rows)
+        await conn.commit()
+
+    log.info("SF contact sync complete — %d contacts upserted.", len(rows))
+    return len(rows)

@@ -1,0 +1,82 @@
+{
+  "_comment": "Activepieces flow — import via Settings → Import Flow. ADR-002.",
+  "_spec": "SPEC-015 / Spike 4 §3.2 — polls expansion_intent_signals every 30 min",
+  "displayName": "expansion_intent_poll",
+  "trigger": {
+    "name": "trigger",
+    "displayName": "Every 30 minutes",
+    "type": "SCHEDULE",
+    "settings": {
+      "inputUiInfo": {},
+      "input": {
+        "cronExpression": "*/30 * * * *",
+        "timezone": "UTC"
+      }
+    },
+    "nextAction": "query_unprocessed"
+  },
+  "actions": [
+    {
+      "name": "query_unprocessed",
+      "displayName": "Query unprocessed EIS rows",
+      "type": "PIECE",
+      "pieceName": "@activepieces/piece-postgresql",
+      "pieceVersion": "~0.3",
+      "actionName": "query",
+      "settings": {
+        "inputUiInfo": {},
+        "input": {
+          "connection": "{{connections['pulse-postgres']}}",
+          "query": "SELECT posting_id, account_id, account_name, title, company, location, source, url, date_posted, description, first_seen_date, match_tier, matched_role, matched_industry, match_score, reasoning, outreach_suggestion, signals, work_arrangement FROM pulse.expansion_intent_signals WHERE processed_at IS NULL ORDER BY first_seen_date DESC LIMIT 100;"
+        }
+      },
+      "nextAction": "fan_out_rows"
+    },
+    {
+      "name": "fan_out_rows",
+      "displayName": "POST each row to Pulse /webhooks/expansion-intent",
+      "type": "LOOP_ON_ITEMS",
+      "settings": {
+        "inputUiInfo": {},
+        "items": "{{query_unprocessed.rows}}"
+      },
+      "firstLoopAction": "post_to_pulse"
+    },
+    {
+      "name": "post_to_pulse",
+      "displayName": "POST row to Pulse API",
+      "type": "PIECE",
+      "pieceName": "@activepieces/piece-http",
+      "pieceVersion": "~0.3",
+      "actionName": "custom_api_call",
+      "settings": {
+        "inputUiInfo": {},
+        "input": {
+          "method": "POST",
+          "url": "{{env.PULSE_API_URL}}/webhooks/expansion-intent",
+          "headers": {
+            "x-internal-token": "{{env.PULSE_INTERNAL_API_TOKEN}}",
+            "content-type": "application/json"
+          },
+          "body": {
+            "type": "json",
+            "data": {
+              "row": "{{fan_out_rows.currentItem}}"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "_operator_notes": [
+    "1. Import this file in Activepieces: Settings → Import Flow.",
+    "2. Create a PostgreSQL connection named 'pulse-postgres' pointing at the",
+    "   Supabase transaction pooler (port 6543, prepare_threshold=None).",
+    "3. Set env vars PULSE_API_URL (e.g. https://pulse-api.fly.dev) and",
+    "   PULSE_INTERNAL_API_TOKEN in Activepieces Settings → Environment.",
+    "4. Enable the flow. The fallback poll loop in main.py also processes EIS",
+    "   rows every 30 min, so ingestion works even before Activepieces is wired up.",
+    "5. On conflict: run_episode is idempotent (ON CONFLICT DO NOTHING on",
+    "   pulse.episodes.dedup_key), so duplicate deliveries are safe."
+  ]
+}

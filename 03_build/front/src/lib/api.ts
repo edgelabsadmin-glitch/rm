@@ -82,6 +82,7 @@ export interface AccountSummaryDTO {
   rm_name: string;
   active_talent: number;
   arr_usd: number;
+  owner_id: string;
 }
 
 export interface AccountHealthDTO extends AccountSummaryDTO {

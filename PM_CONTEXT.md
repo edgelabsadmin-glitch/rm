@@ -1,9 +1,9 @@
 # PM-CONTEXT — EDGE Pulse
 
-**Last updated:** 2026-05-20 (Session 14 — Phase 4 GREEN-LIT. Build starts Thu 2026-05-22.)
+**Last updated:** 2026-06-02 (Build Sessions 15–NN — Phase 4 Week 2 in progress. Updated by Claude Code.)
 **Maintained by:** PM (Senior Product Advisor) — owner of this doc
-**Phase:** **Phase 4 Build — green-lit; awaiting kickoff**
-**Demo target:** **2026-06-30** (6 weeks from 2026-05-20)
+**Phase:** **Phase 4 Build — ACTIVE. Week 2 of 6.**
+**Demo target:** **2026-06-30** (4 weeks remaining from 2026-06-02)
 **Scope status:** **FROZEN** as of Session 11. No additions without an equivalent removal.
 
 ---
@@ -80,7 +80,7 @@ The audience is EDGE's RM team (7–8 RMs today, 602 active customer accounts in
 4. **opportunity-tracker review.** CLOSED 2026-05-20.
 5. **Phase 3 — Planning.** CLOSED 2026-05-20.
 6. **Demo data recon.** CLOSED 2026-05-20.
-7. **Phase 4 — Build.** **GREEN-LIT Session 14. Kickoff Thu 2026-05-22.**
+7. **Phase 4 — Build.** **GREEN-LIT Session 14. Kickoff Thu 2026-05-22. ACTIVE Week 2.**
 
 ### Phase 4 starting conditions — locked Session 14
 
@@ -104,6 +104,49 @@ The audience is EDGE's RM team (7–8 RMs today, 602 active customer accounts in
 1. **Memorial Day May 26 affects Week 1.** Week 1 is a 4-working-day week. Bootstrap + memory layer + first adapter work is sized for it but tighter than other weeks. PM monitors Gate 1 closely.
 2. **Spec 044 (Mechanism 1 Signal Performance metrics) starts Monday Week 6.** Week 6 is supposed to be demo prep. PM expects spec 044 to start Friday end-of-Week-5 if possible, leaving full Mon-Tue Week 6 for completion + Wed onward for storyboard rehearsal.
 3. **Spec 043 (OAuth + Supabase Auth) at 0.75d may slip to 1.5d.** Google Workspace OAuth setup typically takes longer than estimated. PM watches Gate 5; if it slips, Week 5 absorbs 0.75d of buffer.
+
+### Phase 4 current status — as of 2026-06-02 (mid-Week 2)
+
+**Ahead of schedule.** As of June 2 (mid-Week 2), specs 001–045 are substantively implemented. The build is running 3–4 weeks ahead of the published schedule. The final two specs (046 demo priming, 047 fallback verification) and end-to-end integration validation remain.
+
+**Spec status by group:**
+
+| Group | Specs | Status |
+|---|---|---|
+| Foundations (001–010) | Bootstrap, memory layer, event log, policy, kill switch | ✅ ALL DONE |
+| Adapters (011–016) | Adapter base, SFDC, Chorus, Calendar, opp-tracker, matcher | ✅ ALL DONE |
+| Signal Library (017) | Runtime + 14 signal definitions | ✅ DONE |
+| Skills 01–11 (018–028) | All 11 skills implemented + tested | ✅ ALL DONE |
+| Per-Profile + Health (029–030) | Markdown layer, dual-sided health rollup | ✅ ALL DONE |
+| Action Queue + Dispatch + Outcomes (031–033) | Queue API, dispatch handlers, outcome watchers | ✅ ALL DONE |
+| Front-end (034–039) | Shell, Action Queue UI, Hero card, Per-Account, Pulse Bar, Submission UI | ✅ ALL DONE |
+| CEO View + Constellation + Auth (040–043) | CEO View, Constellation, RBAC, OAuth | ✅ ALL DONE |
+| Layer 8 (044–045) | Signal Performance metrics, Outcome tracking | ✅ ALL DONE |
+| Demo (046–047) | Demo data priming script, HTML fallback verification | ⚠️ NOT YET STARTED |
+
+**Pull-forward items** (from v1.5+ list — built during Phase 4 build sessions; required PM sign-off):
+- **Zoom Signal Source Adapter** (was §12 #8): `core/adapters/zoom.py` + `core/zoom/sync.py` built; 5,233 episodes ingested from production.
+- **Gmail direct sync** (new scope): `core/google/gmail_sync.py` — 6-month inbox sync per authenticated user, email-to-SF-account matching via `pulse.sf_contacts`.
+- **SF Contacts sync** (new scope): `pull_and_upsert_contacts()` in `core/salesforce/sync.py`; `pulse.sf_contacts` table; required for Gmail/Calendar email matching.
+- **Google Calendar direct sync** (extends spec 014): `core/google/calendar_sync.py` — 6-month calendar event sync; supplements the Signal Source Adapter with a separate polling pipeline for authenticated RMs.
+
+**Constellation real data:** Wired to live SF accounts (628 accounts) via `buildConstellationGraphFromReal()`. Maps `owner_id → DEMO_RMS` through DEMO_USERS.sfUserId bridge. Renders on API data, not fixtures.
+
+**Data in production DB as of June 2:**
+
+| Table | Count |
+|---|---|
+| `pulse.sf_accounts` | 628 |
+| `pulse.episodes` (Chorus) | ~3,225 |
+| `pulse.episodes` (Zoom) | ~5,233 |
+| `pulse.episodes` (total) | ~8,400+ |
+| `pulse.google_sessions` | Active (OAuth working) |
+
+**Open technical issues:**
+1. **Meetings endpoint returns empty []** — Chorus `candidate_entities` stores abbreviated `sfdc_id` values (e.g., `"001ACRISURE"`) that don't match full SF IDs (`"001U100000GUkDwIAL"`). Matching logic needs a resolution path.
+2. **Google Gmail+Calendar re-auth required** — Any user who authenticated before the scope extension must log out and re-authenticate to grant Gmail+Calendar access. One-time action per user.
+3. **Spec 046 demo data priming script not yet built** — Critical for Week 6 prep.
+4. **Spec 047 demo HTML fallback not yet verified** — Needs a run against Tier-0 tokens before Demo Day.
 
 ---
 
@@ -306,6 +349,12 @@ Gate 1 (Friday May 30) is not a self-assessment. Claude Code stops at gate, post
 | 2026-05-20 | RM_Outreach__c reframed as young (Feb 2026), not sparse | User-provided operational context | User declared |
 | 2026-05-20 | **Phase 4 GREEN-LIT.** Build plan accepted with three watched concerns and two Day-1 housekeeping items. Build starts Thu 2026-05-22. | Build plan is audit-grade; risks named with mitigations; gates testable; critical path explicit | PM declared |
 | 2026-05-20 | **§4.15 added: PM stop-and-review at Gate 1.** Claude Code stops at Friday May 30 gate, posts report, waits for PM verification before Week 2. | Week-1 closure is load-bearing for the entire phase | PM declared |
+| 2026-06-02 | **Zoom Signal Source Adapter pulled forward from v1.5+.** `core/adapters/zoom.py` + `core/zoom/sync.py` built; 5,233 episodes in `pulse.episodes`. Was §12 #8 (after Phase 1 demo). User-directed during Phase 4 build. PM to confirm §14/§12 alignment. | User asked about Zoom sync during build; real data volume justified the pull-forward | User-directed; Claude Code built |
+| 2026-06-02 | **Gmail direct sync added as supporting infrastructure.** `core/google/gmail_sync.py` + `core/google/auth.py` + `core/google/account_matcher.py`. Feeds episodes from authenticated RM inboxes into `pulse.episodes`. Not a named spec; extends spec 043 (OAuth) and spec 014 (Calendar adapter). | Email signals from RM inbox complete the contact-communication picture; user-directed | User-directed; Claude Code built |
+| 2026-06-02 | **SF Contacts sync added.** `pull_and_upsert_contacts()` in `core/salesforce/sync.py`; `pulse.sf_contacts` table. Required for email → SF account matching in Gmail and Calendar pipelines. Not a named spec. | Without contacts, email-to-account matching has no lookup table | Claude Code initiated; user-approved |
+| 2026-06-02 | **Google OAuth scopes extended.** `auth_google.py` scopes now include `gmail.readonly` + `calendar.readonly`. Users who authenticated before this change must re-authenticate. | Scope extension required to enable Gmail+Calendar pipelines | Claude Code |
+| 2026-06-02 | **Constellation wired to real SF data (628 accounts).** `buildConstellationGraphFromReal()` added to `fixtures.ts`; `ConstellationPage` fetches from `/accounts?page_size=1000`. Replaces 14 hardcoded demo accounts. | Demo must show real book of business | User-directed; Claude Code built |
+| 2026-06-02 | **owner_id added to accounts API.** `AccountSummaryDTO.owner_id` added; SELECT updated; used for Constellation RM → account mapping. | Constellation real-data wiring required owner_id to map accounts to RMs | Claude Code |
 
 ---
 
@@ -313,6 +362,34 @@ Gate 1 (Friday May 30) is not a self-assessment. Claude Code stops at gate, post
 
 ### Sessions 1–13 — 2026-05-19/20
 Pre-Research → Research closed → Design Phase entry → Coverage audit → Lock-first items resolved → Brand alignment → Spike 3 confirmed-GO → Visual direction lock → Phase 2.5 closed → Agent indicator + opportunity-tracker scope → Date relocked + scope frozen + Constellation promoted + Layer 8 + signal library + ADR-002 → Phase 3 Planning closed → Demo data recon. (Full log preserved in repo history.)
+
+### Build Sessions 15–NN — 2026-05-22 through 2026-06-02
+**Phase:** Phase 4 Build — Weeks 1 and 2
+**What happened:** Phase 4 kicked off Thu 2026-05-22. Build progressed far ahead of the published schedule — all specs 001-045 implemented across the two-week period.
+
+Key milestones:
+- **Bootstrap + memory layer + all adapters done in Week 1.** Specs 001–016 complete. Kuzu graph, named retrievers, event log, policy module, kill switch all live.
+- **All 11 skills built and tested.** Specs 017–028 done. Skills 01–11 each have implementation + unit + integration test files.
+- **All front-end surfaces built.** Specs 034–041: Action Queue, Hero card, Per-Account view, Pulse Bar, Constellation, CEO View, Admin surfaces (Signal Performance + Outcome Tracking). RBAC + OAuth (spec 042–043) done.
+- **Layer 8 done.** Specs 044–045: Signal Performance metrics UI + Outcome Tracking UI + `core/outcomes/watchers.py`.
+- **v1.5+ pull-forwards.** Zoom Signal Source Adapter (was §12 #8) built and live with 5,233 episodes. Gmail direct sync + SF Contacts sync added to feed email-matching pipeline.
+- **Constellation wired to real SF data.** 628 live accounts rendered in force-directed graph. `buildConstellationGraphFromReal()` bridges DEMO_USERS.sfUserId → RM nodes → account nodes.
+- **Google OAuth fixed + extended.** Python 3.9 type annotation bug (`str | None` → `str = Query(default=None)`) fixed; callback wrapped in try/except; scopes extended to include `gmail.readonly` + `calendar.readonly`.
+- **SF Contacts sync live.** `pull_and_upsert_contacts()` added; `pulse.sf_contacts` table in schema; enables email-to-account matching for Gmail/Calendar pipelines.
+
+**Remaining before Demo Day:**
+- Spec 046: Demo data priming script
+- Spec 047: Demo HTML fallback verification
+- Fix Chorus meeting endpoint (abbreviated sfdc_id matching)
+- End-to-end skill → action queue → dispatch validation on real data
+
+**Concerns surfaced:**
+- Zoom was v1.5+ per §12 #8; pull-forward was user-directed but not formally scope-adjusted in §12 or §14. PM should decide: incorporate into Phase 1 frozen scope (update §14) or leave as acknowledged deviation.
+- Gmail direct sync and SF Contacts sync were not in the original 47 specs. They're supporting infrastructure for Calendar signal source (spec 014) and were user-directed. Same §14 treatment question.
+- Meetings endpoint empty issue (Chorus abbreviated IDs) needs a fix before Gate 3 criteria are met.
+
+**Decisions:** entries 59–65 (see §8).
+**Open after session:** Spec 046 + 047; meetings endpoint fix; Gate 2 stop-and-report due Fri June 6.
 
 ### Session 14 — 2026-05-20
 **Phase:** Phase 4 green-light review → Phase 4 kickoff
@@ -400,7 +477,7 @@ User confirmed green-light. PM writes Phase 4 Build prompt for Claude Code. Buil
 | 5 | Internal MCP exposure | Q11 | Multiple runtimes need access |
 | 6 | Production-grade observability evolution | Q14 | Post-Phase-1 ADR-003 evaluation |
 | 7 | Product Adoption Monitor skill | §13 audit | Phase 2 |
-| 8 | Zoom Signal Source Adapter | Session 5 | After Phase 1 demo |
+| 8 | ~~Zoom Signal Source Adapter~~ **PULLED FORWARD** — built during Phase 4 Week 1–2. `core/adapters/zoom.py` + `core/zoom/sync.py`. PM to update §14 if formally absorbing into Phase 1. | Session 5 | ~~After Phase 1 demo~~ **Done** |
 | 9 | Slack Signal Source Adapter | Session 5 | After Phase 1 demo |
 | 10 | Jira / Email Signal Source Adapters | Session 5 | After Phase 1 demo |
 | 11 | Account-Card Ambient Ring (V3) | Session 10 | If per-account locality felt-need surfaces |

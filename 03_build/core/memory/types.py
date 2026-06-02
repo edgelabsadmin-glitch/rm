@@ -28,6 +28,8 @@ costly LLM retry. Documented strings keep the Design 01 intent (the description
 guides extraction) while making ingestion robust.
 """
 
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 
 # ─────────────────────────────────────────────────────────────────────────────

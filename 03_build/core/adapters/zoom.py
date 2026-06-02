@@ -150,8 +150,15 @@ class ZoomAdapter(SignalSourceAdapter):
                         data = await self._get(f"/report/users/{uid}/meetings", params)
                     except httpx.HTTPStatusError as exc:
                         if exc.response.status_code in (400, 404):
-                            user_has_access = False
-                            break
+                            # Code 300 = date range outside retention window (not an access error)
+                            # — skip this window only; other codes mean user lacks report access.
+                            try:
+                                err_code = exc.response.json().get("code")
+                            except Exception:
+                                err_code = None
+                            if err_code != 300:
+                                user_has_access = False
+                            break  # stop fetching pages for this window
                         raise
                     pages_used += 1
                     for m in data.get("meetings", []):

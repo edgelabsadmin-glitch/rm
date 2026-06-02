@@ -37,10 +37,12 @@ import {
 } from "./states/ConstellationStates";
 import {
   buildConstellationGraph,
+  buildConstellationGraphFromReal,
   buildTalentFor,
   type ConstellationGraph,
   type ConstellationNode,
 } from "./fixtures";
+import type { AccountSummaryDTO } from "@/lib/api";
 
 // Phase-1 data is derived synchronously, so 'loading'/'error' are reached only by the
 // Phase-2 async pulse-api fetch (the state components exist + are tested for that wiring).
@@ -60,8 +62,13 @@ export interface ConstellationProps {
    * RBAC visibility scope (spec 042, Week 4): whitelist of account ids the viewer may see.
    * undefined = no scoping (all accounts, the Phase-1 default). [] = nothing in scope →
    * empty state. The manager/RM scaffold always renders; only account leaves are scoped.
+   * Ignored when `accounts` is provided (real-data path).
    */
   accountScope?: DemoAccountId[];
+  /** Real SF accounts — when provided, overrides the fixture-based graph. */
+  accounts?: AccountSummaryDTO[];
+  /** True while the parent is loading real accounts. */
+  accountsLoading?: boolean;
   /** External control for the expanded account (talent drill-down). Controlled pattern. */
   expandedAccountId?: string | null;
   /** Called whenever the user toggles account expansion (click on node or background). */
@@ -72,6 +79,8 @@ export interface ConstellationProps {
 
 export function Constellation({
   accountScope,
+  accounts,
+  accountsLoading,
   expandedAccountId: expandedProp,
   onExpandedChange,
   hideOverlays = false,
@@ -109,15 +118,24 @@ export function Constellation({
     { card: EscalationTierJumpCard; x: number; y: number }[]
   >([]);
 
-  // Base graph, scoped by the effective RBAC whitelist (spec 042). Memoized on the scope.
-  const base = useMemo(() => buildConstellationGraph(effectiveScope), [effectiveScope]);
+  // Base graph — real-data path when `accounts` prop is provided, else fixture path.
+  const base = useMemo(
+    () =>
+      accounts !== undefined
+        ? buildConstellationGraphFromReal(accounts)
+        : buildConstellationGraph(effectiveScope),
+    [accounts, effectiveScope],
+  );
 
-  // Phase-1 status: empty when a scope is given but resolves to zero accounts; else ready.
-  // (loading/error are Phase-2 async states — components exist + tested, not reached here.)
   const status = useMemo<Status>(() => {
+    if (accounts !== undefined) {
+      if (accountsLoading) return "loading";
+      if (accounts.length === 0) return "empty";
+      return "ready";
+    }
     if (effectiveScope && base.nodes.every((n) => n.type !== "account")) return "empty";
     return "ready";
-  }, [effectiveScope, base]);
+  }, [accounts, accountsLoading, effectiveScope, base]);
 
   // Step-4: overlay composers honor the effective scope (closes watched concern #26).
   const capacityCards = useMemo(
@@ -318,8 +336,10 @@ export function Constellation({
         <DevPerfChip nodes={graph.nodes.length} fps={fps} expanded={!!expanded} />
       ) : (
         <ProductionCountsChip
-          accountCount={DEMO_ACCOUNTS.length}
-          talentCount={DEMO_TALENT.filter((t) => t.stage === "Active").length}
+          accountCount={accounts !== undefined ? accounts.length : DEMO_ACCOUNTS.length}
+          talentCount={accounts !== undefined
+            ? accounts.reduce((s, a) => s + a.active_talent, 0)
+            : DEMO_TALENT.filter((t) => t.stage === "Active").length}
           rmCount={DEMO_RMS.length}
         />
       )}

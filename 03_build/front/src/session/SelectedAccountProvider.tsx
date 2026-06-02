@@ -9,17 +9,17 @@
  */
 import { createContext, useContext, useMemo, useState } from "react";
 
-export const DEFAULT_ACCOUNT_ID = "dhr-health-clinics"; // churn-signal anchor (real account)
+export const DEFAULT_ACCOUNT_ID: string | null = null; // no pre-selection; user picks from list
 
 interface SelectedAccountValue {
-  selectedAccountId: string;
-  setSelectedAccountId: (id: string) => void;
+  selectedAccountId: string | null;
+  setSelectedAccountId: (id: string | null) => void;
 }
 
 const SelectedAccountContext = createContext<SelectedAccountValue | null>(null);
 
 export function SelectedAccountProvider({ children }: { children: React.ReactNode }) {
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(DEFAULT_ACCOUNT_ID);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(DEFAULT_ACCOUNT_ID);
   const value = useMemo(
     () => ({ selectedAccountId, setSelectedAccountId }),
     [selectedAccountId],

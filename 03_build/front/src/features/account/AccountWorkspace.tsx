@@ -52,7 +52,7 @@ export function AccountWorkspace() {
       </section>
 
       <aside className="col-span-12 border-t border-line-subtle bg-surface-sidebar-soft lg:col-span-3 lg:border-l lg:border-t-0">
-        <QueueList customerId={selectedAccountId} accountName={account?.name} />
+        <QueueList customerId={selectedAccountId ?? undefined} accountName={account?.name} />
       </aside>
     </div>
   );

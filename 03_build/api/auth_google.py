@@ -12,6 +12,7 @@ can authenticate. Everyone else gets an "unauthorized" redirect.
 """
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
@@ -22,6 +23,8 @@ from fastapi.responses import RedirectResponse
 
 from core.db import get_pool
 from psycopg.rows import dict_row
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth/google", tags=["auth"])
 
@@ -36,6 +39,8 @@ _SCOPES = " ".join([
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "openid",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
 ])
 
 # Mirror of DEMO_USERS[].email → id (from front/src/fixtures/demo_characters.ts).
@@ -81,90 +86,92 @@ async def google_start() -> RedirectResponse:
 
 @router.get("/callback")
 async def google_callback(
-    code: str | None = Query(None),
-    error: str | None = Query(None),
+    code: str = Query(default=None),
+    error: str = Query(default=None),
 ) -> RedirectResponse:
     """Exchange code for tokens, verify email whitelist, save to DB, redirect frontend."""
     fail = f"{_FRONTEND_URL}/login?google=error"
 
     if error or not code:
+        log.warning("OAuth callback: error=%s code_present=%s", error, bool(code))
         return RedirectResponse(fail)
 
-    async with httpx.AsyncClient(timeout=15) as client:
-        # Exchange authorization code for tokens
-        token_res = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": _CLIENT_ID,
-                "client_secret": _CLIENT_SECRET,
-                "redirect_uri": _REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            token_res = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": _CLIENT_ID,
+                    "client_secret": _CLIENT_SECRET,
+                    "redirect_uri": _REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                },
+            )
+            if not token_res.is_success:
+                log.error("Token exchange failed: %s %s", token_res.status_code, token_res.text)
+                return RedirectResponse(fail)
+
+            tokens = token_res.json()
+            access_token = tokens.get("access_token")
+            refresh_token = tokens.get("refresh_token")
+            expires_in = int(tokens.get("expires_in", 3600))
+
+            if not access_token:
+                log.error("No access_token in token response: %s", list(tokens.keys()))
+                return RedirectResponse(fail)
+
+            profile_res = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if not profile_res.is_success:
+                log.error("Profile fetch failed: %s", profile_res.status_code)
+                return RedirectResponse(fail)
+
+            profile = profile_res.json()
+
+        google_email = profile.get("email", "").lower().strip()
+        user_id = ALLOWED_EMAILS.get(google_email)
+        if not user_id:
+            log.warning("Unauthorized Google login attempt: %s", google_email)
+            return RedirectResponse(f"{_FRONTEND_URL}/login?google=unauthorized")
+
+        expiry = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()
+        pool = await get_pool()
+        async with pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO pulse.google_sessions
+                    (user_id, email, google_access_token, google_refresh_token,
+                     google_token_expiry, google_name, google_picture, connected_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                ON CONFLICT (user_id) DO UPDATE SET
+                    email                = EXCLUDED.email,
+                    google_access_token  = EXCLUDED.google_access_token,
+                    google_refresh_token = COALESCE(
+                        EXCLUDED.google_refresh_token,
+                        pulse.google_sessions.google_refresh_token
+                    ),
+                    google_token_expiry  = EXCLUDED.google_token_expiry,
+                    google_name          = EXCLUDED.google_name,
+                    google_picture       = EXCLUDED.google_picture,
+                    updated_at           = NOW()
+                """,
+                [
+                    user_id, google_email, access_token, refresh_token,
+                    expiry, profile.get("name"), profile.get("picture"),
+                ],
+            )
+
+        log.info("Google auth success for %s (%s)", user_id, google_email)
+        return RedirectResponse(
+            f"{_FRONTEND_URL}/login?google=success&google_user_id={user_id}"
         )
-        if not token_res.is_success:
-            return RedirectResponse(fail)
 
-        tokens = token_res.json()
-        access_token: str | None = tokens.get("access_token")
-        refresh_token: str | None = tokens.get("refresh_token")
-        expires_in: int = tokens.get("expires_in", 3600)
-
-        if not access_token:
-            return RedirectResponse(fail)
-
-        # Fetch Google profile to get verified email
-        profile_res = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        if not profile_res.is_success:
-            return RedirectResponse(fail)
-
-    profile = profile_res.json()
-    google_email: str = profile.get("email", "").lower().strip()
-
-    # Whitelist check — only authorised team members
-    user_id = ALLOWED_EMAILS.get(google_email)
-    if not user_id:
-        return RedirectResponse(f"{_FRONTEND_URL}/login?google=unauthorized")
-
-    # Persist tokens so future API calls (Gmail, Calendar) can act on behalf of user
-    expiry = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()
-    pool = await get_pool()
-    async with pool.connection() as conn:
-        await conn.execute(
-            """
-            INSERT INTO pulse.google_sessions
-                (user_id, email, google_access_token, google_refresh_token,
-                 google_token_expiry, google_name, google_picture, connected_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-            ON CONFLICT (user_id) DO UPDATE SET
-                email               = EXCLUDED.email,
-                google_access_token = EXCLUDED.google_access_token,
-                google_refresh_token = COALESCE(
-                    EXCLUDED.google_refresh_token,
-                    pulse.google_sessions.google_refresh_token
-                ),
-                google_token_expiry = EXCLUDED.google_token_expiry,
-                google_name         = EXCLUDED.google_name,
-                google_picture      = EXCLUDED.google_picture,
-                updated_at          = NOW()
-            """,
-            [
-                user_id,
-                google_email,
-                access_token,
-                refresh_token,
-                expiry,
-                profile.get("name"),
-                profile.get("picture"),
-            ],
-        )
-
-    return RedirectResponse(
-        f"{_FRONTEND_URL}/login?google=success&google_user_id={user_id}"
-    )
+    except Exception as exc:
+        log.exception("Unhandled error in Google callback: %s", exc)
+        return RedirectResponse(fail)
 
 
 @router.get("/status")
