@@ -1,9 +1,10 @@
 /*
  * SPEC-034 — route tree (react-router-dom v6, nested layouts per audit D4).
  * <AppShell> is the chrome layout owning the Pulse Bar; <AdminLayout> nests under
- * it for admin surfaces. Every surface here is a Placeholder until its feature spec
- * lands (035-045). Login is pre-shell (no Pulse Bar) — stubbed in spec 034, real
- * OAuth in spec 043.
+ * it for admin surfaces.
+ *
+ * Auth guard: user === null → redirect to /login.
+ * /login → redirect to role default if already authenticated.
  */
 import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
@@ -11,85 +12,140 @@ import { AppShell } from "@/components/AppShell";
 import { AccountWorkspace } from "@/features/account/AccountWorkspace";
 import { ExecutiveView } from "@/features/executive/ExecutiveView";
 import { QueueList } from "@/features/queue/QueueList";
+import { AdminSettings } from "@/features/admin/AdminSettings";
+import { OutcomeTracking } from "@/features/admin/OutcomeTracking";
+import { SignalPerformance } from "@/features/admin/SignalPerformance";
+import { SubmitPage } from "@/features/submit/SubmitPage";
+import { SupportPage } from "@/features/support/SupportPage";
+import { SettingsUsersPanel } from "@/features/settings/SettingsUsersPanel";
+import { LoginPage } from "@/features/auth/LoginPage";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { defaultRouteForRole } from "@/lib/auth/defaultRoute";
+import { RoleGuard, AccountScopeGuard } from "@/lib/auth/RoleGuard";
 import { AdminLayout } from "@/routes/AdminLayout";
 import { Placeholder } from "@/routes/Placeholder";
 
 // Code-split: react-force-graph + d3 (~200kB gz) load only when /constellation opens.
-const Constellation = lazy(() =>
-  import("@/features/constellation/Constellation").then((m) => ({ default: m.Constellation })),
+const ConstellationPage = lazy(() =>
+  import("@/features/constellation/ConstellationPage").then((m) => ({
+    default: m.ConstellationPage,
+  })),
 );
 
 export default function App() {
+  const { user, loading } = useAuth();
+
+  // Don't render routes until auth state is resolved (avoids flash redirects).
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <Routes>
-      <Route element={<AppShell />}>
-        <Route index element={<AccountWorkspace />} />
-        <Route path="/accounts" element={<AccountWorkspace />} />
-        <Route
-          path="/accounts/:id"
-          element={
-            <Placeholder
-              spec="Spec 036-037"
-              title="Account detail"
-              blurb="Per-account view with opt-in depth: 270° composite-health ring, dual-sided signal vector, verified themes, and the AI-RM briefing voice."
-            />
-          }
-        />
-        <Route path="/actions" element={<QueueList />} />
-        <Route
-          path="/constellation"
-          element={
-            <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
-              <Constellation />
-            </Suspense>
-          }
-        />
-        <Route path="/executive" element={<ExecutiveView />} />
-        <Route
-          path="/submit"
-          element={
-            <Placeholder
-              spec="Spec 039"
-              title="Submit a note"
-              blurb="Type or paste a quick note; Pulse ingests it, extracts signals, and surfaces follow-ups in your queue. (Reframed from a Slack command to this web route.)"
-            />
-          }
-        />
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/admin/signals" replace />} />
+      {/* Login — redirect to home if already authenticated */}
+      <Route
+        path="/login"
+        element={user ? <Navigate to={defaultRouteForRole(user.role)} replace /> : <LoginPage />}
+      />
+
+      {/* All authenticated routes */}
+      {user ? (
+        <Route element={<AppShell />}>
+          <Route index element={<Navigate to={defaultRouteForRole(user.role)} replace />} />
           <Route
-            path="signals"
+            path="/accounts"
             element={
-              <Placeholder
-                spec="Spec 044"
-                title="Signal Performance"
-                blurb="Layer-8 Mechanism 1 — how each signal definition is performing (fire rate, precision, RM feedback)."
-              />
+              <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+                <AccountWorkspace />
+              </RoleGuard>
             }
           />
           <Route
-            path="outcomes"
+            path="/accounts/:id"
             element={
-              <Placeholder
-                spec="Spec 045"
-                title="Outcome Tracking"
-                blurb="Layer-8 Mechanism 3 — did the actions Pulse proposed lead to good outcomes? Closed-loop learning."
-              />
+              <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+                <AccountScopeGuard executiveBypass>
+                  <Placeholder
+                    spec="Spec 036-037"
+                    title="Account detail"
+                    blurb="Per-account view with opt-in depth: 270° composite-health ring, dual-sided signal vector, verified themes, and the AI-RM briefing voice."
+                  />
+                </AccountScopeGuard>
+              </RoleGuard>
             }
           />
           <Route
-            path="settings"
+            path="/actions"
             element={
-              <Placeholder
-                spec="Spec 010"
-                title="Settings"
-                blurb="Admin governance — the kill switch and policy controls."
-              />
+              <RoleGuard allowedRoles={["rm", "manager", "admin"]}>
+                <QueueList />
+              </RoleGuard>
             }
           />
+          <Route
+            path="/constellation"
+            element={
+              <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+                <Suspense fallback={<div className="p-6 text-sm text-ink-secondary">Charting the constellation…</div>}>
+                  <ConstellationPage />
+                </Suspense>
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="/executive"
+            element={
+              <RoleGuard allowedRoles={["executive", "admin"]}>
+                <ExecutiveView />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="/settings/users"
+            element={
+              <RoleGuard allowedRoles={["admin"]}>
+                <SettingsUsersPanel />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="/submit"
+            element={
+              <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+                <SubmitPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="/support"
+            element={
+              <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+                <SupportPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RoleGuard allowedRoles={["admin"]}>
+                <AdminLayout />
+              </RoleGuard>
+            }
+          >
+            <Route index element={<Navigate to="/admin/signals" replace />} />
+            <Route path="signals"  element={<SignalPerformance />} />
+            <Route path="outcomes" element={<OutcomeTracking />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
         </Route>
-      </Route>
-      <Route path="*" element={<Navigate to="/accounts" replace />} />
+      ) : null}
+
+      {/* Unauthenticated catch-all → login */}
+      <Route path="*" element={<Navigate to={user ? "/accounts" : "/login"} replace />} />
     </Routes>
   );
 }

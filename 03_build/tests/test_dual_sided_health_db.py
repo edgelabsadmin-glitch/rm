@@ -1,7 +1,8 @@
 """SPEC-030 DB tests — compute() caches + emits health-tier-changed, with debounce."""
 
 import importlib.util
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 from pathlib import Path
 from uuid import uuid4
 

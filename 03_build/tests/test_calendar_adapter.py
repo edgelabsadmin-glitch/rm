@@ -5,7 +5,8 @@ The attendee→Account resolution DB test is in tests/test_calendar_adapter_db.p
 (marker `db`); the live Google Calendar test is gated on GOOGLE_CALENDAR_TOKEN.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 
 import pytest
 

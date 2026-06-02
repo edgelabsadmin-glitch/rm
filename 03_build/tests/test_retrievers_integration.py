@@ -7,7 +7,8 @@ otherwise.
 """
 
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 
 import pytest
 

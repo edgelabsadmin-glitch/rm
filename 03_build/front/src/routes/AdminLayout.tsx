@@ -5,7 +5,7 @@
  * redirected to /accounts.
  */
 import { NavLink, Navigate, Outlet } from "react-router-dom";
-import { useSession } from "@/session/useSession";
+import { useUser } from "@/lib/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
 const ADMIN_NAV = [
@@ -15,8 +15,8 @@ const ADMIN_NAV = [
 ];
 
 export function AdminLayout() {
-  const session = useSession();
-  if (session.role !== "admin") return <Navigate to="/accounts" replace />;
+  const user = useUser();
+  if (user.role !== "admin") return <Navigate to="/accounts" replace />;
 
   return (
     <div className="p-6">

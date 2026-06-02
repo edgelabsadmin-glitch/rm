@@ -4,17 +4,30 @@
  * the stubbed session. Admin nav is hidden unless the session role is admin
  * (visibility only — server-side scope is authoritative).
  */
-import { Bell, Zap } from "lucide-react";
+import { Bell, LogOut, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { usePulseState } from "@/components/PulseStateProvider";
-import { useSession } from "@/session/useSession";
+import { DEMO_USERS } from "@/fixtures/demo_characters";
+import { useAuth, useUser } from "@/lib/auth/AuthContext";
+import type { UserRole } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { to: "/accounts", label: "Accounts" },
-  { to: "/constellation", label: "Constellation" },
-  { to: "/executive", label: "Executive View" },
-  { to: "/submit", label: "Submit" },
+// SPEC-042 Step-9 (DoD §12): dev-only persona switcher so the demo operator can walk Stories
+// A/B/C (Yozeline RM / Sarah Manager / Iffi Executive) without real SSO. Gated on
+// import.meta.env.DEV — never shipped to production (spec 043 OAuth hydrates AuthContext instead).
+const ROLE_RANK: Record<UserRole, number> = { executive: 0, manager: 1, rm: 2, admin: 3 };
+const SWITCHER_USERS = [...DEMO_USERS].sort((a, b) => ROLE_RANK[a.role] - ROLE_RANK[b.role]);
+
+// SPEC-042 Step 3: nav links are role-gated (visibility layer; RoleGuard enforces direct
+// URL access). Executive View is exec/admin only; Settings is admin only.
+const NAV: { to: string; label: string; roles: UserRole[] }[] = [
+  { to: "/accounts",   label: "Accounts",       roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/constellation", label: "Constellation", roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/executive",  label: "Executive View",  roles: ["executive", "admin"] },
+  { to: "/submit",     label: "Submit",          roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/support",    label: "Support",         roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/settings/users", label: "Settings",   roles: ["admin"] },
 ];
 
 function initials(name: string): string {
@@ -27,8 +40,22 @@ function initials(name: string): string {
 }
 
 export function Header() {
-  const session = useSession();
+  const user = useUser();
+  const { switchUser, logout } = useAuth();
   const { queueCount } = usePulseState();
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!avatarOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+        setAvatarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [avatarOpen]);
 
   return (
     <header className="flex items-center justify-between border-b border-line-subtle px-7 py-5">
@@ -44,7 +71,7 @@ export function Header() {
         </div>
 
         <nav className="hidden items-center gap-1 lg:flex">
-          {NAV.map((item) => (
+          {NAV.filter((item) => item.roles.includes(user.role)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -60,7 +87,7 @@ export function Header() {
               {item.label}
             </NavLink>
           ))}
-          {session.role === "admin" && (
+          {user.role === "admin" && (
             <NavLink
               to="/admin"
               className={({ isActive }) =>
@@ -79,23 +106,62 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        <NavLink
-          to="/actions"
-          className="relative inline-flex items-center gap-2 rounded-full border border-brand-edge px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand-ghost"
-        >
-          <Bell className="h-4 w-4" />
-          Queue
-          {queueCount > 0 && (
-            <span className="ml-1 inline-grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-xs font-medium text-ink-on-brand shadow-[0_0_0_3px_var(--color-brand-primary-glow)]">
-              {queueCount}
-            </span>
+        {/* Dev-only persona switcher (DoD §12) — hidden in production builds. */}
+        {import.meta.env.DEV && (
+          <label className="flex items-center gap-1.5 text-xs text-ink-secondary">
+            <span className="hidden sm:inline">View as</span>
+            <select
+              data-testid="dev-user-switcher"
+              aria-label="Switch demo user"
+              value={user.id}
+              onChange={(e) => switchUser(e.target.value)}
+              className="rounded-md border border-line-strong bg-surface-card px-2 py-1 text-xs text-ink-primary"
+            >
+              {SWITCHER_USERS.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.displayName} · {u.role}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {/* Action Queue is RM/Manager/Admin workspace — hidden for Executive (§3 matrix). */}
+        {user.role !== "executive" && (
+          <NavLink
+            to="/actions"
+            className="relative inline-flex items-center gap-2 rounded-full border border-brand-edge px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand-ghost"
+          >
+            <Bell className="h-4 w-4" />
+            Queue
+            {queueCount > 0 && (
+              <span className="ml-1 inline-grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-xs font-medium text-ink-on-brand shadow-[0_0_0_3px_var(--color-brand-primary-glow)]">
+                {queueCount}
+              </span>
+            )}
+          </NavLink>
+        )}
+        {/* Avatar + logout dropdown (click-to-open) */}
+        <div className="relative" ref={avatarRef}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setAvatarOpen((o) => !o)}
+            onKeyDown={(e) => e.key === "Enter" && setAvatarOpen((o) => !o)}
+            className="grid h-10 w-10 cursor-pointer place-items-center rounded-full bg-ink-primary text-sm font-semibold text-ink-on-brand"
+            title={`${user.displayName} · ${user.email}`}
+          >
+            {initials(user.displayName)}
+          </div>
+          {avatarOpen && (
+            <button
+              type="button"
+              onClick={logout}
+              className="absolute right-0 top-full mt-1 flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-line-subtle bg-white px-3 py-2 text-xs text-ink-secondary shadow-lg hover:text-ink-primary"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </button>
           )}
-        </NavLink>
-        <div
-          className="grid h-10 w-10 place-items-center rounded-full bg-ink-primary text-sm font-semibold text-ink-on-brand"
-          title={`${session.name} · ${session.email}`}
-        >
-          {initials(session.name)}
         </div>
       </div>
     </header>

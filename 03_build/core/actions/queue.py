@@ -16,7 +16,9 @@ Ranking is a pure, tunable composite score computed at retrieval time (Design 03
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 from typing import Any
 
 # Events that take an action OUT of the pending queue (Design 03 approval_state).

@@ -87,7 +87,7 @@ class ChorusAdapter(SignalSourceAdapter):
             return resp.json()
 
     # ── Adapter contract ─────────────────────────────────────────────────────
-    async def list_recent_events(self, since: datetime, max_pages: int = 200) -> list[RawEvent]:
+    async def list_recent_events(self, since: datetime, max_pages: int = 2000) -> list[RawEvent]:
         """Backfill/poll: paginate /v3/engagements (meetings) back to `since`."""
         since_epoch = since.timestamp()
         base = f"{CHORUS_BASE}/v3/engagements?engagement_type=meeting"

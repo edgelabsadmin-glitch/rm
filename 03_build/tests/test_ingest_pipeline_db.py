@@ -11,7 +11,8 @@ LLM keys).
 """
 
 import importlib.util
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4

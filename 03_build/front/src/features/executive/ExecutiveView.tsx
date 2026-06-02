@@ -9,10 +9,22 @@
  * ARR via the $10K/seat heuristic. AI-RM voice preserved inside the Hero (the voice
  * didn't change — the surrounding composition did).
  */
-import { AlertTriangle, MessageSquare, Sparkles, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  MessageSquare,
+  Minus,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
+import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { CompositeHealthRing } from "@/components/CompositeHealthRing";
 import { FadeLift } from "@/components/FadeLift";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { InlineTags } from "@/lib/inline_tags";
 import {
   accountARR,
@@ -20,9 +32,16 @@ import {
   churnExposureARR,
   DEMO_ACCOUNTS,
   DEMO_ACTIVE_TALENT_TOTAL,
+  DEMO_RMS,
   formatARR,
   REVENUE_PER_SEAT_USD,
 } from "@/fixtures/demo_characters";
+import { DEMO_ACTIONS } from "@/features/queue/demo_actions";
+import {
+  composeTeamWorkload,
+  type TeamWorkloadRow as TeamWorkloadRowData,
+  type ThroughputIndicator as ThroughputKind,
+} from "./composers/team_workload_composer";
 
 type Severity = "risk" | "warning" | "opportunity" | "reference";
 
@@ -244,6 +263,9 @@ export function ExecutiveView() {
           </CardContent>
         </Card>
 
+        {/* Team workload — per-RM load visibility (spec 042 §6.6, between asks + numbers) */}
+        <TeamWorkloadPanel />
+
         {/* Bottom strip — Book in numbers */}
         <div className="rounded-lg bg-surface-chrome px-4 py-3">
           <div className="mb-2 text-xs text-ink-muted">Book in numbers · {WEEK_OF}</div>
@@ -268,5 +290,128 @@ function Stat({ n, label, color }: { n: string; label: string; color?: string })
       </div>
       <div className="text-xs text-ink-secondary">{label}</div>
     </div>
+  );
+}
+
+// ============================================================================
+// Team workload panel (SPEC-042 Step-8, §6.6 / §6.7)
+// ============================================================================
+// Overload threshold: an RM with this many pending actions reads as overloaded
+// (warning chip + avatar). The Phase-1A demo fixture maxes at 2 pending/RM, so the
+// warning won't fire today — that's correct; Phase-1B real signal volume activates it.
+export const WORKLOAD_WARNING_THRESHOLD = 6;
+
+const THROUGHPUT_DISPLAY: Record<
+  ThroughputKind,
+  { icon: typeof ArrowRight; label: string; color: string }
+> = {
+  rising: { icon: ArrowUpRight, label: "Rising", color: "var(--color-stat-opportunity)" },
+  steady: { icon: ArrowRight, label: "Steady", color: "var(--color-text-secondary)" },
+  declining: { icon: ArrowDownRight, label: "Declining", color: "var(--color-stat-risk)" },
+  flat: { icon: Minus, label: "Flat", color: "var(--color-text-muted)" },
+};
+
+function ThroughputIndicatorCell({ value }: { value: ThroughputKind }) {
+  const { icon: Icon, label, color } = THROUGHPUT_DISPLAY[value];
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color }}>
+      <Icon className="h-3.5 w-3.5" /> {label}
+    </span>
+  );
+}
+
+function WorkloadAvatar({ initials, warning }: { initials: string; warning: boolean }) {
+  return (
+    <span
+      className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[10px] font-semibold"
+      style={
+        warning
+          ? { background: "var(--color-chip-warning-bg)", color: "var(--color-chip-warning-text)" }
+          : { background: "var(--color-surface-card)", color: "var(--color-text-primary)", border: "0.5px solid var(--color-line-strong)" }
+      }
+    >
+      {initials}
+    </span>
+  );
+}
+
+/** One workload row — exported so the warning-threshold styling is unit-testable in isolation. */
+export function TeamWorkloadRowView({
+  row,
+  onSelect,
+}: {
+  row: TeamWorkloadRowData;
+  onSelect: (rmId: string) => void;
+}) {
+  const warning = row.pendingCount >= WORKLOAD_WARNING_THRESHOLD;
+  return (
+    <tr
+      data-testid="team-workload-row"
+      data-warning={warning}
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(row.rmId)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(row.rmId);
+        }
+      }}
+      className="cursor-pointer border-t border-line-subtle text-xs transition hover:bg-brand-ghost"
+    >
+      <td className="py-2 pr-3">
+        <WorkloadAvatar initials={row.avatarInitials} warning={warning} />
+      </td>
+      <td className="py-2 pr-3 font-medium text-ink-primary">{row.rmName}</td>
+      <td
+        className="py-2 pr-3 font-mono"
+        style={warning ? { color: "var(--color-chip-warning-text)" } : { color: "var(--color-text-primary)" }}
+      >
+        {row.pendingCount}
+      </td>
+      <td className="py-2 pr-3 font-mono text-ink-secondary">{row.approvedThisWeek}</td>
+      <td className="py-2">
+        <ThroughputIndicatorCell value={row.throughputIndicator} />
+      </td>
+    </tr>
+  );
+}
+
+function TeamWorkloadPanel() {
+  const { accountScope } = useAuth();
+  const navigate = useNavigate();
+  const rows = useMemo(
+    () => composeTeamWorkload(DEMO_RMS, DEMO_ACTIONS, accountScope),
+    [accountScope],
+  );
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div className={EYEBROW}>Team workload · {rows.length} RMs</div>
+          <div className="text-xs text-ink-muted">Click a row to see them in the constellation</div>
+        </div>
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+              <th className="w-8 pb-1 font-semibold" />
+              <th className="pb-1 pr-3 font-semibold">RM</th>
+              <th className="pb-1 pr-3 font-semibold">Pending</th>
+              <th className="pb-1 pr-3 font-semibold">Approved · wk</th>
+              <th className="pb-1 font-semibold">Throughput</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <TeamWorkloadRowView
+                key={row.rmId}
+                row={row}
+                onSelect={(rmId) => navigate(`/constellation?rm=${encodeURIComponent(rmId)}`)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
   );
 }

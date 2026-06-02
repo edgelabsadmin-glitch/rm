@@ -22,7 +22,8 @@ only when no restriction above applies.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+UTC = timezone.utc
 from uuid import uuid4
 
 from langfuse.decorators import observe

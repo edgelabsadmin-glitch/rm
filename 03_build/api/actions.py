@@ -25,7 +25,11 @@ from core.actions import queue, service
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 
-_ROLES = {"rm", "manager", "admin"}
+# SPEC-042 Step-6: `executive` is a valid identity (full org scope) but is blocked from the
+# Action Queue endpoints (spec §3 permission matrix) — see require_queue_caller below.
+_ROLES = {"rm", "manager", "admin", "executive"}
+# Roles permitted to read/act on the Action Queue (Executive excluded).
+_QUEUE_ROLES = {"rm", "manager", "admin"}
 
 
 class Caller:
@@ -41,8 +45,8 @@ class Caller:
         return self.role == "admin"
 
     def visible_rm_ids(self) -> list[str] | None:
-        """RM ids the caller may see — None means unrestricted (admin)."""
-        if self.role == "admin":
+        """RM ids the caller may see — None means unrestricted (admin / executive = full org)."""
+        if self.role in ("admin", "executive"):
             return None
         if self.role == "manager":
             return [self.user_id, *self.report_ids]
@@ -71,6 +75,22 @@ async def require_caller(
     return Caller(x_user_id, x_user_role, reports)
 
 
+async def require_queue_caller(caller: Annotated[Caller, Depends(require_caller)]) -> Caller:
+    """Action Queue is RM/Manager/Admin workspace; Executive is blocked (spec 042 §3,
+    defense in depth — matches the front-end RoleGuard on /actions)."""
+    if caller.role not in _QUEUE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "insufficient_role",
+                "required_roles": sorted(_QUEUE_ROLES),
+                "user_role": caller.role,
+                "message": "Executive role does not access the Action Queue.",
+            },
+        )
+    return caller
+
+
 class RejectBody(BaseModel):
     reason_picker: str
     free_text: str | None = None
@@ -86,7 +106,7 @@ class ExpireBody(BaseModel):
 
 @router.get("")
 async def list_actions(
-    caller: Annotated[Caller, Depends(require_caller)],
+    caller: Annotated[Caller, Depends(require_queue_caller)],
     tier: str | None = Query(default=None),
     customer_id: str | None = Query(default=None),
     skill_id: str | None = Query(default=None),
@@ -122,7 +142,7 @@ async def _load_in_scope(action_id: str, caller: Caller) -> queue.ActionRecord:
 
 @router.get("/{action_id}")
 async def get_action_detail(
-    action_id: str, caller: Annotated[Caller, Depends(require_caller)]
+    action_id: str, caller: Annotated[Caller, Depends(require_queue_caller)]
 ) -> dict[str, Any]:
     rec = await _load_in_scope(action_id, caller)
     out = rec.public_dict(include_skill=caller.is_admin)
@@ -142,7 +162,7 @@ def _map_service_error(exc: Exception) -> HTTPException:
 
 @router.post("/{action_id}/approve")
 async def approve(
-    action_id: str, caller: Annotated[Caller, Depends(require_caller)]
+    action_id: str, caller: Annotated[Caller, Depends(require_queue_caller)]
 ) -> dict[str, Any]:
     await _load_in_scope(action_id, caller)
     try:
@@ -154,7 +174,7 @@ async def approve(
 
 @router.post("/{action_id}/modify")
 async def modify(
-    action_id: str, body: ModifyBody, caller: Annotated[Caller, Depends(require_caller)]
+    action_id: str, body: ModifyBody, caller: Annotated[Caller, Depends(require_queue_caller)]
 ) -> dict[str, Any]:
     await _load_in_scope(action_id, caller)
     try:
@@ -166,7 +186,7 @@ async def modify(
 
 @router.post("/{action_id}/reject")
 async def reject(
-    action_id: str, body: RejectBody, caller: Annotated[Caller, Depends(require_caller)]
+    action_id: str, body: RejectBody, caller: Annotated[Caller, Depends(require_queue_caller)]
 ) -> dict[str, Any]:
     await _load_in_scope(action_id, caller)
     try:
@@ -180,7 +200,7 @@ async def reject(
 
 @router.post("/{action_id}/expire")
 async def expire(
-    action_id: str, body: ExpireBody, caller: Annotated[Caller, Depends(require_caller)]
+    action_id: str, body: ExpireBody, caller: Annotated[Caller, Depends(require_queue_caller)]
 ) -> dict[str, Any]:
     await _load_in_scope(action_id, caller)
     try:

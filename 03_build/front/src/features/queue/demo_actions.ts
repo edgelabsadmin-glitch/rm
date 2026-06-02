@@ -11,7 +11,7 @@
  * in why_detail as <num> inline tags (Tier-0 §10), rendered by the spec-035 renderer.
  */
 import { accountARR, DEMO_RMS, formatARR, REVENUE_PER_SEAT_USD } from "@/fixtures/demo_characters";
-import { STUB_SESSION } from "@/session/useSession";
+import type { UserRole } from "@/lib/rbac/types";
 import type { ActionDTO, ActionsResponse, QueueFilters } from "./types";
 
 const rmName = (id: string) => DEMO_RMS.find((r) => r.id === id)?.name ?? id;
@@ -81,16 +81,101 @@ export const DEMO_ACTIONS: ActionDTO[] = [
     rank_score: 0.64,
     skill_id: "skill-09-reference-builder",
   },
+  // Sajjal's two at-risk accounts (Step-5 follow-up Q1) — restore Story B walkability so a
+  // Manager/Admin queue shows Sajjal cards. Figures derived from canonical ($10K/seat).
+  {
+    action_id: "demo-sajjal-mendota-renewal",
+    customer_id: "mendota-insurance",
+    talent_id: null,
+    rm_id: "sajjal-shaheedi",
+    tier_class: "Mid-Market",
+    urgency: "high",
+    action_card: { headline: "At-risk renewal — Mendota Insurance", action_type: "renewal" },
+    why_oneline: `Mendota flagged at-risk — ${seats("mendota-insurance")} active placements, ${formatARR(accountARR("mendota-insurance"))} book.`,
+    why_detail:
+      `Mendota Insurance is in an <bad>at-risk</bad> state with <num>${seats("mendota-insurance")} active placements</num> ` +
+      `(<num>${formatARR(accountARR("mendota-insurance"))}</num> book). Renewal review recommended. Owning RM: ${rmName("sajjal-shaheedi")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["sfdc:mendota-placements", "sfdc:mendota-renewal"],
+    proposed_at: "2026-05-21T09:00:00Z",
+    status: "pending",
+    rank_score: 0.88,
+    skill_id: "skill-03-renewal-watcher",
+  },
+  {
+    action_id: "demo-sajjal-cirventis-outreach",
+    customer_id: "cirventis",
+    talent_id: null,
+    rm_id: "sajjal-shaheedi",
+    tier_class: "Mid-Market",
+    urgency: "medium",
+    action_card: { headline: "At-risk outreach — Cirventis", action_type: "outreach" },
+    why_oneline: `Cirventis flagged at-risk — ${seats("cirventis")} active placements, ${formatARR(accountARR("cirventis"))} book.`,
+    why_detail:
+      `Cirventis is in an <bad>at-risk</bad> state with <num>${seats("cirventis")} active placements</num> ` +
+      `(<num>${formatARR(accountARR("cirventis"))}</num> book). Proactive outreach recommended. Owning RM: ${rmName("sajjal-shaheedi")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["sfdc:cirventis-placements", "chorus:cirventis-engagement"],
+    proposed_at: "2026-05-21T13:30:00Z",
+    status: "pending",
+    rank_score: 0.72,
+    skill_id: "skill-05-escalation-router",
+  },
+  // Two already-approved cards (Step-5 follow-up cont.) so the Approved status chip isn't
+  // empty in the demo. Generalized narrative; no fabricated specifics.
+  {
+    action_id: "demo-sidra-dhr-followup-approved",
+    customer_id: "dhr-health-clinics",
+    talent_id: null,
+    rm_id: "sidra-zia",
+    tier_class: "Enterprise",
+    urgency: "medium",
+    action_card: { headline: "Renewal sync follow-up — DHR Health Clinics", action_type: "renewal" },
+    why_oneline: "Renewal sync follow-up after the escalation thread — approved.",
+    why_detail:
+      `Follow-up on the DHR Health Clinics renewal escalation across <num>${seats("dhr-health-clinics")} active placements</num>. ` +
+      `Approved and in progress. Owning RM: ${rmName("sidra-zia")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["sfdc:dhr-renewal", "sfdc:case-dhr-escalation"],
+    proposed_at: "2026-05-18T10:00:00Z",
+    status: "approved",
+    rank_score: 0.83,
+    skill_id: "skill-03-renewal-watcher",
+  },
+  {
+    action_id: "demo-ameer-bayhealth-outreach-approved",
+    customer_id: "bayhealth",
+    talent_id: null,
+    rm_id: "ameer-ali",
+    tier_class: "Mid-Market",
+    urgency: "medium-low",
+    action_card: { headline: "Expansion outreach — Bayhealth", action_type: "outreach" },
+    why_oneline: "Expansion outreach to an existing healthcare-cluster contact — approved.",
+    why_detail:
+      `Expansion outreach at Bayhealth (<num>${seats("bayhealth")} active placements</num>) surfaced via opp-tracker. ` +
+      `Approved earlier this week. Owning RM: ${rmName("ameer-ali")}.`,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: ["opp-tracker:bayhealth-postings", "sfdc:bayhealth-placements"],
+    proposed_at: "2026-05-16T14:00:00Z",
+    status: "approved",
+    rank_score: 0.59,
+    skill_id: "skill-07-expansion-spotter",
+  },
 ];
 
 /**
- * Filter the demo cards the way GET /api/actions would. Honors a real rm_id deep-link
- * (Constellation ?rm=) and the tier chip; the demo session stub (rm-demo) is treated as
- * book-wide so My Queue isn't empty in the demo (real scoping is server-side, spec 042).
+ * Filter the demo cards the way GET /api/actions would. Role-aware (spec 042 A3 re-anchor):
+ * RMs see only their own book (filter by rm_id); Manager / Executive / Admin see the full
+ * book (the rm_id self-filter is skipped — their "My Queue" rm_id wouldn't match RM-owned
+ * cards anyway). Tier + customer filters always apply. Real scoping is server-side (spec 042
+ * Caller model). `callerRole` defaults to undefined = unscoped (legacy / pre-RBAC).
  */
-export function filterDemoActions(filters: QueueFilters = {}): ActionsResponse {
+export function filterDemoActions(
+  filters: QueueFilters = {},
+  callerRole?: UserRole,
+): ActionsResponse {
   let actions = DEMO_ACTIONS;
-  if (filters.rm_id && filters.rm_id !== STUB_SESSION.id) {
+  if (filters.rm_id && callerRole === "rm") {
     actions = actions.filter((a) => a.rm_id === filters.rm_id);
   }
   if (filters.tier) {
@@ -100,4 +185,66 @@ export function filterDemoActions(filters: QueueFilters = {}): ActionsResponse {
     actions = actions.filter((a) => a.customer_id === filters.customer_id);
   }
   return { actions, count: actions.length, limit: 200, offset: 0 };
+}
+
+// Three action templates — cycled per-account so each account shows varied cards.
+const _TEMPLATES = [
+  {
+    suffix: "renewal",
+    urgency: "high" as const,
+    tier_class: "Enterprise",
+    action_type: "renewal",
+    headline: "Schedule renewal review",
+    why_oneline: "Contract renewal window opening in 30 days — initiate RM outreach now.",
+    why_detail:
+      "<bad>Renewal in 30 days</bad> with no outreach logged yet. " +
+      "Book this week to avoid last-minute pressure on terms.",
+  },
+  {
+    suffix: "checkin",
+    urgency: "medium" as const,
+    tier_class: "Mid-Market",
+    action_type: "check-in",
+    headline: "Proactive health check-in",
+    why_oneline: "Engagement cadence lapsed — schedule a touchpoint this week.",
+    why_detail:
+      "Activity has been quieter than the account's baseline. " +
+      "A <em>proactive check-in</em> now is lower-cost than a reactive recovery later.",
+  },
+  {
+    suffix: "talent",
+    urgency: "medium-low" as const,
+    tier_class: "SMB",
+    action_type: "talent-care",
+    headline: "Review active talent satisfaction",
+    why_oneline: "Talent feedback cycle due — verify satisfaction before next renewal.",
+    why_detail:
+      "Active placements are due for a satisfaction pulse. " +
+      "<good>Positive scores strengthen the renewal position</good> and surface early risk.",
+  },
+] as const;
+
+/**
+ * Generate 2 deterministic test actions for any account that has no real demo data.
+ * Used as the DEV fallback when a real SF account ID is passed as customer_id.
+ */
+export function generateAccountActions(customerId: string): ActionDTO[] {
+  const idx = customerId.charCodeAt(customerId.length - 1) % _TEMPLATES.length;
+  return [_TEMPLATES[idx], _TEMPLATES[(idx + 1) % _TEMPLATES.length]].map((t, i) => ({
+    action_id: `demo-${customerId}-${t.suffix}`,
+    customer_id: customerId,
+    talent_id: null,
+    rm_id: "demo-rm",
+    tier_class: t.tier_class,
+    urgency: t.urgency,
+    action_card: { headline: t.headline, action_type: t.action_type },
+    why_oneline: t.why_oneline,
+    why_detail: t.why_detail,
+    modifiable_fields: ["headline", "summary"],
+    source_episodes: [`sfdc:${customerId}-placements`],
+    proposed_at: new Date(Date.now() - i * 3_600_000).toISOString(),
+    status: "pending" as const,
+    rank_score: 0.8 - i * 0.15,
+    skill_id: null,
+  }));
 }
