@@ -1,10 +1,11 @@
 # Edge Pulse — Feature Documentation
 
 > **Product:** Relationship Intelligence for Relationship Managers  
-> **Stack:** React (Vite) + FastAPI + Postgres (Supabase) + Salesforce + Claude AI  
-> **Branch:** `feature/salesforce-support-integration`  
-> **Last updated:** 2026-06-01  
-> **Status legend:** ✅ Done · ⚠️ Partial · 🔲 Planned (Phase 1 scope) · ❌ Not started
+> **Stack:** React (Vite) + FastAPI + Aurora PostgreSQL (AWS us-east-1) + Salesforce + Claude AI  
+> **Branch:** `main`  
+> **Last updated:** 2026-06-03  
+> **Deployed:** https://d1c4u0c5ny4q1v.cloudfront.net (frontend) · https://pded8nvwwe.us-east-1.awsapprunner.com (API)  
+> **Status legend:** ✅ Done · ⚠️ Partial · 🔲 Planned · ❌ Not started
 
 ---
 
@@ -24,10 +25,15 @@
 | User Management | ✅ Done | Role/scope view |
 | Pulse Bar (Agent Presence) | ✅ Done | Breathing indicator on every screen |
 | Salesforce Signal Source Adapter | ✅ Done | Accounts, RM_Outreach, Associates, Cases |
-| Salesforce DB Sync (12-hr background task) | ✅ Done | Upserts to `pulse.sf_accounts` |
-| Chorus Signal Source Adapter + DB Sync | ✅ Done | Polls Chorus v3 API every 12h; 2,500+ episodes ingested; SF account fuzzy-match |
-| Zoom Signal Source Adapter + DB Sync | ✅ Done | Server-to-Server OAuth; polls Reports API per-user in 30-day windows; linked to SF accounts |
+| Salesforce DB Sync (12-hr background task) | ✅ Done | Upserts to `pulse.sf_accounts`; 629 accounts live |
+| Chorus Signal Source Adapter + DB Sync | ✅ Done | Polls Chorus v3 API every 12h; 3,225+ episodes ingested; SF account fuzzy-match |
+| Zoom Signal Source Adapter + DB Sync | ✅ Done | Server-to-Server OAuth; polls Reports API per-user in 30-day windows; 5,233+ episodes; linked to SF accounts |
 | Meetings Panel (per-account) | ✅ Done | GET /accounts/{id}/meetings — Chorus + Zoom; source badge, duration, recording link |
+| Opportunity Tracker Webhook (SPEC-015) | ✅ Done | POST /webhooks/expansion-intent; idempotent; Graphiti failure resilient; Activepieces flow in `pulse_workflows/` |
+| Google Gmail + Calendar Sync | ✅ Done | OAuth-connected users; Gmail ingestion + Calendar meeting sync; SF account matching |
+| SF Contacts Sync | ✅ Done | Pulls SF Contacts every 12h; used for email → account matching |
+| **Database** | ✅ Done | **Migrated from Supabase → Aurora Serverless v2** (us-east-1, edgelabs AWS); all 11 tables, 14,000+ rows |
+| **Deployment** | ✅ Done | **App Runner (API) + S3/CloudFront (frontend)**; GitHub Actions CI/CD on every push to main |
 | Constellation Sidebar (Action Items) | ✅ Done | Floating overlays replaced with persistent sidebar; pattern/capacity/escalation alerts |
 | Constellation RBAC Filters | ✅ Done | Manager team-member dropdown; account filter to expand talent; per-user scope enforced |
 | Calendar Signal Source Adapter | ⚠️ Partial | Module exists (193 lines); not wired |

@@ -310,7 +310,7 @@ export function Constellation({
           setSelectedAccountId(n.id);
           navigate("/accounts");
         } else {
-          setExpanded((cur) => (cur === n.id ? null : n.id)); // toggle talent orbit
+          setExpanded(expanded === n.id ? null : n.id); // toggle talent orbit
         }
         break;
       // talent → no-op
