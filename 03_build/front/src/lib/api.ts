@@ -6,7 +6,9 @@
  */
 import type { UserRole } from "@/lib/rbac/types";
 
-const BASE = "/api";
+// In dev, Vite proxies /api → localhost:8000 (vite.config). In production,
+// VITE_API_BASE is the full App Runner URL and paths are appended directly.
+const BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
 /**
  * Minimal identity the API client sends to pulse-api (spec 042 A3 — replaces the old

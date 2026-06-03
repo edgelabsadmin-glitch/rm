@@ -51,7 +51,8 @@ export function LoginPage() {
       setButtonLoading(false);
       setError("Could not reach the sign-in service. Make sure the backend is running on port 8000.");
     }, 8000);
-    window.location.href = "/api/auth/google/start";
+    const apiBase = import.meta.env.VITE_API_BASE ?? "/api";
+    window.location.href = `${apiBase}/auth/google/start`;
   }
 
   return (

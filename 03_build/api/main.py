@@ -259,9 +259,11 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="EDGE Pulse", version=__version__, lifespan=lifespan)
+    import os
+    _frontend = os.environ.get("FRONTEND_URL", "http://localhost:5173")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:3000"],
+        allow_origins=["http://localhost:5173", "http://localhost:3000", _frontend],
         allow_methods=["*"],
         allow_headers=["*"],
     )
