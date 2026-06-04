@@ -31,6 +31,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-timeout>=2.3",
     "ruff==0.15.13",  # pinned exact — must match .pre-commit-config.yaml ruff rev (CI/hook parity)
     "pyright>=1.1.380",
     "pre-commit>=3.8",
@@ -61,6 +62,7 @@ exclude = ["**/__pycache__", "**/.venv"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+timeout = 60
 # Real-LLM end-to-end tests are opt-in: excluded by default so the always-on
 # `lint-and-test` CI job (no LLM secrets) stays fast and green. The CI
 # `graphiti-harness` job exercises the same end-to-end path via the script.
