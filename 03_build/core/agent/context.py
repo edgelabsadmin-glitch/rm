@@ -100,7 +100,7 @@ async def recently_actioned(
     """True if this skill already proposed an action for this talent/customer
     within `within_days` (rate-limit, computed from the event log)."""
     from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+    UTC = timezone.utc
 
     from core.db import get_pool
 
