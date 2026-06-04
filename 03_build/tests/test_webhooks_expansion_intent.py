@@ -7,7 +7,6 @@ the existing test_opportunity_tracker_adapter_db.py integration suite.
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,8 +37,13 @@ def _row(tier="hottest", posting_id="post-abc"):
 def _make_app(token="test-token"):
     import os
     os.environ["PULSE_INTERNAL_API_TOKEN"] = token
-    from api.main import create_app
-    return create_app()
+    # Use a minimal app with only the webhook router — avoids triggering the
+    # full lifespan (DB pool, SF sync) which requires external services in CI.
+    from fastapi import FastAPI
+    from api.webhooks import router as webhooks_router
+    app = FastAPI()
+    app.include_router(webhooks_router)
+    return app
 
 
 # ── auth guard ────────────────────────────────────────────────────────────────
