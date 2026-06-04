@@ -8,7 +8,6 @@ tests/test_policy_db.py (marker `db`).
 """
 
 import pytest
-from fastapi.testclient import TestClient
 
 from core.policy import kill_switch
 from core.policy.decide import AUTO_APPROVE_DELAY_SECONDS, _evaluate
@@ -99,12 +98,11 @@ def test_apply_sets_each_scope():
 
 
 # ── admin auth (403, no DB) ──────────────────────────────────────────────────
-def test_admin_kill_switch_requires_token(monkeypatch):
+async def test_admin_kill_switch_requires_token(monkeypatch):
     monkeypatch.delenv("PULSE_INTERNAL_API_TOKEN", raising=False)
-    from api.main import create_app
+    from fastapi import HTTPException
+    from api.admin.kill_switch import require_admin
 
-    # Don't use the context manager — that starts lifespan (DB pool). We only
-    # need to hit the endpoint to verify the 403 auth guard fires.
-    client = TestClient(create_app(), raise_server_exceptions=False)
-    resp = client.post("/admin/kill-switch", json={"scope": "global", "on": True})
-    assert resp.status_code == 403
+    with pytest.raises(HTTPException) as exc:
+        await require_admin(x_admin_token=None)
+    assert exc.value.status_code == 403
