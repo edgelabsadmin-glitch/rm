@@ -16,6 +16,9 @@ from pathlib import Path
 import kuzu
 import pytest
 
+# Requires the real KuZu binary + FTS extension download (not the CI stub).
+pytestmark = pytest.mark.integration
+
 driver_mod = pytest.importorskip("core.memory.driver")
 PulseKuzuDriver = driver_mod.PulseKuzuDriver
 
