@@ -97,7 +97,7 @@ async def test_api_get_and_put():
 )
 async def test_regenerate_real_opus():
     from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+    UTC = timezone.utc
 
     from core.memory.graph import add_pulse_episode, make_graphiti
     from core.profiles import regenerator
