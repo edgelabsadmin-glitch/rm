@@ -103,6 +103,8 @@ def test_admin_kill_switch_requires_token(monkeypatch):
     monkeypatch.delenv("PULSE_INTERNAL_API_TOKEN", raising=False)
     from api.main import create_app
 
-    with TestClient(create_app()) as client:
-        resp = client.post("/admin/kill-switch", json={"scope": "global", "on": True})
-        assert resp.status_code == 403
+    # Don't use the context manager — that starts lifespan (DB pool). We only
+    # need to hit the endpoint to verify the 403 auth guard fires.
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    resp = client.post("/admin/kill-switch", json={"scope": "global", "on": True})
+    assert resp.status_code == 403
