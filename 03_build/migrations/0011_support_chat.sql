@@ -3,7 +3,8 @@ CREATE TABLE IF NOT EXISTS pulse.support_conversations (
     user_id          TEXT    NOT NULL,
     title            TEXT    NOT NULL DEFAULT 'New conversation',
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_support_conv_user

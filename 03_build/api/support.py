@@ -139,7 +139,7 @@ async def list_conversations(
             """
             SELECT conversation_id, title, updated_at
             FROM pulse.support_conversations
-            WHERE user_id = %s
+            WHERE user_id = %s AND deleted_at IS NULL
             ORDER BY updated_at DESC
             """,
             [user_id],
@@ -186,8 +186,9 @@ async def delete_conversation(
     async with pool.connection() as conn:
         cur = await conn.execute(
             """
-            DELETE FROM pulse.support_conversations
-            WHERE conversation_id = %s AND user_id = %s
+            UPDATE pulse.support_conversations
+            SET deleted_at = now()
+            WHERE conversation_id = %s AND user_id = %s AND deleted_at IS NULL
             """,
             [conversation_id, user_id],
         )
