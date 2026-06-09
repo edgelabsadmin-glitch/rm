@@ -106,8 +106,8 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Dev-only persona switcher (DoD §12) — hidden in production builds. */}
-        {import.meta.env.DEV && (
+        {/* Persona switcher — dev always, prod for admins only. */}
+        {(import.meta.env.DEV || user.role === "admin") && (
           <label className="flex items-center gap-1.5 text-xs text-ink-secondary">
             <span className="hidden sm:inline">View as</span>
             <select
