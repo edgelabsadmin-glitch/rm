@@ -205,6 +205,45 @@ export const api = {
     }
   },
 
+  listConversations: async (caller: ApiCaller) => {
+    interface ConversationItem {
+      conversation_id: string;
+      title: string;
+      updated_at: string;
+    }
+    return request<ConversationItem[]>("/support/conversations", caller);
+  },
+
+  createConversation: async (caller: ApiCaller) => {
+    interface ConversationItem {
+      conversation_id: string;
+      title: string;
+      updated_at: string;
+    }
+    return request<ConversationItem>("/support/conversations", caller, {
+      method: "POST",
+    });
+  },
+
+  deleteConversation: async (caller: ApiCaller, conversationId: string) =>
+    request<void>(`/support/conversations/${conversationId}`, caller, {
+      method: "DELETE",
+    }),
+
+  getConversationMessages: async (caller: ApiCaller, conversationId: string) => {
+    interface SupportMessageItem {
+      message_id: string;
+      role: "user" | "assistant";
+      content: string;
+      tool_calls: Record<string, unknown>[] | null;
+      created_at: string;
+    }
+    return request<SupportMessageItem[]>(
+      `/support/conversations/${conversationId}/messages`,
+      caller,
+    );
+  },
+
   getMeetings: async (caller: ApiCaller, accountId: string, limit = 10) => {
     interface MeetingItem {
       episode_id: string;
