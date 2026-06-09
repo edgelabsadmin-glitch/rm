@@ -32,6 +32,7 @@ export interface MeetingItem {
   source_timestamp: string | null;
   source_url: string | null;
   duration_mins: number | null;
+  transcript: string | null;
 }
 
 export function useMeetings(accountId: string | null) {

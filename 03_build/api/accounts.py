@@ -189,6 +189,7 @@ class MeetingItem(BaseModel):
     source_timestamp: str | None
     source_url: str | None
     duration_mins: int | None
+    transcript: str | None
 
 
 @router.get("/{account_id}/meetings", response_model=list[MeetingItem])
@@ -202,7 +203,7 @@ async def list_account_meetings(
         rows = await (await conn.execute(
             """
             SELECT episode_id, source, subject, description,
-                   source_timestamp, source_url,
+                   source_timestamp, source_url, transcript,
                    (content->>'duration_mins')::int AS duration_mins
             FROM pulse.episodes
             WHERE source IN ('chorus', 'zoom')
@@ -220,8 +221,9 @@ async def list_account_meetings(
             subject=r["subject"],
             description=r["description"],
             source_timestamp=r["source_timestamp"].isoformat() if r["source_timestamp"] else None,
-            source_url=r["source_url"],
+            source_url=None if r["source_url"] == "no-recording" else r["source_url"],
             duration_mins=r["duration_mins"],
+            transcript=r["transcript"],
         )
         for r in rows
     ]
