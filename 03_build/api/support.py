@@ -1,30 +1,66 @@
 """
 Support chat API — AI assistant with Salesforce tool use.
 
-POST /support/chat  → streams SSE text/event-stream
-Body: { message: str, history: [{role, content}] }
+POST /support/chat                         → streams SSE text/event-stream
+GET  /support/conversations                → list user's conversations
+POST /support/conversations                → create a new conversation
+DELETE /support/conversations/{id}         → delete conversation + messages
+GET  /support/conversations/{id}/messages  → load messages for a conversation
 
-The assistant has one tool: query_salesforce(soql) which runs any read-only
-SOQL against the Edge org. All DML keywords are blocked at validation.
+Body for /support/chat: { conversation_id: str, message: str }
 """
 from __future__ import annotations
 
 import json
 import os
 import re
-from typing import Any
+from typing import Annotated, Any
 
 import anthropic
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from psycopg.rows import dict_row
 
+from core.db import get_pool
 from core.llm.config import ANTHROPIC_SONNET, load_env
 from core.salesforce import SalesforceClient
 
 router = APIRouter(prefix="/support", tags=["support"])
 
 load_env()
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _truncate_title(text: str) -> str:
+    return text.strip()[:60]
+
+
+# ── Auth dependency ───────────────────────────────────────────────────────────
+
+async def require_user_id(
+    x_user_id: str | None = Header(default=None),
+) -> str:
+    if not x_user_id:
+        raise HTTPException(status_code=400, detail="X-User-Id header required")
+    return x_user_id
+
+
+# ── Response models ───────────────────────────────────────────────────────────
+
+class ConversationOut(BaseModel):
+    conversation_id: str
+    title: str
+    updated_at: str
+
+
+class MessageOut(BaseModel):
+    message_id: str
+    role: str
+    content: str
+    tool_calls: list[dict] | None
+    created_at: str
+
 
 # ── Salesforce schema context ─────────────────────────────────────────────────
 
@@ -85,44 +121,195 @@ async def _run_tool(soql: str) -> str:
         rows = await client.query(soql)
         if not rows:
             return "No records found."
-        # Return compact JSON — Claude parses it well
-        return json.dumps(rows[:50], default=str)  # cap at 50 rows
+        return json.dumps(rows[:50], default=str)
     except Exception as exc:
         return f"Query error: {exc}"
 
 
-# ── Request model ─────────────────────────────────────────────────────────────
+# ── Conversation endpoints ────────────────────────────────────────────────────
 
-class ChatMessage(BaseModel):
-    role: str   # "user" | "assistant"
-    content: str
+@router.get("/conversations", response_model=list[ConversationOut])
+async def list_conversations(
+    user_id: Annotated[str, Depends(require_user_id)],
+) -> list[ConversationOut]:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        rows = await (await conn.execute(
+            """
+            SELECT conversation_id, title, updated_at
+            FROM pulse.support_conversations
+            WHERE user_id = %s
+            ORDER BY updated_at DESC
+            """,
+            [user_id],
+        )).fetchall()
+    return [
+        ConversationOut(
+            conversation_id=str(r["conversation_id"]),
+            title=r["title"],
+            updated_at=r["updated_at"].isoformat(),
+        )
+        for r in rows
+    ]
 
+
+@router.post("/conversations", response_model=ConversationOut, status_code=201)
+async def create_conversation(
+    user_id: Annotated[str, Depends(require_user_id)],
+) -> ConversationOut:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        row = await (await conn.execute(
+            """
+            INSERT INTO pulse.support_conversations (user_id, title)
+            VALUES (%s, 'New conversation')
+            RETURNING conversation_id, title, updated_at
+            """,
+            [user_id],
+        )).fetchone()
+        await conn.commit()
+    return ConversationOut(
+        conversation_id=str(row["conversation_id"]),
+        title=row["title"],
+        updated_at=row["updated_at"].isoformat(),
+    )
+
+
+@router.delete("/conversations/{conversation_id}", status_code=204)
+async def delete_conversation(
+    conversation_id: str,
+    user_id: Annotated[str, Depends(require_user_id)],
+) -> None:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        cur = await conn.execute(
+            """
+            DELETE FROM pulse.support_conversations
+            WHERE conversation_id = %s AND user_id = %s
+            """,
+            [conversation_id, user_id],
+        )
+        await conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+@router.get("/conversations/{conversation_id}/messages", response_model=list[MessageOut])
+async def list_messages(
+    conversation_id: str,
+    user_id: Annotated[str, Depends(require_user_id)],
+) -> list[MessageOut]:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        conv = await (await conn.execute(
+            "SELECT conversation_id FROM pulse.support_conversations WHERE conversation_id = %s AND user_id = %s",
+            [conversation_id, user_id],
+        )).fetchone()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        rows = await (await conn.execute(
+            """
+            SELECT message_id, role, content, tool_calls, created_at
+            FROM pulse.support_messages
+            WHERE conversation_id = %s
+            ORDER BY created_at ASC
+            """,
+            [conversation_id],
+        )).fetchall()
+    return [
+        MessageOut(
+            message_id=str(r["message_id"]),
+            role=r["role"],
+            content=r["content"],
+            tool_calls=r["tool_calls"],
+            created_at=r["created_at"].isoformat(),
+        )
+        for r in rows
+    ]
+
+
+# ── Chat request model ────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
+    conversation_id: str
     message: str
-    history: list[ChatMessage] = []
 
 
-# ── Streaming route ───────────────────────────────────────────────────────────
+# ── Streaming chat route ──────────────────────────────────────────────────────
 
 @router.post("/chat")
-async def chat(body: ChatRequest) -> StreamingResponse:
+async def chat(
+    body: ChatRequest,
+    user_id: Annotated[str, Depends(require_user_id)],
+) -> StreamingResponse:
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
-    # Build message history
-    messages: list[dict[str, Any]] = [
-        {"role": m.role, "content": m.content}
-        for m in body.history
-        if m.role in ("user", "assistant")
-    ]
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        # Verify conversation belongs to this user
+        conv = await (await conn.execute(
+            "SELECT conversation_id FROM pulse.support_conversations WHERE conversation_id = %s AND user_id = %s",
+            [body.conversation_id, user_id],
+        )).fetchone()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Save user message
+        await conn.execute(
+            "INSERT INTO pulse.support_messages (conversation_id, role, content) VALUES (%s, 'user', %s)",
+            [body.conversation_id, body.message],
+        )
+
+        # Detect first turn (count after saving)
+        count_row = await (await conn.execute(
+            "SELECT COUNT(*) AS n FROM pulse.support_messages WHERE conversation_id = %s",
+            [body.conversation_id],
+        )).fetchone()
+        is_first_message = count_row["n"] == 1
+
+        title = ""
+        if is_first_message:
+            title = _truncate_title(body.message)
+            await conn.execute(
+                "UPDATE pulse.support_conversations SET title = %s, updated_at = now() WHERE conversation_id = %s",
+                [title, body.conversation_id],
+            )
+
+        # Load full history for Claude context
+        history_rows = await (await conn.execute(
+            """
+            SELECT role, content, tool_calls
+            FROM pulse.support_messages
+            WHERE conversation_id = %s
+            ORDER BY created_at ASC
+            """,
+            [body.conversation_id],
+        )).fetchall()
+        await conn.commit()
+
+    # Build Claude messages list (exclude the last row = user msg we just saved, re-add below)
+    messages: list[dict[str, Any]] = []
+    for row in history_rows[:-1]:
+        messages.append({"role": row["role"], "content": row["content"]})
     messages.append({"role": "user", "content": body.message})
 
-    async def event_stream():
-        client = anthropic.Anthropic(api_key=api_key)
+    conversation_id = body.conversation_id
 
-        # Agentic loop: Claude may call query_salesforce multiple times
+    async def event_stream():
+        if is_first_message:
+            yield f"data: {json.dumps({'type': 'title', 'title': title})}\n\n"
+
+        client = anthropic.Anthropic(api_key=api_key)
+        final_text = ""
+        collected_tool_calls: list[dict] = []
+
         while True:
             response = client.messages.create(
                 model=ANTHROPIC_SONNET,
@@ -132,20 +319,17 @@ async def chat(body: ChatRequest) -> StreamingResponse:
                 messages=messages,
             )
 
-            # Stream any text content back to the client immediately
             for block in response.content:
                 if block.type == "text" and block.text:
-                    # SSE format
+                    final_text += block.text
                     yield f"data: {json.dumps({'type': 'text', 'text': block.text})}\n\n"
 
-            # If the model wants to call a tool, execute it and continue
             if response.stop_reason == "tool_use":
                 tool_results = []
                 for block in response.content:
                     if block.type == "tool_use":
-                        # Stream a "thinking" status so UI shows activity
+                        collected_tool_calls.append({"name": block.name, "input": block.input})
                         yield f"data: {json.dumps({'type': 'tool', 'name': block.name, 'input': block.input})}\n\n"
-
                         result = await _run_tool(block.input.get("soql", ""))
                         tool_results.append({
                             "type": "tool_result",
@@ -153,11 +337,29 @@ async def chat(body: ChatRequest) -> StreamingResponse:
                             "content": result,
                         })
 
-                # Append assistant turn + tool results and loop
                 messages.append({"role": "assistant", "content": response.content})
                 messages.append({"role": "user", "content": tool_results})
             else:
-                # end_turn — done
+                # Save completed assistant reply to DB
+                pool2 = await get_pool()
+                async with pool2.connection() as conn2:
+                    await conn2.execute(
+                        """
+                        INSERT INTO pulse.support_messages (conversation_id, role, content, tool_calls)
+                        VALUES (%s, 'assistant', %s, %s)
+                        """,
+                        [
+                            conversation_id,
+                            final_text,
+                            json.dumps(collected_tool_calls) if collected_tool_calls else None,
+                        ],
+                    )
+                    await conn2.execute(
+                        "UPDATE pulse.support_conversations SET updated_at = now() WHERE conversation_id = %s",
+                        [conversation_id],
+                    )
+                    await conn2.commit()
+
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 break
 
