@@ -199,4 +199,14 @@ async def pull_and_ingest(
         "Gmail sync done for %s — fetched=%d ingested=%d skipped=%d errors=%d",
         user_id, fetched, ingested, skipped, errors,
     )
+
+    # Trigger style profile analysis after sync (non-blocking background task)
+    if ingested > 0:
+        try:
+            from core.llm.rm_style import analyze_rm_style
+            asyncio.create_task(analyze_rm_style(user_id))
+            log.info("rm_style: queued style analysis for %s", user_id)
+        except Exception as exc:
+            log.error("rm_style: failed to queue analysis for %s: %s", user_id, exc)
+
     return {"fetched": fetched, "ingested": ingested, "skipped": skipped, "errors": errors}
