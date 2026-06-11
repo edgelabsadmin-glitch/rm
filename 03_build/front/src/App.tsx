@@ -19,6 +19,7 @@ import { SubmitPage } from "@/features/submit/SubmitPage";
 import { SupportPage } from "@/features/support/SupportPage";
 import { SettingsUsersPanel } from "@/features/settings/SettingsUsersPanel";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { ClientPortal } from "@/features/client/ClientPortal";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { defaultRouteForRole } from "@/lib/auth/defaultRoute";
 import { RoleGuard, AccountScopeGuard } from "@/lib/auth/RoleGuard";
@@ -143,6 +144,9 @@ export default function App() {
           </Route>
         </Route>
       ) : null}
+
+      {/* Client portal — completely separate auth, no RM session required */}
+      <Route path="/client/*" element={<ClientPortal />} />
 
       {/* Unauthenticated catch-all → login */}
       <Route path="*" element={<Navigate to={user ? "/accounts" : "/login"} replace />} />
