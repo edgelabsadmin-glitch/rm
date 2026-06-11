@@ -23,6 +23,8 @@ dependencies = [
     "python-dotenv>=1.0",
     # HTTP for adapters / Activepieces callbacks
     "httpx>=0.27",
+    # AWS SDK — SES for client OTP emails
+    "boto3>=1.37",
     # Salesforce native connector (core/salesforce/)
     "simple-salesforce>=1.12",
 ]
