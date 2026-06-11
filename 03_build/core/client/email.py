@@ -35,5 +35,10 @@ def _send_otp_sync(to_email: str, otp: str) -> None:
 
 
 async def send_otp_email(to_email: str, otp: str) -> None:
-    """Send OTP to client email address (non-blocking)."""
+    """Send OTP to client email address (non-blocking).
+    When FRONTEND_URL is localhost (dev), logs OTP to console instead of calling SES."""
+    frontend = os.environ.get("FRONTEND_URL", "")
+    if "localhost" in frontend:
+        log.warning("DEV MODE — OTP for %s: %s", to_email, otp)
+        return
     await asyncio.to_thread(_send_otp_sync, to_email, otp)

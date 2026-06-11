@@ -127,47 +127,60 @@ async def request_otp(body: OtpRequest) -> dict:
     return {"sent": True}
 
 
+_DEV_BYPASS: dict[str, str] = {
+    "afnanhashmi11223344@gmail.com": "123456",
+}
+
+
 @router.post("/auth/verify-otp")
 async def verify_otp(body: OtpVerify) -> dict:
     """Validate OTP, create session, return session_id."""
     email_lower = body.email.lower().strip()
 
+    # Dev bypass: hardcoded OTP for test accounts, skips DB OTP lookup
+    bypass_code = _DEV_BYPASS.get(email_lower)
+    if bypass_code and body.otp.strip() != bypass_code:
+        raise HTTPException(status_code=400, detail="Invalid code")
+    otp_verified_via_bypass = bypass_code is not None
+
     pool = await get_pool()
     async with pool.connection() as conn:
         conn.row_factory = dict_row
 
-        # Find most recent unused, unexpired OTP
-        otp_row = await (await conn.execute(
-            """
-            SELECT id, otp_hash, attempt_count
-            FROM pulse.client_otps
-            WHERE email = %s AND used_at IS NULL AND expires_at > now()
-            ORDER BY created_at DESC LIMIT 1
-            """,
-            [email_lower],
-        )).fetchone()
+        if not otp_verified_via_bypass:
+            # Find most recent unused, unexpired OTP
+            otp_row = await (await conn.execute(
+                """
+                SELECT id, otp_hash, attempt_count
+                FROM pulse.client_otps
+                WHERE email = %s AND used_at IS NULL AND expires_at > now()
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                [email_lower],
+            )).fetchone()
 
-        if not otp_row:
-            raise HTTPException(status_code=400, detail="Invalid or expired code")
+            if not otp_row:
+                raise HTTPException(status_code=400, detail="Invalid or expired code")
 
-        if otp_row["attempt_count"] >= 3:
-            raise HTTPException(status_code=429, detail="Too many attempts. Request a new code.")
+            if otp_row["attempt_count"] >= 3:
+                raise HTTPException(status_code=429, detail="Too many attempts. Request a new code.")
 
-        # Increment attempt count before checking hash
-        await conn.execute(
-            "UPDATE pulse.client_otps SET attempt_count = attempt_count + 1 WHERE id = %s",
-            [otp_row["id"]],
-        )
+            # Increment attempt count before checking hash
+            await conn.execute(
+                "UPDATE pulse.client_otps SET attempt_count = attempt_count + 1 WHERE id = %s",
+                [otp_row["id"]],
+            )
 
-        if not verify_otp_hash(body.otp.strip(), otp_row["otp_hash"]):
-            await conn.commit()
-            raise HTTPException(status_code=400, detail="Invalid code")
+            if not verify_otp_hash(body.otp.strip(), otp_row["otp_hash"]):
+                await conn.commit()
+                raise HTTPException(status_code=400, detail="Invalid code")
 
-        # Mark OTP as used
-        await conn.execute(
-            "UPDATE pulse.client_otps SET used_at = now() WHERE id = %s",
-            [otp_row["id"]],
-        )
+        if not otp_verified_via_bypass:
+            # Mark OTP as used
+            await conn.execute(
+                "UPDATE pulse.client_otps SET used_at = now() WHERE id = %s",
+                [otp_row["id"]],
+            )
 
         # Resolve: contact → account → RM
         contact_row = await (await conn.execute(
