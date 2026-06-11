@@ -232,6 +232,76 @@ async def _ensure_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_sf_contacts_account "
             "ON pulse.sf_contacts (account_id);"
         )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.client_otps (
+                id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                email          TEXT        NOT NULL,
+                otp_hash       TEXT        NOT NULL,
+                expires_at     TIMESTAMPTZ NOT NULL,
+                used_at        TIMESTAMPTZ,
+                attempt_count  INT         NOT NULL DEFAULT 0,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_client_otps_email "
+            "ON pulse.client_otps (email, created_at DESC);"
+        )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.client_sessions (
+                session_id       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                contact_email    TEXT        NOT NULL,
+                account_id       TEXT        NOT NULL,
+                rm_owner_id      TEXT        NOT NULL,
+                rm_name          TEXT        NOT NULL,
+                rm_pulse_user_id TEXT,
+                client_name      TEXT        NOT NULL,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+                expires_at       TIMESTAMPTZ NOT NULL
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_client_sessions_email "
+            "ON pulse.client_sessions (contact_email);"
+        )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.rm_style_profiles (
+                rm_pulse_user_id  TEXT        PRIMARY KEY,
+                style_prompt      TEXT        NOT NULL,
+                email_count       INT         NOT NULL DEFAULT 0,
+                analyzed_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.client_conversations (
+                conversation_id UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                contact_email   TEXT        NOT NULL,
+                account_id      TEXT        NOT NULL,
+                title           TEXT        NOT NULL DEFAULT 'New conversation',
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                deleted_at      TIMESTAMPTZ
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_client_conv_email "
+            "ON pulse.client_conversations (contact_email, updated_at DESC);"
+        )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.client_messages (
+                message_id      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                conversation_id UUID        NOT NULL
+                                            REFERENCES pulse.client_conversations (conversation_id)
+                                            ON DELETE CASCADE,
+                role            TEXT        NOT NULL CHECK (role IN ('user', 'assistant')),
+                content         TEXT        NOT NULL,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_client_msg_conv "
+            "ON pulse.client_messages (conversation_id, created_at ASC);"
+        )
 
 
 @asynccontextmanager
@@ -282,6 +352,8 @@ def create_app() -> FastAPI:
     from api.support import router as support_router
     from api.auth_google import router as auth_google_router
     from api.webhooks import router as webhooks_router
+    from api.client_auth import router as client_auth_router
+    from api.client_chat import router as client_chat_router
 
     app.include_router(kill_switch_router)
     app.include_router(profiles_router)
@@ -292,6 +364,8 @@ def create_app() -> FastAPI:
     app.include_router(support_router)
     app.include_router(auth_google_router)
     app.include_router(webhooks_router)
+    app.include_router(client_auth_router)
+    app.include_router(client_chat_router)
 
     return app
 
