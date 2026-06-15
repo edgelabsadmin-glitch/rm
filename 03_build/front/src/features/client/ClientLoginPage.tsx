@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Zap } from "lucide-react";
-import { clientApi, setClientSession } from "@/lib/client-api";
+import { clientApi } from "@/lib/client-api";
+import { useClientAuth } from "./ClientAuthContext";
 import { cn } from "@/lib/utils";
 
 export function ClientLoginPage() {
   const navigate = useNavigate();
+  const { login } = useClientAuth();
   const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -32,7 +34,7 @@ export function ClientLoginPage() {
     setLoading(true);
     try {
       const { session_id } = await clientApi.verifyOtp(email.trim(), otp.trim());
-      setClientSession(session_id);
+      await login(session_id);
       navigate("/client/chat", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid code. Please try again.");

@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Navigate } from "react-router-dom";
 import {
   Send,
   Bot,
@@ -8,7 +7,6 @@ import {
   Plus,
   Trash2,
   Sparkles,
-  LogOut,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -21,6 +19,16 @@ import {
 } from "./hooks";
 
 const BASE = import.meta.env.VITE_API_BASE ?? "/api";
+
+function renderMarkdown(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
 interface Message {
   id: string;
@@ -71,7 +79,7 @@ function ConversationRow({
 }
 
 export function ClientChatPage() {
-  const { me, loading, logout } = useClientAuth();
+  const { me } = useClientAuth();
   const qc = useQueryClient();
   const invalidateConversations = useInvalidateClientConversations();
 
@@ -83,18 +91,6 @@ export function ClientChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-brand" />
-      </div>
-    );
-  }
-
-  if (!me) {
-    return <Navigate to="/client/login" replace />;
-  }
 
   // Auto-select most recent conversation on mount
   useEffect(() => {
@@ -153,12 +149,7 @@ export function ClientChatPage() {
 
       const userMsg: Message = { id: nextId(), role: "user", text: text.trim() };
       const pendingId = nextId();
-      const pendingMsg: Message = {
-        id: pendingId,
-        role: "assistant",
-        text: "",
-        pending: true,
-      };
+      const pendingMsg: Message = { id: pendingId, role: "assistant", text: "", pending: true };
 
       setMessages((prev) => [...prev, userMsg, pendingMsg]);
       setInput("");
@@ -179,9 +170,7 @@ export function ClientChatPage() {
         const assistantId = nextId();
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === pendingId
-              ? { id: assistantId, role: "assistant", text: "" }
-              : m,
+            m.id === pendingId ? { id: assistantId, role: "assistant", text: "" } : m,
           ),
         );
 
@@ -244,8 +233,12 @@ export function ClientChatPage() {
     }
   };
 
+  // me is guaranteed non-null — ClientShell guards this route
+  const rmName = me!.rm_name;
+  const clientName = me!.client_name;
+
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-[calc(100vh-10rem)]">
       {/* Sidebar */}
       <aside className="flex w-64 shrink-0 flex-col border-r border-line-subtle bg-surface-sidebar">
         <div className="p-3">
@@ -268,27 +261,11 @@ export function ClientChatPage() {
             />
           ))}
         </div>
-        {/* Footer */}
-        <div className="border-t border-line-subtle p-3">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-ink-primary">{me.client_name}</p>
-              <p className="truncate text-xs text-ink-muted">{me.account_name}</p>
-            </div>
-            <button
-              onClick={logout}
-              className="ml-2 shrink-0 text-ink-muted transition hover:text-red-500"
-              aria-label="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
       </aside>
 
       {/* Chat area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
+        {/* Sub-header */}
         <div className="border-b border-line-subtle px-6 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand text-ink-on-brand shadow-xl-brand">
@@ -296,7 +273,7 @@ export function ClientChatPage() {
             </div>
             <div>
               <h1 className="text-sm font-semibold text-ink-primary">
-                Your EDGE Relationship Manager — {me.rm_name}
+                Your EDGE Relationship Manager — {rmName}
               </h1>
               <p className="text-xs text-ink-muted">
                 Ask anything about your account, placements, or staffing needs.
@@ -314,7 +291,7 @@ export function ClientChatPage() {
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium text-ink-primary">
-                  Hi {me.client_name}, I&apos;m {me.rm_name}
+                  Hi {clientName}, I&apos;m {rmName}
                 </p>
                 <p className="mt-1 text-xs text-ink-muted">
                   {activeId
@@ -367,10 +344,10 @@ export function ClientChatPage() {
                             : "rounded-tl-sm bg-surface-sidebar text-ink-primary",
                         )}
                       >
-                        {m.text.split("\n").map((line, j) => (
+                        {m.text.split("\n").map((line, j, arr) => (
                           <span key={j}>
-                            {line}
-                            {j < m.text.split("\n").length - 1 && <br />}
+                            {m.role === "assistant" ? renderMarkdown(line) : line}
+                            {j < arr.length - 1 && <br />}
                           </span>
                         ))}
                       </div>

@@ -6,11 +6,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { clientApi, clearClientSession, getClientSession, type ClientMe } from "@/lib/client-api";
+import { clientApi, clearClientSession, getClientSession, setClientSession, type ClientMe } from "@/lib/client-api";
 
 interface ClientAuthValue {
   me: ClientMe | null;
   loading: boolean;
+  login: (sessionId: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -34,6 +35,12 @@ export function ClientAuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  const login = useCallback(async (sessionId: string) => {
+    setClientSession(sessionId);
+    const data = await clientApi.me();
+    setMe(data);
+  }, []);
+
   const logout = useCallback(async () => {
     await clientApi.logout().catch(() => {});
     clearClientSession();
@@ -42,7 +49,7 @@ export function ClientAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ClientAuthContext.Provider value={{ me, loading, logout }}>
+    <ClientAuthContext.Provider value={{ me, loading, login, logout }}>
       {children}
     </ClientAuthContext.Provider>
   );
