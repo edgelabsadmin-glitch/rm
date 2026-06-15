@@ -13,7 +13,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, useUser } from "@/lib/auth/AuthContext";
-import { DEMO_ACCOUNTS, DEMO_RMS, DEMO_USERS, buildAccountFilter } from "@/fixtures/demo_characters";
+import { DEMO_ACCOUNTS, DEMO_RMS, DEMO_USERS } from "@/fixtures/demo_characters";
 
 // SF user IDs of all known RMs — used to filter constellation to RM-owned accounts only.
 const ALL_RM_SF_IDS = DEMO_RMS

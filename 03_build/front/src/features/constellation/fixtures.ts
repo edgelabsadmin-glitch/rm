@@ -165,7 +165,7 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
   const activeRmIds = new Set(
     accounts
       .filter((a) => a.owner_id && rmBySfId.has(a.owner_id))
-      .map((a) => rmBySfId.get(a.owner_id)!.id),
+      .map((a) => rmBySfId.get(a.owner_id!)!.id),
   );
   const visibleDemoRMs = DEMO_RMS.filter((rm) => activeRmIds.has(rm.id));
   const visibleTotal = visibleDemoRMs.length + extraRMs.size;
