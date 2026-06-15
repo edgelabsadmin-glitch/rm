@@ -100,7 +100,8 @@ async def _fetch_all(client: SalesforceClient) -> tuple[
 ]:
     accounts, outreach_rows, talent_rows, case_rows = await asyncio.gather(
         client.query_all(
-            "SELECT Id, Name, Segment__c, Type, OwnerId, Owner.Name "
+            "SELECT Id, Name, Segment__c, Type, OwnerId, Owner.Name, "
+            "Owner.IsActive, Owner.Manager.Name "
             "FROM Account WHERE Type = 'Client' ORDER BY Name"
         ),
         client.query_all(
@@ -140,12 +141,12 @@ INSERT INTO pulse.sf_accounts (
     account_id, name, segment, tier, owner_id, rm_name,
     active_talent, arr_usd, composite_health, risk,
     customer_health, churn_probability, last_ebr, has_open_case,
-    signal_vector, themes, synced_at
+    signal_vector, themes, synced_at, rm_is_active, rm_manager_name
 ) VALUES (
     %(account_id)s, %(name)s, %(segment)s, %(tier)s, %(owner_id)s, %(rm_name)s,
     %(active_talent)s, %(arr_usd)s, %(composite_health)s, %(risk)s,
     %(customer_health)s, %(churn_probability)s, %(last_ebr)s, %(has_open_case)s,
-    %(signal_vector)s, %(themes)s, %(synced_at)s
+    %(signal_vector)s, %(themes)s, %(synced_at)s, %(rm_is_active)s, %(rm_manager_name)s
 )
 ON CONFLICT (account_id) DO UPDATE SET
     name              = EXCLUDED.name,
@@ -163,7 +164,9 @@ ON CONFLICT (account_id) DO UPDATE SET
     has_open_case     = EXCLUDED.has_open_case,
     signal_vector     = EXCLUDED.signal_vector,
     themes            = EXCLUDED.themes,
-    synced_at         = EXCLUDED.synced_at
+    synced_at         = EXCLUDED.synced_at,
+    rm_is_active      = EXCLUDED.rm_is_active,
+    rm_manager_name   = EXCLUDED.rm_manager_name
 """
 
 
@@ -190,6 +193,9 @@ async def pull_and_upsert() -> int:
         tier = SEGMENT_TO_TIER.get(segment, "Core")
         owner = acct.get("Owner") or {}
         rm_name = owner.get("Name", "") if isinstance(owner, dict) else ""
+        rm_is_active = owner.get("IsActive") if isinstance(owner, dict) else None
+        owner_manager = (owner.get("Manager") or {}) if isinstance(owner, dict) else {}
+        rm_manager_name = owner_manager.get("Name") if isinstance(owner_manager, dict) else None
 
         rows.append({
             "account_id": acct_id,
@@ -209,6 +215,8 @@ async def pull_and_upsert() -> int:
             "signal_vector": json.dumps(_vector(score)),
             "themes": json.dumps(_themes(score, churn_prob, has_open_case)),
             "synced_at": now,
+            "rm_is_active": rm_is_active,
+            "rm_manager_name": rm_manager_name,
         })
 
     if not rows:

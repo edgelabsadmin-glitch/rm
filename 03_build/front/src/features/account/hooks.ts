@@ -4,7 +4,7 @@ import { useUser } from "@/lib/auth/AuthContext";
 
 const ACCOUNTS_KEY = ["accounts"] as const;
 
-export function useAccounts(params: { tier?: string; rm_id?: string; rm_ids?: string; page_size?: number } = {}) {
+export function useAccounts(params: { tier?: string; rm_id?: string; rm_ids?: string; page_size?: number; active_only?: boolean; rm_only?: boolean; risk?: string; segment?: string } = {}) {
   const user = useUser();
   const merged = { page_size: 200, ...params };
   return useQuery({

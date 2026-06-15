@@ -302,6 +302,12 @@ async def _ensure_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_client_msg_conv "
             "ON pulse.client_messages (conversation_id, created_at ASC);"
         )
+        await conn.execute("""
+            ALTER TABLE IF EXISTS pulse.sf_accounts
+                ADD COLUMN IF NOT EXISTS rm_is_active BOOLEAN,
+                ADD COLUMN IF NOT EXISTS rm_manager_name TEXT
+        """)
+        await conn.commit()
 
 
 @asynccontextmanager

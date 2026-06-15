@@ -70,7 +70,7 @@ function activeTalentCount(accountId: string): number {
 export function buildConstellationGraph(accountScope?: ReadonlyArray<string>): ConstellationGraph {
   const nodes: ConstellationNode[] = [];
   const links: ConstellationLink[] = [];
-  const R_MGR = 160;
+  const R_MGR = 180;
   const R_RM = 340;
 
   const scopedAccounts =
@@ -119,15 +119,15 @@ function sfHealthToLink(health: number, risk: string): LinkState {
 }
 
 /**
- * Build the org graph from real SF accounts. The manager/RM scaffold comes from
- * DEMO_MANAGERS + DEMO_RMS (SFDC hierarchy is stale per spec comment). Account nodes
- * are linked to RM nodes via owner_id → DEMO_USERS.sfUserId. Owner IDs not in
- * DEMO_USERS get synthetic RM nodes (connected to globe).
+ * Build the org graph from real SF accounts.
+ * Org scaffold (Eddy → Managers → RMs) comes from demo fixtures (canonical ground truth).
+ * Account leaves come from real SF data, matched to RM nodes via DEMO_USERS.sfUserId.
+ * Owner IDs not in DEMO_USERS get synthetic RM nodes connected to globe.
  */
 export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): ConstellationGraph {
   const nodes: ConstellationNode[] = [];
   const links: ConstellationLink[] = [];
-  const R_MGR = 160;
+  const R_MGR = 180;
   const R_RM = 340;
 
   // sfUserId → DEMO_RMS entry (via DEMO_USERS bridge)
@@ -149,10 +149,9 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
     }
   }
 
-  const totalRMs = DEMO_RMS.length + extraRMs.size;
-
   nodes.push({ id: "globe", type: "globe", label: "EDGE Pulse", size: 26, fx: 0, fy: 0 });
 
+  // Managers connect directly to globe
   DEMO_MANAGERS.forEach((m, i) => {
     const a = (i / DEMO_MANAGERS.length) * 2 * Math.PI;
     nodes.push({
@@ -162,8 +161,17 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
     links.push({ source: m.id, target: "globe", state: "active" });
   });
 
-  DEMO_RMS.forEach((rm, i) => {
-    const a = (i / totalRMs) * 2 * Math.PI;
+  // Only show demo RMs that have at least one real SF account linked to them
+  const activeRmIds = new Set(
+    accounts
+      .filter((a) => a.owner_id && rmBySfId.has(a.owner_id))
+      .map((a) => rmBySfId.get(a.owner_id)!.id),
+  );
+  const visibleDemoRMs = DEMO_RMS.filter((rm) => activeRmIds.has(rm.id));
+  const visibleTotal = visibleDemoRMs.length + extraRMs.size;
+
+  visibleDemoRMs.forEach((rm, i) => {
+    const a = (i / Math.max(visibleTotal, 1)) * 2 * Math.PI;
     nodes.push({
       id: rm.id, type: "rm", label: rm.name, size: 11, manager_id: rm.managerId,
       fx: Math.cos(a) * R_RM, fy: Math.sin(a) * R_RM,
@@ -171,8 +179,9 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
     links.push({ source: rm.id, target: rm.managerId, state: "active" });
   });
 
+  // Synthetic RMs (unknown owner_ids) connect to globe
   [...extraRMs.values()].forEach((rm, i) => {
-    const a = ((DEMO_RMS.length + i) / totalRMs) * 2 * Math.PI;
+    const a = ((visibleDemoRMs.length + i) / Math.max(visibleTotal, 1)) * 2 * Math.PI;
     nodes.push({
       id: rm.nodeId, type: "rm", label: rm.name, size: 11,
       fx: Math.cos(a) * R_RM, fy: Math.sin(a) * R_RM,
@@ -180,16 +189,15 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
     links.push({ source: rm.nodeId, target: "globe", state: "active" });
   });
 
+  // Account nodes — linked to their RM node
   for (const acc of accounts) {
     const knownRM = acc.owner_id ? rmBySfId.get(acc.owner_id) : undefined;
     const extraRM = acc.owner_id ? extraRMs.get(acc.owner_id) : undefined;
     const rmNodeId = knownRM ? knownRM.id : extraRM ? extraRM.nodeId : "globe";
     const managerNodeId = knownRM?.managerId;
-
     const state = sfHealthToLink(acc.composite_health, acc.risk);
     const factor = state === "active" ? 1.4 : 0.7;
     const size = 3 + Math.sqrt(acc.active_talent) * factor;
-
     nodes.push({
       id: acc.account_id,
       type: "account",

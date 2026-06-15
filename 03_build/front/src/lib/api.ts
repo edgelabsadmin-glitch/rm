@@ -65,7 +65,7 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
-function qs(params: Record<string, string | number | undefined>): string {
+function qs(params: Record<string, string | number | boolean | undefined>): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== "") sp.set(k, String(v));
@@ -85,6 +85,7 @@ export interface AccountSummaryDTO {
   active_talent: number;
   arr_usd: number;
   owner_id?: string;
+  rm_manager_name?: string | null;
 }
 
 export interface AccountHealthDTO extends AccountSummaryDTO {
@@ -105,7 +106,7 @@ export interface AccountListDTO {
 export const api = {
   listAccounts: async (
     caller: ApiCaller,
-    params: { page?: number; page_size?: number; tier?: string; rm_id?: string; rm_ids?: string } = {},
+    params: { page?: number; page_size?: number; tier?: string; rm_id?: string; rm_ids?: string; active_only?: boolean; rm_only?: boolean; risk?: string; segment?: string } = {},
   ) => {
     try {
       return await request<AccountListDTO>(`/accounts${qs(params)}`, caller);

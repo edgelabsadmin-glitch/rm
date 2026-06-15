@@ -14,6 +14,14 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, useUser } from "@/lib/auth/AuthContext";
 import { DEMO_ACCOUNTS, DEMO_RMS, DEMO_USERS, buildAccountFilter } from "@/fixtures/demo_characters";
+
+// SF user IDs of all known RMs — used to filter constellation to RM-owned accounts only.
+const ALL_RM_SF_IDS = DEMO_RMS
+  .flatMap((rm) => {
+    const u = DEMO_USERS.find((u) => u.id === rm.id);
+    return u?.sfUserId ? [u.sfUserId] : [];
+  })
+  .join(",");
 import { DEMO_TIER_JUMP_EVENTS } from "@/fixtures/demo_tier_jump_events";
 import { useAccounts } from "@/features/account/hooks";
 import {
@@ -33,6 +41,10 @@ export function ConstellationPage() {
   const [selectedRmId, setSelectedRmId] = useState<string | null>(null);
   // Account expansion for talent drill-down (controlled from dropdown + graph clicks)
   const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
+  // Constellation-specific filters
+  const [filterTier, setFilterTier] = useState("");
+  const [filterRisk, setFilterRisk] = useState("");
+  const [filterSegment, setFilterSegment] = useState("");
 
   // Team members available to a manager for the filter dropdown
   const teamRMs = useMemo(() => {
@@ -40,14 +52,22 @@ export function ConstellationPage() {
     return DEMO_RMS.filter((rm) => rm.managerId === user.managerId);
   }, [user]);
 
-  // Compute API filter: base scope from user role; narrow to selected RM if chosen.
+  // Compute API filter: always restrict to known RM SF IDs; narrow to one RM if selected.
   const apiFilter = useMemo(() => {
-    if (selectedRmId) {
-      const sfId = DEMO_USERS.find((u) => u.id === selectedRmId)?.sfUserId;
-      return sfId ? { rm_id: sfId } : buildAccountFilter(user);
-    }
-    return buildAccountFilter(user);
-  }, [selectedRmId, user]);
+    const rmScope = selectedRmId
+      ? (() => {
+          const sfId = DEMO_USERS.find((u) => u.id === selectedRmId)?.sfUserId;
+          return sfId ? { rm_id: sfId } : { rm_ids: ALL_RM_SF_IDS };
+        })()
+      : { rm_ids: ALL_RM_SF_IDS };
+    return {
+      ...rmScope,
+      active_only: true as const,
+      ...(filterTier ? { tier: filterTier } : {}),
+      ...(filterRisk ? { risk: filterRisk } : {}),
+      ...(filterSegment ? { segment: filterSegment } : {}),
+    };
+  }, [selectedRmId, filterTier, filterRisk, filterSegment]);
 
   // Fetch real accounts (all pages at once — max 1000)
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
@@ -110,6 +130,39 @@ export function ConstellationPage() {
               options={teamRMs.map((rm) => ({ value: rm.id, label: rm.name }))}
             />
           )}
+          {/* Tier filter */}
+          <FilterSelect
+            value={filterTier}
+            onChange={setFilterTier}
+            placeholder="All tiers"
+            options={[
+              { value: "Strategic", label: "Strategic" },
+              { value: "Growth", label: "Growth" },
+              { value: "Core", label: "Core" },
+            ]}
+          />
+          {/* Risk filter */}
+          <FilterSelect
+            value={filterRisk}
+            onChange={setFilterRisk}
+            placeholder="All risk levels"
+            options={[
+              { value: "Low", label: "Low risk" },
+              { value: "Medium", label: "Medium risk" },
+              { value: "High", label: "High risk" },
+            ]}
+          />
+          {/* Segment filter */}
+          <FilterSelect
+            value={filterSegment}
+            onChange={setFilterSegment}
+            placeholder="All segments"
+            options={[
+              { value: "ENT", label: "Enterprise" },
+              { value: "MID-MKT", label: "Mid-Market" },
+              { value: "SMB", label: "SMB" },
+            ]}
+          />
           {/* Account filter — expands talent for the selected account */}
           <FilterSelect
             value={expandedAccountId ?? ""}

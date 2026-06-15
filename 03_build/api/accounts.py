@@ -41,6 +41,7 @@ class AccountSummary(BaseModel):
     active_talent: int
     arr_usd: int
     owner_id: str
+    rm_manager_name: str | None = None
 
 
 class SignalAxis(BaseModel):
@@ -83,6 +84,7 @@ def _row_to_summary(row: dict) -> AccountSummary:
         active_talent=row["active_talent"],
         arr_usd=row["arr_usd"],
         owner_id=row["owner_id"] or "",
+        rm_manager_name=row.get("rm_manager_name"),
     )
 
 
@@ -117,6 +119,10 @@ async def list_accounts(
     tier: str | None = Query(None),
     rm_id: str | None = Query(None),
     rm_ids: str | None = Query(None),  # comma-separated SF user IDs (manager team scope)
+    active_only: bool = Query(False),
+    rm_only: bool = Query(False),
+    risk: str | None = Query(None),
+    segment: str | None = Query(None),
 ) -> AccountList:
     pool = await get_pool()
     async with pool.connection() as conn:
@@ -138,6 +144,16 @@ async def list_accounts(
         elif rm_id:
             conditions.append("owner_id = %s")
             params.append(rm_id)
+        if rm_only:
+            conditions.append("owner_id IS NOT NULL")
+        if active_only:
+            conditions.append("(rm_is_active IS NULL OR rm_is_active = TRUE)")
+        if risk:
+            conditions.append("risk = %s")
+            params.append(risk)
+        if segment:
+            conditions.append("segment = %s")
+            params.append(segment)
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -150,7 +166,7 @@ async def list_accounts(
         offset = (page - 1) * page_size
         rows = await (await conn.execute(
             f"SELECT account_id, name, composite_health, risk, last_ebr, tier, "
-            f"rm_name, active_talent, arr_usd, owner_id "
+            f"rm_name, active_talent, arr_usd, owner_id, rm_manager_name "
             f"FROM pulse.sf_accounts {where} "
             f"ORDER BY name "
             f"LIMIT %s OFFSET %s",
