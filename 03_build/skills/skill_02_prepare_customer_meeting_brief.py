@@ -12,8 +12,7 @@ length is tier-aware (SMB ~400w / Mid ~700w / Enterprise ~1000w).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime
 from pathlib import Path
 
 from langfuse.decorators import observe

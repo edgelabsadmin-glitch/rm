@@ -6,6 +6,7 @@ retry is delegated to _SFAuth. Writes are guarded by a system denylist;
 all other objects are writable (Action Queue approval is the authorization
 gate per §6 rule 6).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,15 +18,17 @@ from core.salesforce.auth import _SFAuth
 
 SF_API_VERSION = "62.0"
 
-SYSTEM_DENYLIST: frozenset[str] = frozenset({
-    "User",
-    "Profile",
-    "PermissionSet",
-    "PermissionSetAssignment",
-    "SetupAuditTrail",
-    "LoginHistory",
-    "AuthSession",
-})
+SYSTEM_DENYLIST: frozenset[str] = frozenset(
+    {
+        "User",
+        "Profile",
+        "PermissionSet",
+        "PermissionSetAssignment",
+        "SetupAuditTrail",
+        "LoginHistory",
+        "AuthSession",
+    }
+)
 
 
 def _make_sf(instance_url: str, access_token: str) -> Salesforce:
@@ -58,6 +61,7 @@ class SalesforceClient:
 
     async def query(self, soql: str) -> list[dict]:
         """Single-page SOQL query. Strips 'attributes' metadata from records."""
+
         def _fn(sf: Salesforce) -> list[dict]:
             records = sf.query(soql).get("records", [])
             for r in records:
@@ -68,6 +72,7 @@ class SalesforceClient:
 
     async def query_all(self, soql: str) -> list[dict]:
         """Auto-paginating SOQL query — follows nextRecordsUrl until exhausted."""
+
         def _fn(sf: Salesforce) -> list[dict]:
             records = sf.query_all(soql).get("records", [])
             for r in records:

@@ -4,16 +4,17 @@ Google OAuth token management for per-user Gmail/Calendar polling.
 get_valid_token(user_id) returns a fresh access token, refreshing via
 the stored refresh_token when the current one is within 5 minutes of expiry.
 """
+
 from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
+from psycopg.rows import dict_row
 
 from core.db import get_pool
-from psycopg.rows import dict_row
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ async def get_valid_token(user_id: str) -> str | None:
         return None
 
     expiry = row["google_token_expiry"]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Token still valid with buffer
     if expiry and expiry > now + _EXPIRY_BUFFER:
@@ -72,7 +73,7 @@ async def _refresh_token(user_id: str, refresh_token: str) -> str | None:
     data = res.json()
     access_token: str = data["access_token"]
     expires_in: int = data.get("expires_in", 3600)
-    expiry = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()
+    expiry = (datetime.now(UTC) + timedelta(seconds=expires_in)).isoformat()
 
     pool = await get_pool()
     async with pool.connection() as conn:

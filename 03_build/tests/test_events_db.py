@@ -11,8 +11,7 @@ shared Supabase instance don't interfere; no global truncation.
 
 import importlib.util
 import time
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 

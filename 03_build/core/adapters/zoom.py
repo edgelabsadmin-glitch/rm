@@ -16,7 +16,7 @@ import base64
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -31,7 +31,6 @@ _HTTP_TIMEOUT = 30.0
 _REPORT_WINDOW_DAYS = 29  # Zoom Reports API hard limit: 1 month per request
 
 log = logging.getLogger(__name__)
-UTC = timezone.utc
 
 
 class ZoomAdapter(SignalSourceAdapter):
@@ -124,9 +123,7 @@ class ZoomAdapter(SignalSourceAdapter):
             log.error("Zoom: failed to list users: %s", exc)
             return []
 
-        log.info(
-            "Zoom: %d users × %d date windows to fetch.", len(user_ids), len(windows)
-        )
+        log.info("Zoom: %d users × %d date windows to fetch.", len(user_ids), len(windows))
 
         seen: set[str] = set()
         events: list[RawEvent] = []

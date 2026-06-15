@@ -1,4 +1,5 @@
 """OTP generation and hashing helpers — pure functions, no I/O."""
+
 from __future__ import annotations
 
 import hashlib

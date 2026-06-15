@@ -15,7 +15,6 @@ from fastapi import HTTPException
 
 from api.actions import Caller, require_caller, require_queue_caller
 
-
 # --- Caller model unit checks (no app, no DB) -------------------------------------------
 
 
@@ -72,8 +71,6 @@ async def test_executive_is_valid_identity_not_bad_role() -> None:
 
 
 async def test_rm_role_passes_queue_guard() -> None:
-    caller = await require_caller(
-        x_user_id="sidra-zia", x_user_role="rm", x_report_ids=None
-    )
+    caller = await require_caller(x_user_id="sidra-zia", x_user_role="rm", x_report_ids=None)
     result = await require_queue_caller(caller)
     assert result.role == "rm"

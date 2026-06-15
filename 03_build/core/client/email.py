@@ -1,4 +1,5 @@
 """Send OTP emails via AWS SES."""
+
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +15,7 @@ _REGION = os.environ.get("AWS_SES_REGION", "us-east-1")
 def _send_otp_sync(to_email: str, otp: str) -> None:
     """Blocking SES send — call via asyncio.to_thread."""
     import boto3  # imported lazily so tests don't need AWS credentials
+
     client = boto3.client("ses", region_name=_REGION)
     client.send_email(
         Source=_SENDER,

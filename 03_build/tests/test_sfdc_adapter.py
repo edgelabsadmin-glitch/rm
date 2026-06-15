@@ -7,8 +7,7 @@ tests/test_sfdc_adapter_db.py.
 """
 
 import json
-from datetime import datetime, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest

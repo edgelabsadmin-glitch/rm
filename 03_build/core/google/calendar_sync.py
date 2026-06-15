@@ -5,19 +5,20 @@ pull_and_ingest(user_id, email_index) fetches all calendar events in the
 last 6 months, matches attendee emails to SF accounts, and upserts into
 pulse.episodes with source='calendar'.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
 from core.db import get_pool
-from core.google.auth import get_valid_token
 from core.google.account_matcher import match_accounts
+from core.google.auth import get_valid_token
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def _parse_event_time(time_obj: dict) -> datetime | None:
         if "T" in raw:
             return datetime.fromisoformat(raw.replace("Z", "+00:00"))
         # date-only event
-        return datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
+        return datetime.fromisoformat(raw).replace(tzinfo=UTC)
     except Exception:
         return None
 
@@ -63,7 +64,7 @@ async def pull_and_ingest(
         return {"fetched": 0, "ingested": 0, "skipped": 0, "errors": 0}
 
     headers = {"Authorization": f"Bearer {token}"}
-    time_min = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).isoformat()
+    time_min = (datetime.now(UTC) - timedelta(days=_LOOKBACK_DAYS)).isoformat()
 
     fetched = ingested = skipped = errors = 0
     events: list[dict] = []
@@ -128,28 +129,32 @@ async def pull_and_ingest(
             if ts and end_ts:
                 duration_mins = int((end_ts - ts).total_seconds() / 60)
 
-            content = json.dumps({
-                "attendees": attendee_emails,
-                "organizer": organizer_email,
-                "duration_mins": duration_mins,
-                "status": event.get("status"),
-                "location": event.get("location"),
-                "conference_data": bool(event.get("conferenceData")),
-            })
+            content = json.dumps(
+                {
+                    "attendees": attendee_emails,
+                    "organizer": organizer_email,
+                    "duration_mins": duration_mins,
+                    "status": event.get("status"),
+                    "location": event.get("location"),
+                    "conference_data": bool(event.get("conferenceData")),
+                }
+            )
 
             dedup_key = f"gcal:{event_id}"
-            rows.append((
-                str(uuid.uuid4()),
-                dedup_key,
-                event_id,
-                html_link,
-                ts,
-                content,
-                summary,
-                (description or "")[:500] or None,
-                json.dumps(entities),
-                ["calendar", user_id],
-            ))
+            rows.append(
+                (
+                    str(uuid.uuid4()),
+                    dedup_key,
+                    event_id,
+                    html_link,
+                    ts,
+                    content,
+                    summary,
+                    (description or "")[:500] or None,
+                    json.dumps(entities),
+                    ["calendar", user_id],
+                )
+            )
 
             if len(rows) >= 200:
                 async with pool.connection() as conn:
@@ -176,6 +181,10 @@ async def pull_and_ingest(
 
     log.info(
         "Calendar sync done for %s — fetched=%d ingested=%d skipped=%d errors=%d",
-        user_id, fetched, ingested, skipped, errors,
+        user_id,
+        fetched,
+        ingested,
+        skipped,
+        errors,
     )
     return {"fetched": fetched, "ingested": ingested, "skipped": skipped, "errors": errors}

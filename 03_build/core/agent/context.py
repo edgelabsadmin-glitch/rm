@@ -10,7 +10,7 @@ what it produces. `submit_action` is the shared path that records the proposal
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -99,8 +99,7 @@ async def recently_actioned(
 ) -> bool:
     """True if this skill already proposed an action for this talent/customer
     within `within_days` (rate-limit, computed from the event log)."""
-    from datetime import datetime, timedelta, timezone
-    UTC = timezone.utc
+    from datetime import datetime, timedelta
 
     from core.db import get_pool
 

@@ -16,8 +16,7 @@ explicitly, the emitter resolves it best-effort from the active Langfuse context
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from psycopg.types.json import Jsonb

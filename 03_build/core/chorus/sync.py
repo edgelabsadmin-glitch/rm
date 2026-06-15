@@ -18,10 +18,9 @@ no separate join table needed; the episodes row carries the binding.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 from psycopg.types.json import Jsonb
 
@@ -30,7 +29,6 @@ from core.db import get_pool
 
 log = logging.getLogger(__name__)
 
-UTC = timezone.utc
 # First-run backfill anchor — before Chorus existed, so we get every meeting.
 _ALL_TIME_SINCE = datetime(2015, 1, 1, tzinfo=UTC)
 
@@ -75,7 +73,6 @@ RETURNING episode_id;
 async def _upsert_episode(conn, episode) -> bool:
     """Insert one Episode; returns True if newly written, False if duplicate."""
     content = episode["content"]
-    content_val = Jsonb(content) if isinstance(content, str) else Jsonb(content)
     candidate_entities = episode.get("candidate_entities", [])
 
     async with conn.cursor() as cur:
@@ -158,7 +155,11 @@ async def pull_and_ingest(since: datetime | None = None) -> dict:
                     "Chorus episode ingested: %s | account=%s | sfdc=%s",
                     episode.get("subject", "?")[:60],
                     next(
-                        (e.get("name") for e in episode.get("candidate_entities", []) if e.get("name")),
+                        (
+                            e.get("name")
+                            for e in episode.get("candidate_entities", [])
+                            if e.get("name")
+                        ),
                         "unknown",
                     ),
                     sfdc_ids[0] if sfdc_ids else "no-match",

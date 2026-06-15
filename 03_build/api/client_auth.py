@@ -9,10 +9,11 @@ GET  /client/me                 → return client name, account, rm name
 Auth: X-Client-Session header containing a session_id UUID.
 All endpoints except request-otp / verify-otp require this header.
 """
+
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/client", tags=["client"])
 
 # ── Session dependency ────────────────────────────────────────────────────────
 
+
 async def require_client_session(
     x_client_session: str | None = Header(default=None),
 ) -> dict:
@@ -37,15 +39,17 @@ async def require_client_session(
     pool = await get_pool()
     async with pool.connection() as conn:
         conn.row_factory = dict_row
-        row = await (await conn.execute(
-            """
+        row = await (
+            await conn.execute(
+                """
             SELECT session_id, contact_email, account_id, rm_owner_id,
                    rm_name, rm_pulse_user_id, client_name
             FROM pulse.client_sessions
             WHERE session_id = %s::uuid AND expires_at > now()
             """,
-            [x_client_session],
-        )).fetchone()
+                [x_client_session],
+            )
+        ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     return dict(row)
@@ -55,6 +59,7 @@ ClientSession = Annotated[dict, Depends(require_client_session)]
 
 
 # ── Request models ────────────────────────────────────────────────────────────
+
 
 class OtpRequest(BaseModel):
     email: str
@@ -67,11 +72,13 @@ class OtpVerify(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
 @router.post("/auth/request-otp")
 async def request_otp(body: OtpRequest) -> dict:
     """Validate email against sf_contacts, send OTP. Always returns 200 to prevent enumeration."""
     from core.client.email import send_otp_email
     from core.llm.config import load_env
+
     load_env()
 
     email_lower = body.email.lower().strip()
@@ -83,10 +90,12 @@ async def request_otp(body: OtpRequest) -> dict:
         conn.row_factory = dict_row
 
         # Check email exists in sf_contacts
-        contact = await (await conn.execute(
-            "SELECT contact_id FROM pulse.sf_contacts WHERE lower(email) = %s LIMIT 1",
-            [email_lower],
-        )).fetchone()
+        contact = await (
+            await conn.execute(
+                "SELECT contact_id FROM pulse.sf_contacts WHERE lower(email) = %s LIMIT 1",
+                [email_lower],
+            )
+        ).fetchone()
 
         if not contact:
             # Return 200 to prevent enumeration — no OTP is actually sent
@@ -94,20 +103,24 @@ async def request_otp(body: OtpRequest) -> dict:
             return {"sent": True}
 
         # Rate limit: max 3 OTPs per email per 10 minutes
-        count_row = await (await conn.execute(
-            """
+        count_row = await (
+            await conn.execute(
+                """
             SELECT COUNT(*) AS n FROM pulse.client_otps
             WHERE email = %s AND created_at > now() - INTERVAL '10 minutes'
             """,
-            [email_lower],
-        )).fetchone()
+                [email_lower],
+            )
+        ).fetchone()
 
         if count_row["n"] >= 3:
-            raise HTTPException(status_code=429, detail="Too many requests. Try again in 10 minutes.")
+            raise HTTPException(
+                status_code=429, detail="Too many requests. Try again in 10 minutes."
+            )
 
         otp = generate_otp()
         otp_hash_val = hash_otp(otp)
-        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+        expires_at = (datetime.now(UTC) + timedelta(minutes=10)).isoformat()
 
         await conn.execute(
             """
@@ -122,7 +135,9 @@ async def request_otp(body: OtpRequest) -> dict:
         await send_otp_email(email_lower, otp)
     except Exception as exc:
         log.error("SES send failed for %s: %s", email_lower, exc)
-        raise HTTPException(status_code=500, detail="Failed to send email. Please try again.")
+        raise HTTPException(
+            status_code=500, detail="Failed to send email. Please try again."
+        ) from exc
 
     return {"sent": True}
 
@@ -149,21 +164,25 @@ async def verify_otp(body: OtpVerify) -> dict:
 
         if not otp_verified_via_bypass:
             # Find most recent unused, unexpired OTP
-            otp_row = await (await conn.execute(
-                """
+            otp_row = await (
+                await conn.execute(
+                    """
                 SELECT id, otp_hash, attempt_count
                 FROM pulse.client_otps
                 WHERE email = %s AND used_at IS NULL AND expires_at > now()
                 ORDER BY created_at DESC LIMIT 1
                 """,
-                [email_lower],
-            )).fetchone()
+                    [email_lower],
+                )
+            ).fetchone()
 
             if not otp_row:
                 raise HTTPException(status_code=400, detail="Invalid or expired code")
 
             if otp_row["attempt_count"] >= 3:
-                raise HTTPException(status_code=429, detail="Too many attempts. Request a new code.")
+                raise HTTPException(
+                    status_code=429, detail="Too many attempts. Request a new code."
+                )
 
             # Increment attempt count before checking hash
             await conn.execute(
@@ -183,8 +202,9 @@ async def verify_otp(body: OtpVerify) -> dict:
             )
 
         # Resolve: contact → account → RM
-        contact_row = await (await conn.execute(
-            """
+        contact_row = await (
+            await conn.execute(
+                """
             SELECT c.name AS client_name, c.account_id,
                    a.owner_id AS rm_owner_id, a.rm_name
             FROM pulse.sf_contacts c
@@ -192,45 +212,50 @@ async def verify_otp(body: OtpVerify) -> dict:
             WHERE lower(c.email) = %s
             LIMIT 1
             """,
-            [email_lower],
-        )).fetchone()
+                [email_lower],
+            )
+        ).fetchone()
 
         if not contact_row:
             raise HTTPException(status_code=400, detail="Account not found for this email")
 
         # Resolve RM's Pulse user_id via name match in google_sessions
-        gs_row = await (await conn.execute(
-            """
+        gs_row = await (
+            await conn.execute(
+                """
             SELECT gs.user_id
             FROM pulse.google_sessions gs
             JOIN pulse.sf_accounts sa ON LOWER(gs.google_name) = LOWER(sa.rm_name)
             WHERE sa.account_id = %s
             LIMIT 1
             """,
-            [contact_row["account_id"]],
-        )).fetchone()
+                [contact_row["account_id"]],
+            )
+        ).fetchone()
 
         rm_pulse_user_id = gs_row["user_id"] if gs_row else None
 
         # Create session (24 hours)
-        expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-        session_row = await (await conn.execute(
-            """
+        expires_at = (datetime.now(UTC) + timedelta(hours=24)).isoformat()
+        session_row = await (
+            await conn.execute(
+                """
             INSERT INTO pulse.client_sessions
                 (contact_email, account_id, rm_owner_id, rm_name, rm_pulse_user_id, client_name, expires_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING session_id
             """,
-            [
-                email_lower,
-                contact_row["account_id"],
-                contact_row["rm_owner_id"],
-                contact_row["rm_name"],
-                rm_pulse_user_id,
-                contact_row["client_name"] or email_lower,
-                expires_at,
-            ],
-        )).fetchone()
+                [
+                    email_lower,
+                    contact_row["account_id"],
+                    contact_row["rm_owner_id"],
+                    contact_row["rm_name"],
+                    rm_pulse_user_id,
+                    contact_row["client_name"] or email_lower,
+                    expires_at,
+                ],
+            )
+        ).fetchone()
 
         await conn.commit()
 
@@ -255,10 +280,12 @@ async def client_me(session: ClientSession) -> dict:
     pool = await get_pool()
     async with pool.connection() as conn:
         conn.row_factory = dict_row
-        acct = await (await conn.execute(
-            "SELECT name FROM pulse.sf_accounts WHERE account_id = %s",
-            [session["account_id"]],
-        )).fetchone()
+        acct = await (
+            await conn.execute(
+                "SELECT name FROM pulse.sf_accounts WHERE account_id = %s",
+                [session["account_id"]],
+            )
+        ).fetchone()
 
     return {
         "client_name": session["client_name"],

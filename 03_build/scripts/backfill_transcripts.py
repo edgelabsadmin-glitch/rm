@@ -42,20 +42,21 @@ if _env.exists():
             os.environ.setdefault(k.strip(), v.strip().strip("'\""))
 
 DB_URL = os.environ["DATABASE_URL"]
-ZOOM_ACCOUNT_ID  = os.environ.get("ZOOM_ACCOUNT_ID", "")
-ZOOM_CLIENT_ID   = os.environ.get("ZOOM_CLIENT_ID", "")
+ZOOM_ACCOUNT_ID = os.environ.get("ZOOM_ACCOUNT_ID", "")
+ZOOM_CLIENT_ID = os.environ.get("ZOOM_CLIENT_ID", "")
 ZOOM_CLIENT_SECRET = os.environ.get("ZOOM_CLIENT_SECRET", "")
 
-_ZOOM_TOKEN_URL  = "https://zoom.us/oauth/token"
-_ZOOM_BASE       = "https://api.zoom.us/v2"
+_ZOOM_TOKEN_URL = "https://zoom.us/oauth/token"
+_ZOOM_BASE = "https://api.zoom.us/v2"
 _CHORUS_MEETING_URL = "https://chorus.ai/meeting/{eid}"
 
 # Zoom rate-limit: ~30 req/s on Pro plan; stay well under it.
-_ZOOM_SLEEP = 0.5   # seconds between recording API calls
+_ZOOM_SLEEP = 0.5  # seconds between recording API calls
 _BATCH_COMMIT = 50  # commit every N rows
 
 
 # ── VTT parser ────────────────────────────────────────────────────────────────
+
 
 def _parse_vtt(vtt: str) -> str:
     """Convert WebVTT to plain speaker-labeled text.
@@ -113,6 +114,7 @@ async def _zoom_access_token(client: httpx.AsyncClient) -> str:
 
 # ── Zoom backfill ─────────────────────────────────────────────────────────────
 
+
 async def backfill_zoom(dry_run: bool = False) -> dict:
     conn = await psycopg.AsyncConnection.connect(DB_URL)
     async with conn:
@@ -135,7 +137,7 @@ async def backfill_zoom(dry_run: bool = False) -> dict:
     conn = await psycopg.AsyncConnection.connect(DB_URL)
     async with conn:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            for i, (episode_id, meeting_id) in enumerate(rows):
+            for _i, (episode_id, meeting_id) in enumerate(rows):
                 try:
                     token = await _zoom_access_token(client)
                     resp = await client.get(
@@ -195,12 +197,15 @@ async def backfill_zoom(dry_run: bool = False) -> dict:
 
     log.info(
         "Zoom backfill done — updated=%d no_recording=%d errors=%d",
-        updated, no_recording, errors,
+        updated,
+        no_recording,
+        errors,
     )
     return {"total": len(rows), "updated": updated, "no_recording": no_recording, "errors": errors}
 
 
 # ── Chorus backfill ───────────────────────────────────────────────────────────
+
 
 async def backfill_chorus(dry_run: bool = False) -> dict:
     """Populate source_url for all Chorus episodes using the known URL pattern."""
@@ -240,10 +245,11 @@ async def backfill_chorus(dry_run: bool = False) -> dict:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 async def main() -> None:
     args = set(sys.argv[1:])
     dry_run = "--dry-run" in args
-    do_zoom   = "--zoom"   in args or not ({"--zoom", "--chorus"} & args)
+    do_zoom = "--zoom" in args or not ({"--zoom", "--chorus"} & args)
     do_chorus = "--chorus" in args or not ({"--zoom", "--chorus"} & args)
 
     if dry_run:

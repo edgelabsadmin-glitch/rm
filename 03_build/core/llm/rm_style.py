@@ -2,6 +2,7 @@
 Analyze an RM's Gmail episodes and save a style prompt to pulse.rm_style_profiles.
 Called after Gmail sync completes. Uses ANTHROPIC_HAIKU for cost efficiency.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,14 +33,17 @@ _DEFAULT_STYLE = (
 def _call_claude(email_samples: str) -> str:
     load_env()
     import anthropic
+
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     response = client.messages.create(
         model=ANTHROPIC_HAIKU,
         max_tokens=300,
-        messages=[{
-            "role": "user",
-            "content": _STYLE_PROMPT_TEMPLATE.format(samples=email_samples),
-        }],
+        messages=[
+            {
+                "role": "user",
+                "content": _STYLE_PROMPT_TEMPLATE.format(samples=email_samples),
+            }
+        ],
     )
     return response.content[0].text.strip()
 
@@ -49,8 +53,9 @@ async def analyze_rm_style(user_id: str) -> None:
     pool = await get_pool()
     async with pool.connection() as conn:
         conn.row_factory = dict_row
-        rows = await (await conn.execute(
-            """
+        rows = await (
+            await conn.execute(
+                """
             SELECT subject, description
             FROM pulse.episodes
             WHERE source = 'gmail'
@@ -59,16 +64,16 @@ async def analyze_rm_style(user_id: str) -> None:
             ORDER BY source_timestamp DESC
             LIMIT %s
             """,
-            [user_id, _MAX_EMAILS],
-        )).fetchall()
+                [user_id, _MAX_EMAILS],
+            )
+        ).fetchall()
 
     if not rows:
         log.info("rm_style: no Gmail episodes for %s — skipping", user_id)
         return
 
     email_samples = "\n---\n".join(
-        f"Subject: {r['subject'] or 'No subject'}\n{r['description']}"
-        for r in rows
+        f"Subject: {r['subject'] or 'No subject'}\n{r['description']}" for r in rows
     )
 
     try:

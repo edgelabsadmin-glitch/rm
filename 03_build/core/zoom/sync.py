@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from psycopg.types.json import Jsonb
 
@@ -22,7 +22,6 @@ from core.adapters.zoom import ZoomAdapter
 from core.db import get_pool
 
 log = logging.getLogger(__name__)
-UTC = timezone.utc
 _ALL_TIME_SINCE = datetime(2025, 12, 1, tzinfo=UTC)  # Zoom reporting retention is 6 months
 
 _INSERT_EPISODE = """
@@ -160,7 +159,10 @@ async def pull_and_ingest(since: datetime | None = None) -> dict:
 
     log.info(
         "Zoom sync complete — fetched=%d ingested=%d duplicates=%d errors=%d",
-        len(raw_events), ingested, duplicates, errors,
+        len(raw_events),
+        ingested,
+        duplicates,
+        errors,
     )
     return {
         "fetched": len(raw_events),

@@ -21,8 +21,7 @@ import json
 import os
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from core.adapters.base import SignalSourceAdapter

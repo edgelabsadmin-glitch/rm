@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import UTC
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +28,7 @@ SYNC_INTERVAL_HOURS = 12
 async def _sf_sync_loop() -> None:
     """Run SF→DB account sync at startup then every 12 hours."""
     from core.salesforce.sync import pull_and_upsert
+
     while True:
         try:
             count = await pull_and_upsert()
@@ -41,12 +43,16 @@ async def _chorus_sync_loop() -> None:
     Waits 30s after startup so the SF sync can populate the account index first."""
     await asyncio.sleep(30)
     from core.chorus.sync import pull_and_ingest
+
     while True:
         try:
             result = await pull_and_ingest()
             log.info(
                 "Chorus sync done — fetched=%d ingested=%d duplicates=%d errors=%d",
-                result["fetched"], result["ingested"], result["duplicates"], result["errors"],
+                result["fetched"],
+                result["ingested"],
+                result["duplicates"],
+                result["errors"],
             )
         except Exception as exc:
             log.error("Chorus sync error (will retry in %dh): %s", SYNC_INTERVAL_HOURS, exc)
@@ -58,12 +64,16 @@ async def _zoom_sync_loop() -> None:
     Waits 60s after startup so SF sync has time to populate the account index."""
     await asyncio.sleep(60)
     from core.zoom.sync import pull_and_ingest as zoom_ingest
+
     while True:
         try:
             result = await zoom_ingest()
             log.info(
                 "Zoom sync done — fetched=%d ingested=%d duplicates=%d errors=%d",
-                result["fetched"], result["ingested"], result["duplicates"], result["errors"],
+                result["fetched"],
+                result["ingested"],
+                result["duplicates"],
+                result["errors"],
             )
         except Exception as exc:
             log.error("Zoom sync error (will retry in %dh): %s", SYNC_INTERVAL_HOURS, exc)
@@ -75,6 +85,7 @@ async def _sf_contacts_sync_loop() -> None:
     Waits 120s so the SF account sync has completed first."""
     await asyncio.sleep(120)
     from core.salesforce.sync import pull_and_upsert_contacts
+
     while True:
         try:
             count = await pull_and_upsert_contacts()
@@ -101,14 +112,15 @@ async def _expansion_intent_poll_loop() -> None:
     Waits 90s at startup so SF contacts and other adapters are ready first.
     """
     await asyncio.sleep(90)
+    from datetime import datetime
+
     from core.adapters.opportunity_tracker import OpportunityTrackerAdapter
     from core.ingest.pipeline import run_episode
-    from datetime import datetime, timezone
 
     adapter = OpportunityTrackerAdapter()
     while True:
         try:
-            raws = await adapter.list_recent_events(since=datetime.now(timezone.utc))
+            raws = await adapter.list_recent_events(since=datetime.now(UTC))
             if raws:
                 log.info("Expansion intent: processing %d unprocessed EIS rows", len(raws))
             for raw in raws:
@@ -123,7 +135,8 @@ async def _expansion_intent_poll_loop() -> None:
                     await adapter.mark_processed(posting_id, episode_id, "ingested")
                     log.error(
                         "EIS Graphiti ingest failed for %s (episode saved): %s",
-                        posting_id, exc,
+                        posting_id,
+                        exc,
                     )
         except Exception as exc:
             log.error("Expansion intent poll loop error: %s", exc)
@@ -134,10 +147,10 @@ async def _google_sync_loop() -> None:
     """Poll Gmail + Calendar for all connected users every 6 hours.
     Waits 180s for SF contacts to be populated so email matching works."""
     await asyncio.sleep(180)
-    from core.google.auth import list_connected_users
     from core.google.account_matcher import build_email_index
-    from core.google.gmail_sync import pull_and_ingest as gmail_ingest
+    from core.google.auth import list_connected_users
     from core.google.calendar_sync import pull_and_ingest as cal_ingest
+    from core.google.gmail_sync import pull_and_ingest as gmail_ingest
 
     sem = asyncio.Semaphore(_GOOGLE_SYNC_CONCURRENCY)
 
@@ -150,7 +163,9 @@ async def _google_sync_loop() -> None:
                 c = await cal_ingest(user_id, index)
                 log.info(
                     "Google sync for %s done — gmail ingested=%d, calendar ingested=%d",
-                    user_id, g["ingested"], c["ingested"],
+                    user_id,
+                    g["ingested"],
+                    c["ingested"],
                 )
             except Exception as exc:
                 log.error("Google sync error for %s: %s", user_id, exc)
@@ -172,6 +187,7 @@ async def _google_sync_loop() -> None:
 async def _ensure_schema() -> None:
     """Create tables that may not exist yet (idempotent)."""
     from core.db import get_pool
+
     pool = await get_pool()
     async with pool.connection() as conn:
         await conn.execute("""
@@ -210,8 +226,7 @@ async def _ensure_schema() -> None:
             "ON pulse.episodes (source, source_timestamp DESC);"
         )
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_episodes_state "
-            "ON pulse.episodes (processing_state);"
+            "CREATE INDEX IF NOT EXISTS idx_episodes_state ON pulse.episodes (processing_state);"
         )
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS pulse.sf_contacts (
@@ -229,8 +244,7 @@ async def _ensure_schema() -> None:
             "ON pulse.sf_contacts (LOWER(email)) WHERE email IS NOT NULL;"
         )
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sf_contacts_account "
-            "ON pulse.sf_contacts (account_id);"
+            "CREATE INDEX IF NOT EXISTS idx_sf_contacts_account ON pulse.sf_contacts (account_id);"
         )
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS pulse.client_otps (
@@ -330,12 +344,14 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     from core.db import close_pool
+
     await close_pool()
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="EDGE Pulse", version=__version__, lifespan=lifespan)
     import os
+
     _frontend = os.environ.get("FRONTEND_URL", "http://localhost:5173")
     app.add_middleware(
         CORSMiddleware,
@@ -350,16 +366,16 @@ def create_app() -> FastAPI:
         return {"status": "ok", "version": __version__}
 
     from api.accounts import router as accounts_router
-    from api.submit import router as submit_router
     from api.actions import router as actions_router
     from api.admin.kill_switch import router as kill_switch_router
-    from api.dispatch import router as dispatch_router
-    from api.profiles import router as profiles_router
-    from api.support import router as support_router
     from api.auth_google import router as auth_google_router
-    from api.webhooks import router as webhooks_router
     from api.client_auth import router as client_auth_router
     from api.client_chat import router as client_chat_router
+    from api.dispatch import router as dispatch_router
+    from api.profiles import router as profiles_router
+    from api.submit import router as submit_router
+    from api.support import router as support_router
+    from api.webhooks import router as webhooks_router
 
     app.include_router(kill_switch_router)
     app.include_router(profiles_router)

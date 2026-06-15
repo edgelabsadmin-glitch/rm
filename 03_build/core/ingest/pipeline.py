@@ -17,8 +17,7 @@ for the retry cron and emits `ingestion-failed` (no silent failure, §6 rule 14)
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime
 from time import perf_counter
 from typing import TYPE_CHECKING
 

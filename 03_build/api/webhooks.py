@@ -18,6 +18,7 @@ POST /webhooks/expansion-intent
     DB with processing_state='normalized' for the retry cron — the EIS row is
     still marked processed (ingested) so Activepieces doesn't re-deliver it.
 """
+
 from __future__ import annotations
 
 import logging
@@ -81,7 +82,8 @@ async def expansion_intent_webhook(
             await adapter.mark_processed(posting_id, episode_id, "ingested")
             log.error(
                 "Graphiti ingest failed for posting %s (episode saved, retry cron will pick it up): %s",
-                posting_id, exc,
+                posting_id,
+                exc,
             )
 
     return {"ok": True, "ingested": ingested}

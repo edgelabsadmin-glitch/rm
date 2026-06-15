@@ -7,6 +7,7 @@ Usage (local only — never run in production):
 
 Paste output into .env and AWS Secrets Manager before deployment.
 """
+
 from __future__ import annotations
 
 import json

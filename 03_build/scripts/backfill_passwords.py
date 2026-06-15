@@ -8,6 +8,7 @@ Run from 03_build/ with DATABASE_URL set (or .env present):
     python3 scripts/backfill_passwords.py
     python3 scripts/backfill_passwords.py --dry-run
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,15 +35,15 @@ if _env.exists():
             k, _, v = _line.partition("=")
             os.environ.setdefault(k.strip(), v.strip().strip("'\""))
 
-DB_URL           = os.environ["DATABASE_URL"]
-ZOOM_ACCOUNT_ID  = os.environ.get("ZOOM_ACCOUNT_ID", "")
-ZOOM_CLIENT_ID   = os.environ.get("ZOOM_CLIENT_ID", "")
+DB_URL = os.environ["DATABASE_URL"]
+ZOOM_ACCOUNT_ID = os.environ.get("ZOOM_ACCOUNT_ID", "")
+ZOOM_CLIENT_ID = os.environ.get("ZOOM_CLIENT_ID", "")
 ZOOM_CLIENT_SECRET = os.environ.get("ZOOM_CLIENT_SECRET", "")
 
 _ZOOM_TOKEN_URL = "https://zoom.us/oauth/token"
-_ZOOM_BASE      = "https://api.zoom.us/v2"
-_SLEEP          = 0.3   # seconds between API calls
-_BATCH_COMMIT   = 100
+_ZOOM_BASE = "https://api.zoom.us/v2"
+_SLEEP = 0.3  # seconds between API calls
+_BATCH_COMMIT = 100
 
 
 _zoom_token: str = ""
@@ -93,7 +94,7 @@ async def main(dry_run: bool = False) -> None:
     conn = await psycopg.AsyncConnection.connect(DB_URL)
     async with conn:
         async with httpx.AsyncClient(timeout=30) as client:
-            for i, (episode_id, meeting_id) in enumerate(rows):
+            for _i, (episode_id, meeting_id) in enumerate(rows):
                 try:
                     token = await _zoom_access_token(client)
                     resp = await client.get(

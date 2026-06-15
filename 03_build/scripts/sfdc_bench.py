@@ -12,8 +12,7 @@ import statistics
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 
 from core.adapters.sfdc import OBJECTS, SFDCAdapter
 

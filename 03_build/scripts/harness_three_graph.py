@@ -28,8 +28,7 @@ import json
 import os
 import sys
 import tempfile
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # Make `core` importable when run as a bare script from 03_build/.

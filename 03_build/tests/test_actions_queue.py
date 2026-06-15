@@ -1,7 +1,6 @@
 """SPEC-031 unit tests — pure ranking + scope logic (no DB)."""
 
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 
 from api.actions import Caller
 from core.actions.queue import _status_from_history, ranking_score

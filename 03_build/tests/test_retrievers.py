@@ -8,8 +8,7 @@ Talent-only skills. The real-fixture + Langfuse-trace tests live in
 tests/test_retrievers_integration.py.
 """
 
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest

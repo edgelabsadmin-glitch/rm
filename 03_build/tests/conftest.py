@@ -9,6 +9,7 @@ so Python's import machinery doesn't raise ModuleNotFoundError.
 Tests that actually exercise Graphiti behavior are marked `integration` or
 `db` and are excluded from the default CI run (pyproject.toml addopts).
 """
+
 from __future__ import annotations
 
 import enum
@@ -16,9 +17,6 @@ import importlib.abc
 import importlib.machinery
 import sys
 from unittest.mock import MagicMock
-
-
-import types
 
 
 def _pkg_mock(name: str) -> MagicMock:
@@ -41,6 +39,7 @@ class _StubLoader(importlib.abc.Loader):
 
 class _StubFinder(importlib.abc.MetaPathFinder):
     """Auto-stub any import under graphiti_core.* or kuzu that isn't installed."""
+
     _STUBS = ("graphiti_core", "kuzu")
 
     def find_spec(self, fullname, path, target=None):

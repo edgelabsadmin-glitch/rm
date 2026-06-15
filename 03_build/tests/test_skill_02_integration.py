@@ -7,8 +7,7 @@ keys and a reachable DB; skips otherwise.
 
 import importlib.util
 import os
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psycopg

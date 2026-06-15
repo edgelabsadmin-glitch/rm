@@ -17,6 +17,7 @@ Env vars:
   SF_SECURITY_TOKEN — Salesforce security token (appended to password)
   SF_ACCESS_TOKEN   — optional hard-coded token; skips OAuth entirely
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -35,10 +36,8 @@ class _SFAuth:
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     @classmethod
-    def from_env(cls) -> "_SFAuth":
-        instance_url = os.environ.get(
-            "SF_INSTANCE_URL", "https://edgesolutions.my.salesforce.com"
-        )
+    def from_env(cls) -> _SFAuth:
+        instance_url = os.environ.get("SF_INSTANCE_URL", "https://edgesolutions.my.salesforce.com")
         auth = cls(instance_url=instance_url)
         # Direct token bypass (e.g. short-lived manual token in dev)
         if token := os.environ.get("SF_ACCESS_TOKEN", ""):

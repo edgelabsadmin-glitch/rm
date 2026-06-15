@@ -5,8 +5,7 @@ No DB / no LLM: the DB-backed idempotency + real-Graphiti tests live in
 tests/test_ingest_pipeline_db.py (markers `db` / `integration`).
 """
 
-from datetime import datetime, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest

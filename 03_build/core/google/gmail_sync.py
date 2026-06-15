@@ -9,21 +9,21 @@ Rate limits: Gmail allows 250 quota units/s per user. Each messages.get
 costs 5 units; messages.list costs 1. We throttle with a 0.05s delay per
 message fetch (≈ 20 msgs/s) which stays well within quota.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import parseaddr, parsedate_to_datetime
 
 import httpx
 
 from core.db import get_pool
-from core.google.auth import get_valid_token
 from core.google.account_matcher import match_accounts
+from core.google.auth import get_valid_token
 
 log = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ async def pull_and_ingest(
         return {"fetched": 0, "ingested": 0, "skipped": 0, "errors": 0}
 
     headers = {"Authorization": f"Bearer {token}"}
-    since = (datetime.now(timezone.utc) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y/%m/%d")
+    since = (datetime.now(UTC) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y/%m/%d")
     query = f"after:{since}"
 
     fetched = ingested = skipped = errors = 0
@@ -114,7 +114,10 @@ async def pull_and_ingest(
                 msg_res = await client.get(
                     f"{_GMAIL_BASE}/messages/{msg_id}",
                     headers=headers,
-                    params={"format": "metadata", "metadataHeaders": ["From", "To", "Cc", "Subject", "Date"]},
+                    params={
+                        "format": "metadata",
+                        "metadataHeaders": ["From", "To", "Cc", "Subject", "Date"],
+                    },
                 )
                 if not msg_res.is_success:
                     errors += 1
@@ -150,26 +153,30 @@ async def pull_and_ingest(
                 source_url = f"https://mail.google.com/mail/u/0/#inbox/{msg_id}"
                 snippet = msg.get("snippet", "")
 
-                content = json.dumps({
-                    "from": from_raw,
-                    "to": to_raw,
-                    "cc": cc_raw,
-                    "snippet": snippet,
-                    "gmail_labels": msg.get("labelIds", []),
-                })
+                content = json.dumps(
+                    {
+                        "from": from_raw,
+                        "to": to_raw,
+                        "cc": cc_raw,
+                        "snippet": snippet,
+                        "gmail_labels": msg.get("labelIds", []),
+                    }
+                )
 
-                rows.append((
-                    str(uuid.uuid4()),
-                    dedup_key,
-                    msg_id,
-                    source_url,
-                    ts,
-                    content,
-                    subject,
-                    snippet[:500] if snippet else None,
-                    json.dumps(entities),
-                    ["gmail", user_id],
-                ))
+                rows.append(
+                    (
+                        str(uuid.uuid4()),
+                        dedup_key,
+                        msg_id,
+                        source_url,
+                        ts,
+                        content,
+                        subject,
+                        snippet[:500] if snippet else None,
+                        json.dumps(entities),
+                        ["gmail", user_id],
+                    )
+                )
 
                 if len(rows) >= 200:
                     async with pool.connection() as conn:
@@ -197,13 +204,18 @@ async def pull_and_ingest(
 
     log.info(
         "Gmail sync done for %s — fetched=%d ingested=%d skipped=%d errors=%d",
-        user_id, fetched, ingested, skipped, errors,
+        user_id,
+        fetched,
+        ingested,
+        skipped,
+        errors,
     )
 
     # Trigger style profile analysis after sync (non-blocking background task)
     if ingested > 0:
         try:
             from core.llm.rm_style import analyze_rm_style
+
             asyncio.create_task(analyze_rm_style(user_id))
             log.info("rm_style: queued style analysis for %s", user_id)
         except Exception as exc:

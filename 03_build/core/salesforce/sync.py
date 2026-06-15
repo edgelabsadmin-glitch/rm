@@ -10,12 +10,13 @@ Called at:
 
 Safe to call concurrently — Postgres ON CONFLICT DO UPDATE is atomic per row.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from core.db import get_pool
 from core.salesforce import SalesforceClient
@@ -46,6 +47,7 @@ SIGNAL_AXES = ["Engagement", "Satisfaction", "Retention safety", "Growth orienta
 
 # ── derived field helpers ─────────────────────────────────────────────────────
 
+
 def _score(outreach: dict | None) -> tuple[float, float | None]:
     if not outreach:
         return 5.0, None
@@ -70,8 +72,8 @@ def _risk(score: float, churn_prob: float | None) -> str:
 
 def _vector(score: float) -> list[dict]:
     return [
-        {"label": l, "pct": max(10, min(100, round(score * 10 - i * 7)))}
-        for i, l in enumerate(SIGNAL_AXES)
+        {"label": label, "pct": max(10, min(100, round(score * 10 - i * 7)))}
+        for i, label in enumerate(SIGNAL_AXES)
     ]
 
 
@@ -95,9 +97,10 @@ def _themes(score: float, churn_prob: float | None, has_open_case: bool) -> list
 
 # ── SF fetchers (same queries as api/accounts.py) ────────────────────────────
 
-async def _fetch_all(client: SalesforceClient) -> tuple[
-    list[dict], dict[str, dict], dict[str, int], set[str]
-]:
+
+async def _fetch_all(
+    client: SalesforceClient,
+) -> tuple[list[dict], dict[str, dict], dict[str, int], set[str]]:
     accounts, outreach_rows, talent_rows, case_rows = await asyncio.gather(
         client.query_all(
             "SELECT Id, Name, Segment__c, Type, OwnerId, Owner.Name, "
@@ -181,7 +184,7 @@ async def pull_and_upsert() -> int:
         log.error("SF fetch failed: %s", exc)
         raise
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = []
     for acct in accounts:
         acct_id = acct["Id"]
@@ -197,27 +200,29 @@ async def pull_and_upsert() -> int:
         owner_manager = (owner.get("Manager") or {}) if isinstance(owner, dict) else {}
         rm_manager_name = owner_manager.get("Name") if isinstance(owner_manager, dict) else None
 
-        rows.append({
-            "account_id": acct_id,
-            "name": acct["Name"],
-            "segment": segment,
-            "tier": tier,
-            "owner_id": acct.get("OwnerId"),
-            "rm_name": rm_name,
-            "active_talent": active_talent,
-            "arr_usd": active_talent * ARR_PER_TALENT,
-            "composite_health": round(score, 1),
-            "risk": _risk(score, churn_prob),
-            "customer_health": outreach.get("Customer_Health__c") if outreach else None,
-            "churn_probability": churn_prob,
-            "last_ebr": outreach.get("EBR_Date__c") if outreach else None,
-            "has_open_case": has_open_case,
-            "signal_vector": json.dumps(_vector(score)),
-            "themes": json.dumps(_themes(score, churn_prob, has_open_case)),
-            "synced_at": now,
-            "rm_is_active": rm_is_active,
-            "rm_manager_name": rm_manager_name,
-        })
+        rows.append(
+            {
+                "account_id": acct_id,
+                "name": acct["Name"],
+                "segment": segment,
+                "tier": tier,
+                "owner_id": acct.get("OwnerId"),
+                "rm_name": rm_name,
+                "active_talent": active_talent,
+                "arr_usd": active_talent * ARR_PER_TALENT,
+                "composite_health": round(score, 1),
+                "risk": _risk(score, churn_prob),
+                "customer_health": outreach.get("Customer_Health__c") if outreach else None,
+                "churn_probability": churn_prob,
+                "last_ebr": outreach.get("EBR_Date__c") if outreach else None,
+                "has_open_case": has_open_case,
+                "signal_vector": json.dumps(_vector(score)),
+                "themes": json.dumps(_themes(score, churn_prob, has_open_case)),
+                "synced_at": now,
+                "rm_is_active": rm_is_active,
+                "rm_manager_name": rm_manager_name,
+            }
+        )
 
     if not rows:
         log.warning("SF sync: no accounts returned from Salesforce.")
@@ -268,7 +273,7 @@ async def pull_and_upsert_contacts() -> int:
         log.warning("SF contact sync: no contacts returned.")
         return 0
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = [
         {
             "contact_id": c["Id"],

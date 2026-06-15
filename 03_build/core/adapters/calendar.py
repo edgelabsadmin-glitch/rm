@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import hmac
 import os
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx

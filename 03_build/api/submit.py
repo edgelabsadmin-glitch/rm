@@ -4,6 +4,7 @@ Submit API — RM Outreach creation.
 POST /submit/outreach      → creates RM_Outreach__c in Salesforce
 GET  /submit/opportunities → lists open Opportunities for a given account
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/submit", tags=["submit"])
 
 
 # ── models ────────────────────────────────────────────────────────────────────
+
 
 class OpportunityItem(BaseModel):
     opportunity_id: str
@@ -34,13 +36,13 @@ class OutreachCreate(BaseModel):
     associate_id: str | None = None
 
     # Health & risk
-    customer_health: str | None = None          # Customer_Health__c picklist
-    churn_probability: float | None = None       # 0–100
-    expansion_probability: float | None = None   # 0–100
-    customer_priority_level: str | None = None   # Customer_Priority_level__c
+    customer_health: str | None = None  # Customer_Health__c picklist
+    churn_probability: float | None = None  # 0–100
+    expansion_probability: float | None = None  # 0–100
+    customer_priority_level: str | None = None  # Customer_Priority_level__c
 
     # Meeting / EBR
-    ebr_date: str | None = None                 # YYYY-MM-DD
+    ebr_date: str | None = None  # YYYY-MM-DD
     description: str | None = None
     ebr_description: str | None = None
     recording_link: str | None = None
@@ -64,6 +66,7 @@ class OutreachCreated(BaseModel):
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def _build_fields(body: OutreachCreate) -> dict[str, Any]:
     """Map request body to Salesforce field names, dropping None values."""
@@ -110,6 +113,7 @@ def _build_fields(body: OutreachCreate) -> dict[str, Any]:
 
 # ── routes ────────────────────────────────────────────────────────────────────
 
+
 @router.get("/opportunities", response_model=list[OpportunityItem])
 async def list_opportunities(
     q: str | None = Query(default=None, description="Name search"),
@@ -137,9 +141,6 @@ async def list_opportunities(
         )
         for r in rows
     ]
-
-
-
 
 
 @router.post("/outreach", response_model=OutreachCreated, status_code=201)

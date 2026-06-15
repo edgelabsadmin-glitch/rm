@@ -5,12 +5,14 @@ build_email_index() loads the full contact email → account_id map once per
 sync run. match_accounts(addresses, index) returns a deduplicated list of
 candidate_entity dicts for any addresses that hit a known contact.
 """
+
 from __future__ import annotations
 
 import logging
 
-from core.db import get_pool
 from psycopg.rows import dict_row
+
+from core.db import get_pool
 
 log = logging.getLogger(__name__)
 

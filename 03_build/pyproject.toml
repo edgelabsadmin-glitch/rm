@@ -46,6 +46,7 @@ target-version = "py312"
 [tool.ruff.lint]
 # E,F = pyflakes/pycodestyle; I = isort; ASYNC = flake8-async; B = bugbear
 select = ["E", "F", "I", "ASYNC", "B", "UP"]
+ignore = ["E501"]
 # ADR-001 discipline: async-everything. Ban blocking sleeps in app code.
 # (Enforced additionally by a CI grep check for time.sleep in handlers.)
 

@@ -7,8 +7,7 @@ and injected evidence checkers.
 """
 
 import importlib.util
-from datetime import datetime, timedelta, timezone
-UTC = timezone.utc
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 

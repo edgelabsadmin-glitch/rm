@@ -4,15 +4,15 @@ SPEC-015 — /webhooks/expansion-intent endpoint unit tests (no DB).
 The real DB path (mark_processed, run_episode with Postgres) is covered by
 the existing test_opportunity_tracker_adapter_db.py integration suite.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
-
 # ── helpers ──────────────────────────────────────────────────────────────────
+
 
 def _row(tier="hottest", posting_id="post-abc"):
     return {
@@ -36,17 +36,21 @@ def _row(tier="hottest", posting_id="post-abc"):
 
 def _make_app(token="test-token"):
     import os
+
     os.environ["PULSE_INTERNAL_API_TOKEN"] = token
     # Use a minimal app with only the webhook router — avoids triggering the
     # full lifespan (DB pool, SF sync) which requires external services in CI.
     from fastapi import FastAPI
+
     from api.webhooks import router as webhooks_router
+
     app = FastAPI()
     app.include_router(webhooks_router)
     return app
 
 
 # ── auth guard ────────────────────────────────────────────────────────────────
+
 
 def test_missing_token_returns_403():
     client = TestClient(_make_app())
@@ -65,6 +69,7 @@ def test_wrong_token_returns_403():
 
 
 # ── normal ingestion ──────────────────────────────────────────────────────────
+
 
 def test_hottest_row_ingested():
     mock_run = AsyncMock(return_value=True)
@@ -120,6 +125,7 @@ def test_duplicate_row_returns_zero_ingested():
 
 # ── off-scope handling ────────────────────────────────────────────────────────
 
+
 def test_off_scope_row_skipped():
     mock_run = AsyncMock()
     mock_mark = AsyncMock()
@@ -147,6 +153,7 @@ def test_off_scope_row_skipped():
 
 # ── Graphiti failure resilience ───────────────────────────────────────────────
 
+
 def test_graphiti_failure_marks_ingested_not_failed():
     """Episode is in DB even if Graphiti raises; EIS row must still be marked
     processed so Activepieces doesn't re-deliver the same row."""
@@ -173,6 +180,7 @@ def test_graphiti_failure_marks_ingested_not_failed():
 
 
 # ── malformed payload ─────────────────────────────────────────────────────────
+
 
 def test_missing_posting_id_returns_422():
     client = TestClient(_make_app())

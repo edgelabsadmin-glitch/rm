@@ -101,6 +101,7 @@ def test_apply_sets_each_scope():
 async def test_admin_kill_switch_requires_token(monkeypatch):
     monkeypatch.delenv("PULSE_INTERNAL_API_TOKEN", raising=False)
     from fastapi import HTTPException
+
     from api.admin.kill_switch import require_admin
 
     with pytest.raises(HTTPException) as exc:

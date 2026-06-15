@@ -7,14 +7,14 @@ GET /accounts/{id}   → full health detail from pulse.sf_accounts
 Data is kept fresh by the 12-hour background sync (core/salesforce/sync.py).
 Direct Salesforce calls are no longer made here; all reads hit Postgres.
 """
+
 from __future__ import annotations
 
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-
 from psycopg.rows import dict_row
+from pydantic import BaseModel
 
 from core.db import get_pool
 
@@ -66,6 +66,7 @@ class AccountList(BaseModel):
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def _fmt_ebr(last_ebr: str | None) -> str:
     if not last_ebr:
         return "No meeting scheduled"
@@ -105,12 +106,15 @@ def _row_to_health(row: dict) -> AccountHealth:
         positioning=AI_RM_POSITIONING,
         signal_vector=[SignalAxis(**s) for s in sv],
         themes=themes,
-        churn_probability=float(row["churn_probability"]) if row.get("churn_probability") is not None else None,
+        churn_probability=float(row["churn_probability"])
+        if row.get("churn_probability") is not None
+        else None,
         last_ebr=row.get("last_ebr"),
     )
 
 
 # ── routes ────────────────────────────────────────────────────────────────────
+
 
 @router.get("", response_model=AccountList)
 async def list_accounts(
@@ -157,21 +161,25 @@ async def list_accounts(
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-        count_row = await (await conn.execute(
-            f"SELECT COUNT(*) FROM pulse.sf_accounts {where}",
-            params or None,
-        )).fetchone()
+        count_row = await (
+            await conn.execute(
+                f"SELECT COUNT(*) FROM pulse.sf_accounts {where}",
+                params or None,
+            )
+        ).fetchone()
         total = count_row["count"] if count_row else 0
 
         offset = (page - 1) * page_size
-        rows = await (await conn.execute(
-            f"SELECT account_id, name, composite_health, risk, last_ebr, tier, "
-            f"rm_name, active_talent, arr_usd, owner_id, rm_manager_name "
-            f"FROM pulse.sf_accounts {where} "
-            f"ORDER BY name "
-            f"LIMIT %s OFFSET %s",
-            [*params, page_size, offset],
-        )).fetchall()
+        rows = await (
+            await conn.execute(
+                f"SELECT account_id, name, composite_health, risk, last_ebr, tier, "
+                f"rm_name, active_talent, arr_usd, owner_id, rm_manager_name "
+                f"FROM pulse.sf_accounts {where} "
+                f"ORDER BY name "
+                f"LIMIT %s OFFSET %s",
+                [*params, page_size, offset],
+            )
+        ).fetchall()
 
     return AccountList(
         accounts=[_row_to_summary(r) for r in rows],
@@ -186,10 +194,12 @@ async def get_account_health(account_id: str) -> AccountHealth:
     pool = await get_pool()
     async with pool.connection() as conn:
         conn.row_factory = dict_row
-        row = await (await conn.execute(
-            "SELECT * FROM pulse.sf_accounts WHERE account_id = %s",
-            [account_id],
-        )).fetchone()
+        row = await (
+            await conn.execute(
+                "SELECT * FROM pulse.sf_accounts WHERE account_id = %s",
+                [account_id],
+            )
+        ).fetchone()
 
     if not row:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -216,8 +226,9 @@ async def list_account_meetings(
     pool = await get_pool()
     async with pool.connection() as conn:
         conn.row_factory = dict_row
-        rows = await (await conn.execute(
-            """
+        rows = await (
+            await conn.execute(
+                """
             SELECT episode_id, source, subject, description,
                    source_timestamp, source_url, transcript,
                    (content->>'duration_mins')::int AS duration_mins
@@ -227,8 +238,9 @@ async def list_account_meetings(
             ORDER BY source_timestamp DESC
             LIMIT %s
             """,
-            [f'[{{"sfdc_id":"{account_id}"}}]', limit],
-        )).fetchall()
+                [f'[{{"sfdc_id":"{account_id}"}}]', limit],
+            )
+        ).fetchall()
 
     return [
         MeetingItem(
@@ -243,5 +255,3 @@ async def list_account_meetings(
         )
         for r in rows
     ]
-
-

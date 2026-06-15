@@ -5,6 +5,7 @@ gated Opus regeneration (markers db+integration).
 
 import importlib.util
 import os
+from datetime import UTC
 from pathlib import Path
 from uuid import uuid4
 
@@ -96,8 +97,7 @@ async def test_api_get_and_put():
     reason="needs ANTHROPIC_API_KEY + OPENAI_API_KEY",
 )
 async def test_regenerate_real_opus():
-    from datetime import datetime, timedelta, timezone
-    UTC = timezone.utc
+    from datetime import datetime, timedelta
 
     from core.memory.graph import add_pulse_episode, make_graphiti
     from core.profiles import regenerator
