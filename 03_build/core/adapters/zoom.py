@@ -66,7 +66,7 @@ class ZoomAdapter(SignalSourceAdapter):
             )
             resp.raise_for_status()
             data = resp.json()
-        self._token = data["access_token"]
+        self._token = str(data["access_token"])
         self._token_expiry = time.time() + data.get("expires_in", 3600)
         return self._token
 

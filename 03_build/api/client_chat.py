@@ -341,7 +341,7 @@ async def client_chat(body: ChatRequest, session: ClientSession) -> StreamingRes
             model=ANTHROPIC_SONNET,
             max_tokens=1024,
             system=system_prompt,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
         )
 
         for block in response.content:

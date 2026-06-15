@@ -338,8 +338,8 @@ async def chat(
                 model=ANTHROPIC_SONNET,
                 max_tokens=1024,
                 system=SYSTEM_PROMPT,
-                tools=[TOOL_DEF],
-                messages=messages,
+                tools=[TOOL_DEF],  # type: ignore[list-item]
+                messages=messages,  # type: ignore[arg-type]
             )
 
             for block in response.content:
@@ -353,7 +353,7 @@ async def chat(
                     if block.type == "tool_use":
                         collected_tool_calls.append({"name": block.name, "input": block.input})
                         yield f"data: {json.dumps({'type': 'tool', 'name': block.name, 'input': block.input})}\n\n"
-                        result = await _run_tool(block.input.get("soql", ""))
+                        result = await _run_tool(str(block.input.get("soql", "")))
                         tool_results.append(
                             {
                                 "type": "tool_result",

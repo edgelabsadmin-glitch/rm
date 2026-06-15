@@ -12,7 +12,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from simple_salesforce import Salesforce, SalesforceExpiredSession
+from simple_salesforce.api import Salesforce  # type: ignore[import-untyped]
+from simple_salesforce.exceptions import SalesforceExpiredSession  # type: ignore[import-untyped]
 
 from core.salesforce.auth import _SFAuth
 

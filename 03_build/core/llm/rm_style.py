@@ -45,7 +45,8 @@ def _call_claude(email_samples: str) -> str:
             }
         ],
     )
-    return response.content[0].text.strip()
+    block = response.content[0]
+    return block.text.strip() if hasattr(block, "text") else ""  # type: ignore[union-attr]
 
 
 async def analyze_rm_style(user_id: str) -> None:
