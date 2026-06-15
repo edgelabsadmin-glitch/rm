@@ -1,50 +1,52 @@
 """
-Salesforce auth via the `sf` CLI.
+Salesforce auth via OAuth username-password flow.
 
-_SFAuth retrieves a fresh, decrypted access token by running
-`sf org display --json --target-org <alias>` in a subprocess. The sf CLI
-owns token rotation and re-authentication — this module just reads the
-current valid token from it.
+Fetches a fresh access token from the Salesforce token endpoint using
+SF_USERNAME / SF_PASSWORD / SF_SECURITY_TOKEN / SF_CLIENT_ID env vars.
+No sf CLI required — works in Docker / AWS App Runner out of the box.
 
-Token is cached in memory; invalidate() clears it so the next call fetches
-a fresh one (used on 401 responses). asyncio.Lock prevents concurrent
-subprocesses when multiple coroutines need a refresh at the same time.
+Token is cached in-process. invalidate() clears it so the next call
+re-authenticates (called automatically by SalesforceClient on 401).
+asyncio.Lock prevents concurrent fetches.
 
-For AWS deployment: the `sf` CLI must be installed and authenticated in
-the container via `sf org login jwt` with a Connected App + certificate,
-or the SF_ACCESS_TOKEN env var can be set directly to bypass CLI entirely.
+Env vars:
+  SF_INSTANCE_URL   — org URL (default: https://edgesolutions.my.salesforce.com)
+  SF_CLIENT_ID      — Connected App consumer key
+  SF_USERNAME       — Salesforce username
+  SF_PASSWORD       — Salesforce password
+  SF_SECURITY_TOKEN — Salesforce security token (appended to password)
+  SF_ACCESS_TOKEN   — optional hard-coded token; skips OAuth entirely
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import os
-import subprocess
 from dataclasses import dataclass, field
+
+import httpx
+
+_SF_TOKEN_URL = "https://login.salesforce.com/services/oauth2/token"
 
 
 @dataclass
 class _SFAuth:
     instance_url: str
-    target_org: str = "edge-prod"
-    sf_bin: str = "sf"
     _access_token: str = field(default="", init=False, repr=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     @classmethod
     def from_env(cls) -> "_SFAuth":
-        """Build from environment variables (SF_INSTANCE_URL, SF_TARGET_ORG)."""
-        # If a raw token is provided (e.g. in CI/AWS without sf CLI), use it directly.
-        token = os.environ.get("SF_ACCESS_TOKEN", "")
-        instance_url = os.environ.get("SF_INSTANCE_URL", "https://edgesolutions.my.salesforce.com")
-        target_org = os.environ.get("SF_TARGET_ORG", "edge-prod")
-        auth = cls(instance_url=instance_url, target_org=target_org)
-        if token:
+        instance_url = os.environ.get(
+            "SF_INSTANCE_URL", "https://edgesolutions.my.salesforce.com"
+        )
+        auth = cls(instance_url=instance_url)
+        # Direct token bypass (e.g. short-lived manual token in dev)
+        if token := os.environ.get("SF_ACCESS_TOKEN", ""):
             auth._access_token = token
         return auth
 
     async def token(self) -> str:
-        """Return current access token, fetching from sf CLI if empty."""
+        """Return cached access token, fetching a fresh one via OAuth if empty."""
         if not self._access_token:
             await self._fetch()
         return self._access_token
@@ -56,24 +58,37 @@ class _SFAuth:
             self._access_token = await asyncio.to_thread(self._fetch_sync)
 
     def _fetch_sync(self) -> str:
-        """Run sf org display and extract the access token (blocking)."""
-        cmd = [
-            self.sf_bin,
-            "org",
-            "display",
-            "--target-org",
-            self.target_org,
-            "--json",
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode != 0:
-            raise RuntimeError(f"sf org display failed: {result.stderr[:200]}")
-        data = json.loads(result.stdout)
-        token = data.get("result", {}).get("accessToken", "")
+        """Fetch a fresh access token from Salesforce OAuth (username-password flow)."""
+        client_id = os.environ.get("SF_CLIENT_ID", "")
+        username = os.environ.get("SF_USERNAME", "")
+        password = os.environ.get("SF_PASSWORD", "")
+        security_token = os.environ.get("SF_SECURITY_TOKEN", "")
+
+        if not all([client_id, username, password]):
+            raise RuntimeError(
+                "SF_CLIENT_ID, SF_USERNAME, and SF_PASSWORD must be set for Salesforce auth"
+            )
+
+        resp = httpx.post(
+            _SF_TOKEN_URL,
+            data={
+                "grant_type": "password",
+                "client_id": client_id,
+                "username": username,
+                "password": password + security_token,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        token = data.get("access_token", "")
         if not token:
-            raise RuntimeError("sf org display returned no accessToken")
+            raise RuntimeError(f"Salesforce OAuth returned no access_token: {data}")
+        # OAuth response may return a different instance_url — keep in sync
+        if instance_url := data.get("instance_url"):
+            self.instance_url = instance_url
         return token
 
     def invalidate(self) -> None:
-        """Clear cached token so next call fetches a fresh one."""
+        """Clear cached token — next call to token() will re-authenticate."""
         self._access_token = ""
