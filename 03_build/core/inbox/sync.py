@@ -41,6 +41,8 @@ def owned_account_ids(entities: list[dict], account_index: dict, rm_name: str) -
     target = rm_name.lower().strip()
     for e in entities:
         aid = e.get("sfdc_id")
+        if not aid:
+            continue
         meta = account_index.get(aid)
         if meta and (meta.get("rm_name") or "").lower().strip() == target:
             out.append(aid)
