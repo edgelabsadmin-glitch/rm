@@ -418,6 +418,7 @@ def create_app() -> FastAPI:
     from api.client_auth import router as client_auth_router
     from api.client_chat import router as client_chat_router
     from api.dispatch import router as dispatch_router
+    from api.inbox import router as inbox_router
     from api.profiles import router as profiles_router
     from api.submit import router as submit_router
     from api.support import router as support_router
@@ -428,6 +429,7 @@ def create_app() -> FastAPI:
     app.include_router(actions_router)
     app.include_router(dispatch_router)
     app.include_router(accounts_router)
+    app.include_router(inbox_router)
     app.include_router(submit_router)
     app.include_router(support_router)
     app.include_router(auth_google_router)
