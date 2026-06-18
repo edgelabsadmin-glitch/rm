@@ -362,10 +362,29 @@ async def lifespan(app: FastAPI):
     zoom_task = asyncio.create_task(_zoom_sync_loop())
     google_task = asyncio.create_task(_google_sync_loop())
     eis_task = asyncio.create_task(_expansion_intent_poll_loop())
+    from core.inbox.loop import inbox_sync_loop
+
+    inbox_task = asyncio.create_task(inbox_sync_loop())
     yield
-    for task in (sf_task, sf_contacts_task, chorus_task, zoom_task, google_task, eis_task):
+    for task in (
+        sf_task,
+        sf_contacts_task,
+        chorus_task,
+        zoom_task,
+        google_task,
+        eis_task,
+        inbox_task,
+    ):
         task.cancel()
-    for task in (sf_task, sf_contacts_task, chorus_task, zoom_task, google_task, eis_task):
+    for task in (
+        sf_task,
+        sf_contacts_task,
+        chorus_task,
+        zoom_task,
+        google_task,
+        eis_task,
+        inbox_task,
+    ):
         try:
             await task
         except asyncio.CancelledError:
