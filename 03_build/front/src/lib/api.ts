@@ -283,4 +283,42 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ reason_picker, free_text: free_text ?? null }),
     }),
+
+  listInbox: (caller: ApiCaller) =>
+    request<import("@/features/inbox/types").InboxListDTO>("/inbox", caller),
+
+  syncInbox: (caller: ApiCaller) =>
+    request<import("@/features/inbox/types").InboxListDTO>("/inbox/sync", caller, {
+      method: "POST",
+    }),
+
+  getInboxEmail: (caller: ApiCaller, emailId: string) =>
+    request<import("@/features/inbox/types").InboxEmailDetailDTO>(`/inbox/${emailId}`, caller),
+
+  saveInboxDraft: (caller: ApiCaller, emailId: string, text: string) =>
+    request<{ saved: boolean }>(`/inbox/${emailId}/draft`, caller, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+
+  regenerateInboxReply: (
+    caller: ApiCaller,
+    emailId: string,
+    tone?: import("@/features/inbox/types").ReplyTone,
+  ) =>
+    request<{ reply: string; rationale: string }>(`/inbox/${emailId}/regenerate`, caller, {
+      method: "POST",
+      body: JSON.stringify({ tone: tone ?? null }),
+    }),
+
+  sendInboxReply: (caller: ApiCaller, emailId: string, text: string) =>
+    request<{ sent_message_id: string }>(`/inbox/${emailId}/reply`, caller, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+
+  dismissInboxEmail: (caller: ApiCaller, emailId: string) =>
+    request<{ dismissed: boolean }>(`/inbox/${emailId}/dismiss`, caller, {
+      method: "POST",
+    }),
 };
