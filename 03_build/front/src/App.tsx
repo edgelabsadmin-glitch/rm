@@ -17,6 +17,7 @@ import { OutcomeTracking } from "@/features/admin/OutcomeTracking";
 import { SignalPerformance } from "@/features/admin/SignalPerformance";
 import { SubmitPage } from "@/features/submit/SubmitPage";
 import { SupportPage } from "@/features/support/SupportPage";
+import { InboxPage } from "@/features/inbox/InboxPage";
 import { SettingsUsersPanel } from "@/features/settings/SettingsUsersPanel";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { ClientPortal } from "@/features/client/ClientPortal";
@@ -84,6 +85,14 @@ export default function App() {
             element={
               <RoleGuard allowedRoles={["rm", "manager", "admin"]}>
                 <QueueList />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path="/inbox"
+            element={
+              <RoleGuard allowedRoles={["rm", "manager", "executive", "admin"]}>
+                <InboxPage />
               </RoleGuard>
             }
           />

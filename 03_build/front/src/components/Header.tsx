@@ -8,6 +8,7 @@ import { Bell, LogOut, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { usePulseState } from "@/components/PulseStateProvider";
+import { useInbox } from "@/features/inbox/hooks";
 import { DEMO_USERS } from "@/fixtures/demo_characters";
 import { useAuth, useUser } from "@/lib/auth/AuthContext";
 import type { UserRole } from "@/lib/rbac/types";
@@ -24,6 +25,7 @@ const SWITCHER_USERS = [...DEMO_USERS].sort((a, b) => ROLE_RANK[a.role] - ROLE_R
 const NAV: { to: string; label: string; roles: UserRole[] }[] = [
   { to: "/accounts",   label: "Accounts",       roles: ["rm", "manager", "executive", "admin"] },
   { to: "/constellation", label: "Constellation", roles: ["rm", "manager", "executive", "admin"] },
+  { to: "/inbox",      label: "Inbox",           roles: ["rm", "manager", "executive", "admin"] },
   { to: "/executive",  label: "Executive View",  roles: ["executive", "admin"] },
   { to: "/submit",     label: "Submit",          roles: ["rm", "manager", "executive", "admin"] },
   { to: "/support",    label: "Support",         roles: ["rm", "manager", "executive", "admin"] },
@@ -43,6 +45,8 @@ export function Header() {
   const user = useUser();
   const { switchUser, logout } = useAuth();
   const { queueCount } = usePulseState();
+  const { data: inboxData } = useInbox();
+  const inboxCount = inboxData?.count ?? 0;
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +89,11 @@ export function Header() {
               }
             >
               {item.label}
+              {item.to === "/inbox" && inboxCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {inboxCount}
+                </span>
+              )}
             </NavLink>
           ))}
           {user.role === "admin" && (
