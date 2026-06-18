@@ -41,11 +41,14 @@ RM, threaded into the original conversation.
 3. **Reply flow:** the suggested reply is **pre-generated at ingest time** so it is already
    present when the email appears in the Pulse inbox, and is **editable** before the RM
    sends it.
+4. **Sync cadence:** a **server-side background loop** syncs every connected RM's mailbox on
+   an interval (default 3 minutes), so drafts are ready before the RM even opens the tab.
+   The frontend additionally re-polls the list every 60s to render newly-synced rows.
 
 ## Out of scope (v1)
 
 Attachments; HTML-formatted replies (plain text only); CC / multi-recipient replies;
-real-time Gmail push notifications (poll-on-open + 60s frontend refetch instead).
+real-time Gmail push notifications (the background poll loop covers freshness instead).
 
 ## Data model
 
@@ -114,10 +117,20 @@ the row, build an RFC-2822 MIME message (`To`, `Subject: Re: …`, `In-Reply-To`
 `users.messages.send` with `{raw, threadId}`. On success, update the row to
 `reply_state='sent'`, `sent_at`, `sent_message_id`. Returns the sent Gmail message id.
 
+**`core/inbox/loop.py`** — `async def inbox_sync_loop(interval_s=180)`: a background task
+started in the `api/main.py` lifespan. Each tick: query `pulse.google_sessions` for every
+connected user, run `sync_inbox(user_id)` for each (sequentially, errors per-user isolated
+and logged), sleep `interval_s`. Guarded by an env flag (`PULSE_INBOX_SYNC=1`) so it can be
+disabled in CI/local. A `POST /inbox/sync` endpoint also lets the UI force an immediate
+sync (e.g. a manual "Refresh" button).
+
 **`api/inbox.py`** — FastAPI router mounted under `/inbox`:
-- `GET /inbox` → runs `sync_inbox` for the caller, then returns the caller's `pending`
-  rows (newest first) as summaries, plus a `count` for the nav badge. Each summary carries
-  the matched account's `tier`/`risk` so the list can prioritize and color rows.
+- `GET /inbox` → returns the caller's current `pending` rows (newest first) as summaries,
+  plus a `count` for the nav badge. Does **not** block on a sync — the background loop keeps
+  rows fresh; the frontend polls every 60s. Each summary carries the matched account's
+  `tier`/`risk` so the list can prioritize and color rows.
+- `POST /inbox/sync` → forces an immediate `sync_inbox` for the caller, then returns the
+  refreshed pending list (backs a manual Refresh control).
 - `GET /inbox/{email_id}` → full body, suggested reply, rationale, and any saved
   `draft_reply` for one row (caller-scoped).
 - `POST /inbox/{email_id}/reply` (body `{text}`) → `send_reply`, returns the sent id.
@@ -192,12 +205,13 @@ body with preserved line breaks.
 
 ## Data flow
 
-RM opens Inbox → `GET /inbox` syncs the newest unreplied client emails and generates drafts
-→ the list renders (sorted by risk then recency) with drafts and rationale already
-populated → RM optionally regenerates with a tone chip or edits inline (edits autosave to
-`draft_reply`) → **Send** (button or ⌘/Ctrl+Enter) → Gmail sends as the RM, the row flips
-to `sent`, animates out, a toast confirms, and the next pending email auto-selects. The
-frontend re-polls every 60s, so newly arrived client emails surface on their own.
+The background loop continuously syncs each RM's unreplied client emails and generates
+drafts → RM opens Inbox → `GET /inbox` returns the pending rows (sorted by risk then
+recency) with drafts and rationale already populated → RM optionally regenerates with a
+tone chip or edits inline (edits autosave to `draft_reply`) → **Send** (button or
+⌘/Ctrl+Enter) → Gmail sends as the RM, the row flips to `sent`, animates out, a toast
+confirms, and the next pending email auto-selects. The frontend re-polls every 60s, so
+emails the loop ingests while the tab is open surface on their own.
 
 ## Error handling
 
