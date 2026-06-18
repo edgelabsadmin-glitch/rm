@@ -11,8 +11,7 @@ def _idx():
 
 
 def test_owned_account_ids_keeps_only_this_rms_accounts():
-    entities = [{"type": "sf_account", "sfdc_id": "001"},
-                {"type": "sf_account", "sfdc_id": "002"}]
+    entities = [{"type": "sf_account", "sfdc_id": "001"}, {"type": "sf_account", "sfdc_id": "002"}]
     assert owned_account_ids(entities, _idx(), "Eddy Chen") == ["001"]
 
 

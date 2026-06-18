@@ -22,19 +22,29 @@ def test_prompt_includes_style_account_and_body():
 
 def test_prompt_tone_formal_adds_instruction():
     p = build_reply_prompt(
-        style_prompt="x", account_name="A", from_name="B",
-        subject="s", body="b", tone="formal",
+        style_prompt="x",
+        account_name="A",
+        from_name="B",
+        subject="s",
+        body="b",
+        tone="formal",
     )
     assert "formal" in p.lower()
 
 
 def test_prompt_tone_shorter_and_warmer():
-    assert "short" in build_reply_prompt(
-        style_prompt="x", account_name="A", from_name="B", subject="s", body="b", tone="shorter"
-    ).lower()
-    assert "warm" in build_reply_prompt(
-        style_prompt="x", account_name="A", from_name="B", subject="s", body="b", tone="warmer"
-    ).lower()
+    assert (
+        "short"
+        in build_reply_prompt(
+            style_prompt="x", account_name="A", from_name="B", subject="s", body="b", tone="shorter"
+        ).lower()
+    )
+    assert (
+        "warm"
+        in build_reply_prompt(
+            style_prompt="x", account_name="A", from_name="B", subject="s", body="b", tone="warmer"
+        ).lower()
+    )
 
 
 def test_parse_reply_response_valid_json():
@@ -67,8 +77,11 @@ async def test_generate_reply_uses_mocked_claude(monkeypatch):
     monkeypatch.setattr(reply_mod, "_call_claude", fake_call)
 
     out = await reply_mod.generate_reply(
-        style_prompt="Warm.", account_name="Acme", from_name="Jane",
-        subject="Hi", body="Question?",
+        style_prompt="Warm.",
+        account_name="Acme",
+        from_name="Jane",
+        subject="Hi",
+        body="Question?",
     )
     assert out == {"reply": "Drafted reply", "rationale": "Because reasons."}
     assert "Acme" in captured["prompt"]

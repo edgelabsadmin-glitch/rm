@@ -230,9 +230,16 @@ async def _upsert_email(**kw) -> bool:
                 RETURNING email_id
                 """,
                 [
-                    kw["rm_user_id"], kw["gmail_message_id"], kw["gmail_thread_id"],
-                    kw["rfc_message_id"], kw["account_id"], kw["from_email"],
-                    kw["from_name"], kw["subject"], kw["body"], kw["received_at"],
+                    kw["rm_user_id"],
+                    kw["gmail_message_id"],
+                    kw["gmail_thread_id"],
+                    kw["rfc_message_id"],
+                    kw["account_id"],
+                    kw["from_email"],
+                    kw["from_name"],
+                    kw["subject"],
+                    kw["body"],
+                    kw["received_at"],
                 ],
             )
         ).fetchone()
@@ -240,7 +247,9 @@ async def _upsert_email(**kw) -> bool:
     return row is not None
 
 
-async def _save_suggestion(rm_user_id: str, gmail_message_id: str, reply: str, rationale: str) -> None:
+async def _save_suggestion(
+    rm_user_id: str, gmail_message_id: str, reply: str, rationale: str
+) -> None:
     pool = await get_pool()
     async with pool.connection() as conn:
         await conn.execute(

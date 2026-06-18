@@ -30,8 +30,11 @@ def test_build_reply_raw_sets_recipients_and_subject():
 
 def test_build_reply_raw_adds_threading_headers():
     raw = build_reply_raw(
-        to_email="c@acme.com", from_email="rm@onedge.co", subject="Re: x",
-        body="b", in_reply_to="<abc@mail.gmail.com>",
+        to_email="c@acme.com",
+        from_email="rm@onedge.co",
+        subject="Re: x",
+        body="b",
+        in_reply_to="<abc@mail.gmail.com>",
     )
     msg = _decode_raw(raw)
     assert msg["In-Reply-To"] == "<abc@mail.gmail.com>"
@@ -40,8 +43,11 @@ def test_build_reply_raw_adds_threading_headers():
 
 def test_build_reply_raw_prefixes_re_once():
     raw = build_reply_raw(
-        to_email="c@acme.com", from_email="rm@onedge.co", subject="Renewal",
-        body="b", in_reply_to=None,
+        to_email="c@acme.com",
+        from_email="rm@onedge.co",
+        subject="Renewal",
+        body="b",
+        in_reply_to=None,
     )
     msg = _decode_raw(raw)
     assert msg["Subject"] == "Re: Renewal"
@@ -49,8 +55,11 @@ def test_build_reply_raw_prefixes_re_once():
 
 def test_build_reply_raw_keeps_existing_re():
     raw = build_reply_raw(
-        to_email="c@acme.com", from_email="rm@onedge.co", subject="Re: Renewal",
-        body="b", in_reply_to=None,
+        to_email="c@acme.com",
+        from_email="rm@onedge.co",
+        subject="Re: Renewal",
+        body="b",
+        in_reply_to=None,
     )
     msg = _decode_raw(raw)
     assert msg["Subject"] == "Re: Renewal"
@@ -58,8 +67,11 @@ def test_build_reply_raw_keeps_existing_re():
 
 def test_build_reply_raw_omits_threading_when_no_message_id():
     raw = build_reply_raw(
-        to_email="c@acme.com", from_email="rm@onedge.co", subject="Re: x",
-        body="b", in_reply_to=None,
+        to_email="c@acme.com",
+        from_email="rm@onedge.co",
+        subject="Re: x",
+        body="b",
+        in_reply_to=None,
     )
     msg = _decode_raw(raw)
     assert msg["In-Reply-To"] is None
