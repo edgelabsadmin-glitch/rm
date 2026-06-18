@@ -321,6 +321,33 @@ async def _ensure_schema() -> None:
                 ADD COLUMN IF NOT EXISTS rm_is_active BOOLEAN,
                 ADD COLUMN IF NOT EXISTS rm_manager_name TEXT
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.inbox_emails (
+                email_id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                rm_user_id        TEXT        NOT NULL,
+                gmail_message_id  TEXT        NOT NULL,
+                gmail_thread_id   TEXT        NOT NULL,
+                rfc_message_id    TEXT,
+                account_id        TEXT,
+                from_email        TEXT        NOT NULL,
+                from_name         TEXT,
+                subject           TEXT,
+                body              TEXT,
+                received_at       TIMESTAMPTZ NOT NULL,
+                suggested_reply   TEXT,
+                reply_rationale   TEXT,
+                draft_reply       TEXT,
+                reply_state       TEXT        NOT NULL DEFAULT 'pending',
+                sent_at           TIMESTAMPTZ,
+                sent_message_id   TEXT,
+                created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (rm_user_id, gmail_message_id)
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_inbox_rm_state "
+            "ON pulse.inbox_emails (rm_user_id, reply_state, received_at DESC);"
+        )
         await conn.commit()
 
 
