@@ -20,10 +20,10 @@ async def inbox_sync_loop() -> None:
     """Sync all connected RMs' inboxes every _INTERVAL_S seconds.
 
     Waits 200s at startup so SF contacts + google sessions are ready first.
-    No-op unless PULSE_INBOX_SYNC=1.
+    On by default; set PULSE_INBOX_SYNC=0 to disable.
     """
-    if os.environ.get("PULSE_INBOX_SYNC") != "1":
-        log.info("inbox sync loop disabled (set PULSE_INBOX_SYNC=1 to enable)")
+    if os.environ.get("PULSE_INBOX_SYNC", "1") == "0":
+        log.info("inbox sync loop disabled (PULSE_INBOX_SYNC=0)")
         return
     await asyncio.sleep(200)
     from core.google.auth import list_connected_users
