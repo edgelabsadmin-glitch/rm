@@ -34,18 +34,43 @@ _DEFAULT_STYLE = (
 )
 
 
-def owned_account_ids(entities: list[dict], account_index: dict, rm_name: str) -> list[str]:
-    """Account ids from `entities` that resolve to an account owned by `rm_name`."""
-    out: list[str] = []
-    target = rm_name.lower().strip()
-    for e in entities:
-        aid = e.get("sfdc_id")
-        if not aid:
-            continue
-        meta = account_index.get(aid)
-        if meta and (meta.get("rm_name") or "").lower().strip() == target:
-            out.append(aid)
-    return out
+# Pulse user_id → Salesforce User Id (account OwnerId). Mirrors DEMO_USERS in
+# front/src/fixtures/demo_characters.ts. Used to match an RM to their accounts by the
+# robust Salesforce owner id rather than the display name (Google names carry extra
+# surnames, e.g. "Akash Tahir Sindhu" vs the SF owner "Akash Tahir").
+RM_SF_USER_IDS: dict[str, str] = {
+    "eddy-chen": "005U1000005qMJJIA2",
+    "sarah-hooper": "005U1000000z4ujIAA",
+    "muhammad-ibrahim": "005U10000075k1OIAQ",
+    "sidra-zia": "0056S00000F13rsQAB",
+    "sajjal-shaheedi": "0056S00000H7On5QAF",
+    "michael-vasquez": "005U10000032bOLIAY",
+    "yozeline-candia": "005U10000032bZdIAI",
+    "tanveer-shoukat": "005U100000BaAiTIAV",
+    "muhammad-dawar": "005U100000BaBHxIAN",
+    "attiya-arooj": "005U100000BlqxhIAB",
+    "hamna-ismail": "005U100000CAtZgIAL",
+    "ameer-ali": "005U1000007UP09IAG",
+    "abbas-haider": "005U1000007UPBRIA4",
+    "zeeshan-hassan": "005U1000007nCtdIAE",
+    "ghaeen-salam": "005U100000B4AGzIAN",
+    "akash-tahir": "005U100000Ba9b7IAB",
+    "ammar-ashique": "005U100000BlpSLIAZ",
+    "amir-zaidi": "005U100000BlqfxIAB",
+    "mubeen-sohail": "005U100000Blr0vIAB",
+    "sheryl-stephen": "005U100000Blr5lIAB",
+}
+
+
+def rm_owns_account(meta: dict, rm_sf_id: str | None, rm_name: str) -> bool:
+    """Whether `meta`'s account belongs to this RM.
+
+    Prefers the Salesforce owner id (exact, robust). Falls back to the owner
+    display-name only when the RM has no mapped Salesforce id.
+    """
+    if rm_sf_id:
+        return meta.get("owner_id") == rm_sf_id
+    return (meta.get("rm_name") or "").lower().strip() == rm_name.lower().strip()
 
 
 async def build_inbox_index() -> dict[str, tuple[str, str]]:
@@ -98,7 +123,7 @@ async def _rm_identity(rm_user_id: str) -> dict | None:
 
 
 async def _account_meta(account_ids: list[str]) -> dict:
-    """Return {account_id: {rm_name, name, tier, risk}} for the given ids."""
+    """Return {account_id: {owner_id, rm_name, name, tier, risk}} for the given ids."""
     if not account_ids:
         return {}
     pool = await get_pool()
@@ -106,7 +131,7 @@ async def _account_meta(account_ids: list[str]) -> dict:
         conn.row_factory = dict_row
         rows = await (
             await conn.execute(
-                "SELECT account_id, rm_name, name, tier, risk FROM pulse.sf_accounts "
+                "SELECT account_id, owner_id, rm_name, name, tier, risk FROM pulse.sf_accounts "
                 "WHERE account_id = ANY(%s)",
                 [account_ids],
             )
@@ -125,6 +150,7 @@ async def sync_inbox(rm_user_id: str) -> dict:
         return {"threads": 0, "ingested": 0, "skipped": 0, "errors": 0}
     rm_email = (identity["email"] or "").lower()
     rm_name = identity["google_name"] or ""
+    rm_sf_id = RM_SF_USER_IDS.get(rm_user_id)
 
     email_index = await build_inbox_index()
     headers = {"Authorization": f"Bearer {token}"}
@@ -181,12 +207,12 @@ async def sync_inbox(rm_user_id: str) -> dict:
                     continue
                 cand_account_id, sender_kind = match
                 meta_index = await _account_meta([cand_account_id])
-                owned = owned_account_ids([{"sfdc_id": cand_account_id}], meta_index, rm_name)
-                if not owned:
+                meta = meta_index.get(cand_account_id)
+                if not meta or not rm_owns_account(meta, rm_sf_id, rm_name):
                     skipped += 1
                     continue
 
-                account_id = owned[0]
+                account_id = cand_account_id
                 body = extract_plain_body(msg.get("payload", {})) or msg.get("snippet", "")
                 subject = _header(mh, "Subject") or None
                 rfc_id = _header(mh, "Message-Id") or _header(mh, "Message-ID") or None

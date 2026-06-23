@@ -1,29 +1,26 @@
-"""Ownership filter for inbox sync — pure, no network."""
+"""Ownership check for inbox sync — pure, no network."""
 
-from core.inbox.sync import owned_account_ids
-
-
-def _idx():
-    return {
-        "001": {"rm_name": "Eddy Chen", "name": "Acme", "tier": "Strategic", "risk": "High"},
-        "002": {"rm_name": "Other RM", "name": "Beta", "tier": "Core", "risk": "Low"},
-    }
+from core.inbox.sync import rm_owns_account
 
 
-def test_owned_account_ids_keeps_only_this_rms_accounts():
-    entities = [{"type": "sf_account", "sfdc_id": "001"}, {"type": "sf_account", "sfdc_id": "002"}]
-    assert owned_account_ids(entities, _idx(), "Eddy Chen") == ["001"]
+def test_owns_by_salesforce_owner_id():
+    meta = {"owner_id": "005AAA", "rm_name": "Akash Tahir"}
+    # Robust path: matches on SF owner id regardless of the RM's (longer) Google name.
+    assert rm_owns_account(meta, "005AAA", "Akash Tahir Sindhu") is True
 
 
-def test_owned_account_ids_case_insensitive():
-    entities = [{"type": "sf_account", "sfdc_id": "001"}]
-    assert owned_account_ids(entities, _idx(), "eddy chen") == ["001"]
+def test_owner_id_mismatch_not_owned():
+    meta = {"owner_id": "005BBB", "rm_name": "Someone Else"}
+    assert rm_owns_account(meta, "005AAA", "Akash Tahir") is False
 
 
-def test_owned_account_ids_unknown_account_excluded():
-    entities = [{"type": "sf_account", "sfdc_id": "999"}]
-    assert owned_account_ids(entities, _idx(), "Eddy Chen") == []
+def test_falls_back_to_name_when_no_sf_id():
+    meta = {"owner_id": "005CCC", "rm_name": "Eddy Chen"}
+    assert rm_owns_account(meta, None, "eddy chen") is True  # case-insensitive
+    assert rm_owns_account(meta, None, "Other RM") is False
 
 
-def test_owned_account_ids_empty():
-    assert owned_account_ids([], _idx(), "Eddy Chen") == []
+def test_sf_id_takes_precedence_over_name():
+    # With a mapped sf id, the name is ignored entirely (owner_id is authoritative).
+    meta = {"owner_id": "005XXX", "rm_name": "Akash Tahir"}
+    assert rm_owns_account(meta, "005YYY", "Akash Tahir") is False
