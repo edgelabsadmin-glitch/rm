@@ -103,6 +103,15 @@ export interface AccountListDTO {
   page_size: number;
 }
 
+export interface SyncStatusDTO {
+  state: "idle" | "running" | "done" | "error";
+  percent: number;
+  phase: string | null;
+  detail: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
 export const api = {
   listAccounts: async (
     caller: ApiCaller,
@@ -321,4 +330,10 @@ export const api = {
     request<{ dismissed: boolean }>(`/inbox/${emailId}/dismiss`, caller, {
       method: "POST",
     }),
+
+  getSyncStatus: (caller: ApiCaller) =>
+    request<SyncStatusDTO>("/admin/sync/status", caller),
+
+  startSync: (caller: ApiCaller) =>
+    request<SyncStatusDTO>("/admin/sync", caller, { method: "POST" }),
 };

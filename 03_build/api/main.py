@@ -348,6 +348,21 @@ async def _ensure_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_inbox_rm_state "
             "ON pulse.inbox_emails (rm_user_id, reply_state, received_at DESC);"
         )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.sync_status (
+                id          INT         PRIMARY KEY,
+                state       TEXT        NOT NULL DEFAULT 'idle',
+                percent     INT         NOT NULL DEFAULT 0,
+                phase       TEXT,
+                detail      TEXT,
+                started_at  TIMESTAMPTZ,
+                finished_at TIMESTAMPTZ
+            )
+        """)
+        await conn.execute(
+            "INSERT INTO pulse.sync_status (id, state) VALUES (1, 'idle') "
+            "ON CONFLICT (id) DO NOTHING"
+        )
         await conn.commit()
 
 
@@ -414,6 +429,7 @@ def create_app() -> FastAPI:
     from api.accounts import router as accounts_router
     from api.actions import router as actions_router
     from api.admin.kill_switch import router as kill_switch_router
+    from api.admin.sync import router as admin_sync_router
     from api.auth_google import router as auth_google_router
     from api.client_auth import router as client_auth_router
     from api.client_chat import router as client_chat_router
@@ -425,6 +441,7 @@ def create_app() -> FastAPI:
     from api.webhooks import router as webhooks_router
 
     app.include_router(kill_switch_router)
+    app.include_router(admin_sync_router)
     app.include_router(profiles_router)
     app.include_router(actions_router)
     app.include_router(dispatch_router)

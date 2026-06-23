@@ -6,6 +6,7 @@
  * deriveAccountScope (no hardcoding); permission summaries from the spec §3 matrix.
  */
 import { useMemo, useState } from "react";
+import { DataSyncCard } from "./DataSyncCard";
 import { DEMO_ACCOUNTS, DEMO_USERS, type DemoUser } from "@/fixtures/demo_characters";
 import { deriveAccountScope } from "@/lib/rbac/accountScope";
 import type { UserRole } from "@/lib/rbac/types";
@@ -104,7 +105,13 @@ export function SettingsUsersPanel() {
   const selectedUser = userRows.find((u) => u.id === selectedUserId) ?? null;
 
   return (
-    <div className="grid grid-cols-12 gap-0">
+    <div>
+      {/* Admin data-sync control */}
+      <div className="border-b border-line-subtle p-6">
+        <DataSyncCard />
+      </div>
+
+      <div className="grid grid-cols-12 gap-0">
       {/* Left — role filter chips */}
       <aside className="col-span-12 border-b border-line-subtle bg-surface-sidebar p-5 lg:col-span-3 lg:border-b-0 lg:border-r">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-ink-secondary">
@@ -216,6 +223,7 @@ export function SettingsUsersPanel() {
           <div className="text-sm text-ink-secondary">Click a user to view details.</div>
         )}
       </aside>
+      </div>
     </div>
   );
 }
