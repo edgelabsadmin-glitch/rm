@@ -49,7 +49,7 @@ export const DEMO_MANAGERS: ReadonlyArray<DemoManager> = [
 ];
 
 export const DEMO_RMS: ReadonlyArray<DemoRM> = [
-  // Sarah Hooper's team (7 RMs)
+  // Sarah Hooper's team (8 RMs)
   { id: "sidra-zia", name: "Sidra Zia", managerId: "sarah-hooper" },
   { id: "sajjal-shaheedi", name: "Sajjal Shaheedi", managerId: "sarah-hooper" },
   { id: "michael-vasquez", name: "Michael Vasquez", managerId: "sarah-hooper" },
@@ -57,6 +57,7 @@ export const DEMO_RMS: ReadonlyArray<DemoRM> = [
   { id: "tanveer-shoukat", name: "Tanveer Shoukat", managerId: "sarah-hooper" },
   { id: "muhammad-dawar", name: "Muhammad Dawar Khan", managerId: "sarah-hooper" },
   { id: "attiya-arooj", name: "Attiya Arooj", managerId: "sarah-hooper" },
+  { id: "hamna-ismail", name: "Hamna Ismail", managerId: "sarah-hooper" },
   // Muhammad Ibrahim's team (9 RMs)
   { id: "ameer-ali", name: "Ameer Ali", managerId: "muhammad-ibrahim" },
   { id: "abbas-haider", name: "Abbas Haider", managerId: "muhammad-ibrahim" },
@@ -187,6 +188,7 @@ export const DEMO_USERS: ReadonlyArray<DemoUser> = [
   { id: "tanveer-shoukat", displayName: "Tanveer Shoukat", email: "tanveer.shoukat@onedge.co", role: "rm", rmId: "tanveer-shoukat", sfUserId: "005U100000BaAiTIAV", avatarInitials: "TS" },
   { id: "muhammad-dawar", displayName: "Muhammad Dawar Khan", email: "muhammad.dawar@onedge.co", role: "rm", rmId: "muhammad-dawar", sfUserId: "005U100000BaBHxIAN", avatarInitials: "MD" },
   { id: "attiya-arooj", displayName: "Attiya Arooj", email: "attiya.arooj@onedge.co", role: "rm", rmId: "attiya-arooj", sfUserId: "005U100000BlqxhIAB", avatarInitials: "AR" },
+  { id: "hamna-ismail", displayName: "Hamna Ismail", email: "hamna.ismail@onedge.co", role: "rm", rmId: "hamna-ismail", sfUserId: "005U100000CAtZgIAL", avatarInitials: "HI" },
   // RMs — Muhammad Ibrahim's team
   { id: "ameer-ali", displayName: "Ameer Ali", email: "ameer.ali@onedge.co", role: "rm", rmId: "ameer-ali", sfUserId: "005U1000007UP09IAG", avatarInitials: "AA" },
   { id: "abbas-haider", displayName: "Abbas Haider", email: "abbas.haider@onedge.co", role: "rm", rmId: "abbas-haider", sfUserId: "005U1000007UPBRIA4", avatarInitials: "AH" },
