@@ -33,6 +33,8 @@ export interface ConstellationNode {
   size: number;
   rm_id?: string;
   manager_id?: string;
+  /** Real-data path: active-talent count for this account, used to render the talent orbit. */
+  active_talent?: number;
   fx?: number;
   fy?: number;
   x?: number;
@@ -206,6 +208,7 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
       size,
       rm_id: rmNodeId,
       manager_id: managerNodeId,
+      active_talent: acc.active_talent,
     });
     links.push({ source: acc.account_id, target: rmNodeId, state });
   }
@@ -213,24 +216,47 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
   return { nodes, links };
 }
 
-/** Inline talent drill-down (option c): real Active talent (deduped) orbiting one
- * account, clamped to MAX_TALENT_PER_ACCOUNT. `clamped` flags accounts over the cap. */
+/** Inline talent drill-down (option c): Active talent orbiting one account, clamped to
+ * MAX_TALENT_PER_ACCOUNT. `clamped` flags accounts over the cap.
+ *
+ * Real-data path (account carries `active_talent`): synthesize that many orbiting talent
+ * nodes from the real count — per-associate names aren't exposed to the client, so nodes
+ * are labelled generically. Fixture path (demo accounts): use the named DEMO_TALENT roster.
+ */
 export function buildTalentFor(
   account: ConstellationNode,
 ): { nodes: ConstellationNode[]; links: ConstellationLink[]; clamped: boolean } {
-  const all = DEMO_TALENT.filter((t) => t.accountId === account.id);
-  const show = all.slice(0, MAX_TALENT_PER_ACCOUNT);
   const ax = account.x ?? account.fx ?? 0;
   const ay = account.y ?? account.fy ?? 0;
+
+  let items: { id: string; label: string }[];
+  let total: number;
+  if (account.active_talent !== undefined) {
+    // Real account — synthesize from the live active-talent count.
+    total = account.active_talent;
+    const n = Math.min(total, MAX_TALENT_PER_ACCOUNT);
+    items = Array.from({ length: n }, (_, i) => ({
+      id: `${account.id}::talent-${i}`,
+      label: `Active talent ${i + 1}`,
+    }));
+  } else {
+    // Demo account — named roster from fixtures.
+    const all = DEMO_TALENT.filter((t) => t.accountId === account.id);
+    total = all.length;
+    items = all
+      .slice(0, MAX_TALENT_PER_ACCOUNT)
+      .map((t) => ({ id: t.id, label: t.name }));
+  }
+
   const nodes: ConstellationNode[] = [];
   const links: ConstellationLink[] = [];
-  show.forEach((t, i) => {
-    const a = (i / show.length) * 2 * Math.PI;
+  items.forEach((t, i) => {
+    const a = (i / Math.max(items.length, 1)) * 2 * Math.PI;
     nodes.push({
-      id: t.id, type: "talent", label: t.name, size: 1.4,
+      id: t.id, type: "talent", label: t.label, size: 1.4,
       x: ax + Math.cos(a) * 14, y: ay + Math.sin(a) * 14,
     });
     links.push({ source: t.id, target: account.id, state: "active" });
   });
-  return { nodes, links, clamped: all.length > MAX_TALENT_PER_ACCOUNT };
+  return { nodes, links, clamped: total > MAX_TALENT_PER_ACCOUNT };
 }

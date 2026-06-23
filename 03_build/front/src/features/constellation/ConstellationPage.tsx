@@ -13,7 +13,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, useUser } from "@/lib/auth/AuthContext";
-import { DEMO_ACCOUNTS, DEMO_RMS, DEMO_USERS } from "@/fixtures/demo_characters";
+import { DEMO_ACCOUNTS, DEMO_RMS, DEMO_USERS, managerSfUserIds } from "@/fixtures/demo_characters";
 
 // SF user IDs of all known RMs — used to filter constellation to RM-owned accounts only.
 const ALL_RM_SF_IDS = DEMO_RMS
@@ -52,14 +52,23 @@ export function ConstellationPage() {
     return DEMO_RMS.filter((rm) => rm.managerId === user.managerId);
   }, [user]);
 
-  // Compute API filter: always restrict to known RM SF IDs; narrow to one RM if selected.
+  // Compute API filter scoped by role (RBAC):
+  //   RM         → their own accounts only ({ rm_id })
+  //   Manager    → their team's accounts ({ rm_ids }); team-member dropdown narrows to one RM
+  //   Admin/Exec → the whole constellation (all RM-owned accounts)
   const apiFilter = useMemo(() => {
-    const rmScope = selectedRmId
-      ? (() => {
-          const sfId = DEMO_USERS.find((u) => u.id === selectedRmId)?.sfUserId;
-          return sfId ? { rm_id: sfId } : { rm_ids: ALL_RM_SF_IDS };
-        })()
-      : { rm_ids: ALL_RM_SF_IDS };
+    let rmScope: { rm_id?: string; rm_ids?: string };
+    if (selectedRmId) {
+      const sfId = DEMO_USERS.find((u) => u.id === selectedRmId)?.sfUserId;
+      rmScope = sfId ? { rm_id: sfId } : { rm_ids: ALL_RM_SF_IDS };
+    } else if (user.role === "rm") {
+      rmScope = { rm_id: user.sfUserId ?? user.id };
+    } else if (user.role === "manager") {
+      const ids = managerSfUserIds(user.id);
+      rmScope = ids.length ? { rm_ids: ids.join(",") } : { rm_ids: ALL_RM_SF_IDS };
+    } else {
+      rmScope = { rm_ids: ALL_RM_SF_IDS }; // admin / executive
+    }
     return {
       ...rmScope,
       active_only: true as const,
@@ -67,7 +76,7 @@ export function ConstellationPage() {
       ...(filterRisk ? { risk: filterRisk } : {}),
       ...(filterSegment ? { segment: filterSegment } : {}),
     };
-  }, [selectedRmId, filterTier, filterRisk, filterSegment]);
+  }, [selectedRmId, user, filterTier, filterRisk, filterSegment]);
 
   // Fetch real accounts (all pages at once — max 1000)
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
