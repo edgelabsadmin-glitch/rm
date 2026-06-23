@@ -12,6 +12,7 @@ asyncio.Lock prevents concurrent fetches.
 Env vars:
   SF_INSTANCE_URL   — org URL (default: https://edgesolutions.my.salesforce.com)
   SF_CLIENT_ID      — Connected App consumer key
+  SF_CLIENT_SECRET  — Connected App consumer secret (required by the password flow)
   SF_USERNAME       — Salesforce username
   SF_PASSWORD       — Salesforce password
   SF_SECURITY_TOKEN — Salesforce security token (appended to password)
@@ -59,13 +60,17 @@ class _SFAuth:
     def _fetch_sync(self) -> str:
         """Fetch a fresh access token from Salesforce OAuth (username-password flow)."""
         client_id = os.environ.get("SF_CLIENT_ID", "")
+        client_secret = os.environ.get("SF_CLIENT_SECRET", "")
         username = os.environ.get("SF_USERNAME", "")
         password = os.environ.get("SF_PASSWORD", "")
         security_token = os.environ.get("SF_SECURITY_TOKEN", "")
 
-        if not all([client_id, username, password]):
+        # Salesforce's username-password OAuth flow requires the Connected App's
+        # consumer secret; omitting it returns 400 invalid_client.
+        if not all([client_id, client_secret, username, password]):
             raise RuntimeError(
-                "SF_CLIENT_ID, SF_USERNAME, and SF_PASSWORD must be set for Salesforce auth"
+                "SF_CLIENT_ID, SF_CLIENT_SECRET, SF_USERNAME, and SF_PASSWORD "
+                "must be set for Salesforce auth"
             )
 
         resp = httpx.post(
@@ -73,6 +78,7 @@ class _SFAuth:
             data={
                 "grant_type": "password",
                 "client_id": client_id,
+                "client_secret": client_secret,
                 "username": username,
                 "password": password + security_token,
             },
