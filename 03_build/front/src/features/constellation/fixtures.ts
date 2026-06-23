@@ -153,16 +153,6 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
 
   nodes.push({ id: "globe", type: "globe", label: "EDGE Pulse", size: 26, fx: 0, fy: 0 });
 
-  // Managers connect directly to globe
-  DEMO_MANAGERS.forEach((m, i) => {
-    const a = (i / DEMO_MANAGERS.length) * 2 * Math.PI;
-    nodes.push({
-      id: m.id, type: "manager", label: m.name, size: 15,
-      fx: Math.cos(a) * R_MGR, fy: Math.sin(a) * R_MGR,
-    });
-    links.push({ source: m.id, target: "globe", state: "active" });
-  });
-
   // Only show demo RMs that have at least one real SF account linked to them
   const activeRmIds = new Set(
     accounts
@@ -171,6 +161,21 @@ export function buildConstellationGraphFromReal(accounts: AccountSummaryDTO[]): 
   );
   const visibleDemoRMs = DEMO_RMS.filter((rm) => activeRmIds.has(rm.id));
   const visibleTotal = visibleDemoRMs.length + extraRMs.size;
+
+  // Only show managers that have at least one visible RM under them (scope-aware). An RM then
+  // sees only their own manager, a manager sees only themselves, admin/exec see all relevant.
+  const visibleManagerIds = new Set(visibleDemoRMs.map((rm) => rm.managerId));
+  const visibleManagers = DEMO_MANAGERS.filter((m) => visibleManagerIds.has(m.id));
+
+  // Managers connect directly to globe
+  visibleManagers.forEach((m, i) => {
+    const a = (i / Math.max(visibleManagers.length, 1)) * 2 * Math.PI;
+    nodes.push({
+      id: m.id, type: "manager", label: m.name, size: 15,
+      fx: Math.cos(a) * R_MGR, fy: Math.sin(a) * R_MGR,
+    });
+    links.push({ source: m.id, target: "globe", state: "active" });
+  });
 
   visibleDemoRMs.forEach((rm, i) => {
     const a = (i / Math.max(visibleTotal, 1)) * 2 * Math.PI;
