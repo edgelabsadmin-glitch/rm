@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 _PHASES: list[tuple[str, str, str]] = [
     ("Salesforce accounts", "core.salesforce.sync", "pull_and_upsert"),
     ("Salesforce contacts", "core.salesforce.sync", "pull_and_upsert_contacts"),
+    ("Salesforce talent", "core.salesforce.sync", "pull_and_upsert_associates"),
     ("Chorus meetings", "core.chorus.sync", "pull_and_ingest"),
     ("Zoom meetings", "core.zoom.sync", "pull_and_ingest"),
 ]

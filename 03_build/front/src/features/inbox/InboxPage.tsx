@@ -39,6 +39,19 @@ function initials(name: string | null, email: string): string {
   );
 }
 
+function SenderKindBadge({ kind }: { kind: "client" | "talent" }) {
+  const isTalent = kind === "talent";
+  return (
+    <span
+      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+        isTalent ? "bg-amber-100 text-amber-700" : "bg-surface-tinted-row text-ink-secondary"
+      }`}
+    >
+      {isTalent ? "Talent" : "Client"}
+    </span>
+  );
+}
+
 export function InboxPage() {
   const { data, isLoading } = useInbox();
   const emails = useMemo(() => data?.emails ?? [], [data]);
@@ -97,11 +110,14 @@ export function InboxPage() {
                     {e.subject ?? "(no subject)"}
                   </span>
                   <span className="block truncate text-xs text-ink-secondary">{e.snippet}</span>
-                  {e.has_draft && (
-                    <span className="mt-1 inline-block rounded-full bg-brand-ghost px-2 py-0.5 text-[10px] text-brand">
-                      AI reply ready
-                    </span>
-                  )}
+                  <span className="mt-1 flex items-center gap-1">
+                    <SenderKindBadge kind={e.sender_kind} />
+                    {e.has_draft && (
+                      <span className="inline-block rounded-full bg-brand-ghost px-2 py-0.5 text-[10px] text-brand">
+                        AI reply ready
+                      </span>
+                    )}
+                  </span>
                 </span>
               </motion.button>
             ))}
@@ -193,8 +209,11 @@ function EmailDetail({ emailId, summary }: { emailId: string; summary?: InboxEma
 
       <div className="mb-4">
         <h2 className="text-base font-semibold">{email.subject ?? "(no subject)"}</h2>
-        <p className="text-xs text-ink-secondary">
-          From {email.from_name ?? email.from_email} &lt;{email.from_email}&gt;
+        <p className="flex items-center gap-2 text-xs text-ink-secondary">
+          <span>
+            From {email.from_name ?? email.from_email} &lt;{email.from_email}&gt;
+          </span>
+          <SenderKindBadge kind={email.sender_kind} />
         </p>
       </div>
 

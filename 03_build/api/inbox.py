@@ -38,6 +38,7 @@ class InboxEmailSummary(BaseModel):
     account_id: str | None
     tier: str | None
     risk: str | None
+    sender_kind: str
     has_draft: bool
 
 
@@ -70,7 +71,7 @@ async def _pending_list(rm_user_id: str) -> InboxList:
                 """
                 SELECT i.email_id, i.from_email, i.from_name, i.subject, i.body,
                        i.received_at, i.account_id, i.suggested_reply, i.draft_reply,
-                       a.tier, a.risk
+                       i.sender_kind, a.tier, a.risk
                 FROM pulse.inbox_emails i
                 LEFT JOIN pulse.sf_accounts a ON a.account_id = i.account_id
                 WHERE i.rm_user_id = %s AND i.reply_state = 'pending'
@@ -92,6 +93,7 @@ async def _pending_list(rm_user_id: str) -> InboxList:
             account_id=r["account_id"],
             tier=r["tier"],
             risk=r["risk"],
+            sender_kind=r["sender_kind"],
             has_draft=bool(r["draft_reply"] or r["suggested_reply"]),
         )
         for r in rows
@@ -124,7 +126,7 @@ async def get_inbox_email(
                 """
                 SELECT i.email_id, i.from_email, i.from_name, i.subject, i.body,
                        i.received_at, i.account_id, i.suggested_reply, i.reply_rationale,
-                       i.draft_reply, a.tier, a.risk
+                       i.draft_reply, i.sender_kind, a.tier, a.risk
                 FROM pulse.inbox_emails i
                 LEFT JOIN pulse.sf_accounts a ON a.account_id = i.account_id
                 WHERE i.email_id = %s::uuid AND i.rm_user_id = %s
@@ -144,6 +146,7 @@ async def get_inbox_email(
         account_id=r["account_id"],
         tier=r["tier"],
         risk=r["risk"],
+        sender_kind=r["sender_kind"],
         has_draft=bool(r["draft_reply"] or r["suggested_reply"]),
         body=r["body"] or "",
         suggested_reply=r["suggested_reply"],

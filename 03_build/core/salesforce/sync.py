@@ -296,3 +296,65 @@ async def pull_and_upsert_contacts() -> int:
 
     log.info("SF contact sync complete — %d contacts upserted.", len(rows))
     return len(rows)
+
+
+# ── Associates (talent) sync ──────────────────────────────────────────────────
+
+_ASSOCIATES_SOQL = """
+    SELECT Id, Name, Account__c, Email__c, Stage__c
+    FROM Associates__c
+    WHERE Account__c != null AND Email__c != null
+"""
+
+_ASSOCIATES_UPSERT_SQL = """
+INSERT INTO pulse.sf_associates (associate_id, account_id, name, email, stage, synced_at)
+VALUES (%(associate_id)s, %(account_id)s, %(name)s, %(email)s, %(stage)s, %(synced_at)s)
+ON CONFLICT (associate_id) DO UPDATE SET
+    account_id = EXCLUDED.account_id,
+    name       = EXCLUDED.name,
+    email      = EXCLUDED.email,
+    stage      = EXCLUDED.stage,
+    synced_at  = EXCLUDED.synced_at
+"""
+
+
+async def pull_and_upsert_associates() -> int:
+    """Fetch all SF associates (talent) with emails and upsert to pulse.sf_associates.
+
+    These power the inbox's talent-email detection: an email from a talent maps to
+    their Account__c, and thence to the RM who owns that account.
+    """
+    log.info("SF associate sync starting…")
+    client = SalesforceClient()
+    try:
+        associates = await client.query_all(_ASSOCIATES_SOQL)
+    except Exception as exc:
+        log.error("SF associate fetch failed: %s", exc)
+        raise
+
+    if not associates:
+        log.warning("SF associate sync: no associates returned.")
+        return 0
+
+    now = datetime.now(UTC)
+    rows = [
+        {
+            "associate_id": a["Id"],
+            "account_id": a["Account__c"],
+            "name": a.get("Name"),
+            "email": (a.get("Email__c") or "").lower().strip() or None,
+            "stage": a.get("Stage__c"),
+            "synced_at": now,
+        }
+        for a in associates
+        if a.get("Account__c") and a.get("Email__c")
+    ]
+
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.executemany(_ASSOCIATES_UPSERT_SQL, rows)
+        await conn.commit()
+
+    log.info("SF associate sync complete — %d associates upserted.", len(rows))
+    return len(rows)

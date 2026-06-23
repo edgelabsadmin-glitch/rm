@@ -20,7 +20,6 @@ import httpx
 from psycopg.rows import dict_row
 
 from core.db import get_pool
-from core.google.account_matcher import build_email_index, match_accounts
 from core.google.auth import get_valid_token
 from core.inbox.reply import generate_reply
 from core.inbox.threads import extract_plain_body, latest_inbound_message
@@ -47,6 +46,36 @@ def owned_account_ids(entities: list[dict], account_index: dict, rm_name: str) -
         if meta and (meta.get("rm_name") or "").lower().strip() == target:
             out.append(aid)
     return out
+
+
+async def build_inbox_index() -> dict[str, tuple[str, str]]:
+    """Return {lowercase_email: (account_id, kind)} for client contacts + talent.
+
+    kind is 'client' (sf_contacts) or 'talent' (sf_associates). Built so a sender's
+    email resolves to the account it belongs to, and thence to that account's RM.
+    Talent is loaded first, clients second, so a client wins a rare email collision.
+    """
+    index: dict[str, tuple[str, str]] = {}
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        assoc = await (
+            await conn.execute(
+                "SELECT LOWER(email) AS email, account_id FROM pulse.sf_associates "
+                "WHERE email IS NOT NULL AND account_id IS NOT NULL"
+            )
+        ).fetchall()
+        for r in assoc:
+            index[r["email"]] = (r["account_id"], "talent")
+        contacts = await (
+            await conn.execute(
+                "SELECT LOWER(email) AS email, account_id FROM pulse.sf_contacts "
+                "WHERE email IS NOT NULL AND account_id IS NOT NULL"
+            )
+        ).fetchall()
+        for r in contacts:
+            index[r["email"]] = (r["account_id"], "client")
+    return index
 
 
 def _header(headers: list[dict], name: str) -> str:
@@ -97,7 +126,7 @@ async def sync_inbox(rm_user_id: str) -> dict:
     rm_email = (identity["email"] or "").lower()
     rm_name = identity["google_name"] or ""
 
-    email_index = await build_email_index()
+    email_index = await build_inbox_index()
     headers = {"Authorization": f"Bearer {token}"}
     since = (datetime.now(UTC) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y/%m/%d")
     query = f"in:inbox after:{since}"
@@ -146,9 +175,13 @@ async def sync_inbox(rm_user_id: str) -> dict:
                 msg = newest["raw"]
                 mh = msg.get("payload", {}).get("headers", [])
                 from_name, from_addr = parseaddr(_header(mh, "From"))
-                entities = match_accounts([from_addr.lower()], email_index)
-                meta_index = await _account_meta([e["sfdc_id"] for e in entities])
-                owned = owned_account_ids(entities, meta_index, rm_name)
+                match = email_index.get(from_addr.lower())
+                if not match:
+                    skipped += 1
+                    continue
+                cand_account_id, sender_kind = match
+                meta_index = await _account_meta([cand_account_id])
+                owned = owned_account_ids([{"sfdc_id": cand_account_id}], meta_index, rm_name)
                 if not owned:
                     skipped += 1
                     continue
@@ -170,6 +203,7 @@ async def sync_inbox(rm_user_id: str) -> dict:
                     subject=subject,
                     body=body,
                     received_at=received,
+                    sender_kind=sender_kind,
                 )
                 if not inserted:
                     skipped += 1
@@ -226,8 +260,9 @@ async def _upsert_email(**kw) -> bool:
                 """
                 INSERT INTO pulse.inbox_emails (
                     rm_user_id, gmail_message_id, gmail_thread_id, rfc_message_id,
-                    account_id, from_email, from_name, subject, body, received_at
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    account_id, from_email, from_name, subject, body, received_at,
+                    sender_kind
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (rm_user_id, gmail_message_id) DO NOTHING
                 RETURNING email_id
                 """,
@@ -242,6 +277,7 @@ async def _upsert_email(**kw) -> bool:
                     kw["subject"],
                     kw["body"],
                     kw["received_at"],
+                    kw.get("sender_kind", "client"),
                 ],
             )
         ).fetchone()

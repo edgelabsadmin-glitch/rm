@@ -81,10 +81,10 @@ async def _zoom_sync_loop() -> None:
 
 
 async def _sf_contacts_sync_loop() -> None:
-    """Sync SF contacts at startup (after accounts) then every 12 hours.
-    Waits 120s so the SF account sync has completed first."""
+    """Sync SF contacts + associates (talent) at startup (after accounts) then every
+    12 hours. Waits 120s so the SF account sync has completed first."""
     await asyncio.sleep(120)
-    from core.salesforce.sync import pull_and_upsert_contacts
+    from core.salesforce.sync import pull_and_upsert_associates, pull_and_upsert_contacts
 
     while True:
         try:
@@ -92,6 +92,11 @@ async def _sf_contacts_sync_loop() -> None:
             log.info("SF contact sync done: %d contacts in DB.", count)
         except Exception as exc:
             log.error("SF contact sync error (will retry in %dh): %s", SYNC_INTERVAL_HOURS, exc)
+        try:
+            count = await pull_and_upsert_associates()
+            log.info("SF associate sync done: %d associates in DB.", count)
+        except Exception as exc:
+            log.error("SF associate sync error (will retry in %dh): %s", SYNC_INTERVAL_HOURS, exc)
         await asyncio.sleep(SYNC_INTERVAL_HOURS * 3600)
 
 
@@ -247,6 +252,24 @@ async def _ensure_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_sf_contacts_account ON pulse.sf_contacts (account_id);"
         )
         await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.sf_associates (
+                associate_id  TEXT PRIMARY KEY,
+                account_id    TEXT NOT NULL,
+                name          TEXT,
+                email         TEXT,
+                stage         TEXT,
+                synced_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sf_associates_email "
+            "ON pulse.sf_associates (LOWER(email)) WHERE email IS NOT NULL;"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sf_associates_account "
+            "ON pulse.sf_associates (account_id);"
+        )
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS pulse.client_otps (
                 id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
                 email          TEXT        NOT NULL,
@@ -334,6 +357,7 @@ async def _ensure_schema() -> None:
                 subject           TEXT,
                 body              TEXT,
                 received_at       TIMESTAMPTZ NOT NULL,
+                sender_kind       TEXT        NOT NULL DEFAULT 'client',
                 suggested_reply   TEXT,
                 reply_rationale   TEXT,
                 draft_reply       TEXT,
@@ -347,6 +371,10 @@ async def _ensure_schema() -> None:
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_inbox_rm_state "
             "ON pulse.inbox_emails (rm_user_id, reply_state, received_at DESC);"
+        )
+        await conn.execute(
+            "ALTER TABLE IF EXISTS pulse.inbox_emails "
+            "ADD COLUMN IF NOT EXISTS sender_kind TEXT NOT NULL DEFAULT 'client'"
         )
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS pulse.sync_status (

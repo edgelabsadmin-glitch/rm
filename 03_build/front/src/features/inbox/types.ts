@@ -8,6 +8,7 @@ export interface InboxEmailDTO {
   account_id: string | null;
   tier: string | null;
   risk: "Low" | "Medium" | "High" | null;
+  sender_kind: "client" | "talent";
   has_draft: boolean;
 }
 
