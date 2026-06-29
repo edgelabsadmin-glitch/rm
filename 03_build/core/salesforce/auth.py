@@ -58,32 +58,43 @@ class _SFAuth:
             self._access_token = await asyncio.to_thread(self._fetch_sync)
 
     def _fetch_sync(self) -> str:
-        """Fetch a fresh access token from Salesforce OAuth (username-password flow)."""
+        """Fetch a fresh access token from Salesforce OAuth.
+
+        Prefers the refresh-token flow (SF_CLIENT_ID + SF_REFRESH_TOKEN — how the
+        prod org is provisioned, via the PlatformCLI public client which needs no
+        secret). Falls back to the username-password flow when no refresh token is
+        configured (SF_CLIENT_ID/SECRET/USERNAME/PASSWORD).
+        """
         client_id = os.environ.get("SF_CLIENT_ID", "")
+        refresh_token = os.environ.get("SF_REFRESH_TOKEN", "")
         client_secret = os.environ.get("SF_CLIENT_SECRET", "")
-        username = os.environ.get("SF_USERNAME", "")
-        password = os.environ.get("SF_PASSWORD", "")
-        security_token = os.environ.get("SF_SECURITY_TOKEN", "")
 
-        # Salesforce's username-password OAuth flow requires the Connected App's
-        # consumer secret; omitting it returns 400 invalid_client.
-        if not all([client_id, client_secret, username, password]):
-            raise RuntimeError(
-                "SF_CLIENT_ID, SF_CLIENT_SECRET, SF_USERNAME, and SF_PASSWORD "
-                "must be set for Salesforce auth"
-            )
-
-        resp = httpx.post(
-            _SF_TOKEN_URL,
-            data={
+        if client_id and refresh_token:
+            data = {
+                "grant_type": "refresh_token",
+                "client_id": client_id,
+                "refresh_token": refresh_token,
+            }
+            if client_secret:  # confidential clients include it; PlatformCLI does not
+                data["client_secret"] = client_secret
+        else:
+            username = os.environ.get("SF_USERNAME", "")
+            password = os.environ.get("SF_PASSWORD", "")
+            security_token = os.environ.get("SF_SECURITY_TOKEN", "")
+            if not all([client_id, client_secret, username, password]):
+                raise RuntimeError(
+                    "Set SF_REFRESH_TOKEN (+ SF_CLIENT_ID), or "
+                    "SF_CLIENT_ID/SECRET/USERNAME/PASSWORD, for Salesforce auth"
+                )
+            data = {
                 "grant_type": "password",
                 "client_id": client_id,
                 "client_secret": client_secret,
                 "username": username,
                 "password": password + security_token,
-            },
-            timeout=30,
-        )
+            }
+
+        resp = httpx.post(_SF_TOKEN_URL, data=data, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         token = data.get("access_token", "")
