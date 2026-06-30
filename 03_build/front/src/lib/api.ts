@@ -273,6 +273,36 @@ export const api = {
     }
   },
 
+  getAccountTalent: async (caller: ApiCaller, accountId: string) => {
+    type TalentItem = import("@/features/talent/types").TalentItem;
+    try {
+      return await request<TalentItem[]>(`/accounts/${accountId}/talent`, caller);
+    } catch {
+      return [] as TalentItem[];
+    }
+  },
+
+  getAccountEmails: async (caller: ApiCaller, accountId: string, limit = 25) => {
+    type EmailItem = import("@/features/talent/types").EmailItem;
+    try {
+      return await request<EmailItem[]>(`/accounts/${accountId}/emails?limit=${limit}`, caller);
+    } catch {
+      return [] as EmailItem[];
+    }
+  },
+
+  getTalent: (caller: ApiCaller, talentId: string) =>
+    request<import("@/features/talent/types").TalentDetail>(`/talent/${talentId}`, caller),
+
+  getTalentEmails: async (caller: ApiCaller, talentId: string, limit = 25) => {
+    type TalentEmail = import("@/features/talent/types").TalentEmail;
+    try {
+      return await request<TalentEmail[]>(`/talent/${talentId}/emails?limit=${limit}`, caller);
+    } catch {
+      return [] as TalentEmail[];
+    }
+  },
+
   getAction: (caller: ApiCaller, id: string) =>
     request<import("@/features/queue/types").ActionDTO>(`/actions/${id}`, caller),
 

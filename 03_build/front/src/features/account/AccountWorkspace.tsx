@@ -20,6 +20,8 @@ import { RecentMeetingsPanel } from "./RecentMeetingsPanel";
 import { SignalVectorPanel } from "./SignalVectorPanel";
 import { VerifiedThemesPanel } from "./VerifiedThemesPanel";
 import { MatrixPanel } from "@/features/analysis/MatrixPanel";
+import { AssignedTalentPanel } from "@/features/talent/AssignedTalentPanel";
+import { AccountEmailsPanel } from "@/features/talent/AccountEmailsPanel";
 
 export function AccountWorkspace() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
@@ -45,9 +47,11 @@ export function AccountWorkspace() {
         <FadeLift motionKey={`panels-${selectedAccountId}`}>
           <div className="space-y-5">
             <MatrixPanel accountId={selectedAccountId} />
+            <AssignedTalentPanel accountId={selectedAccountId} />
             <SignalVectorPanel vector={account?.signal_vector ?? []} />
             <VerifiedThemesPanel themes={account?.themes ?? []} />
             <RecentMeetingsPanel />
+            <AccountEmailsPanel accountId={selectedAccountId} />
             <MeetingBriefPanel />
           </div>
         </FadeLift>
