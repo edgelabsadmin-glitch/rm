@@ -92,7 +92,21 @@ function radius(n: ConstellationNode): number {
   return Math.max(2, Math.sqrt(n.size) * 1.6);
 }
 
-function drawNode(n: ConstellationNode, ctx: CanvasRenderingContext2D) {
+// Analysis-agent priority colors for talent glow (red = highest). Concrete hex so
+// the canvas can read them; mirrors PriorityDot's token mapping.
+const PRIORITY_HEX: Record<string, string> = {
+  red: "#f43f5e",
+  orange: "#f97316",
+  amber: "#fbbf24",
+  blue: "#38bdf8",
+  green: "#10b981",
+};
+
+function drawNode(
+  n: ConstellationNode,
+  ctx: CanvasRenderingContext2D,
+  talentColors?: Map<string, string>,
+) {
   const x = (n as { x?: number }).x ?? 0;
   const y = (n as { y?: number }).y ?? 0;
   if (n.type === "globe") {
@@ -119,16 +133,19 @@ function drawNode(n: ConstellationNode, ctx: CanvasRenderingContext2D) {
   const r = radius(n);
   const side = r * 2;
   const cr = side * 0.25;
-  // Step-5: Active talent get a subtle brand-purple glow (all demo talent are Active;
-  // terminated → greyed, no glow, v1.5+ #29). Glow via canvas shadow before the fill.
+  // Step-5: Active talent get a subtle glow. When the analysis agent has a priority
+  // for this associate, the glow takes its priority color (red=highest); otherwise
+  // the default brand-purple. Terminated → greyed, no glow (v1.5+ #29).
+  const priColor =
+    n.type === "talent" ? PRIORITY_HEX[talentColors?.get(n.id) ?? ""] : undefined;
   if (n.type === "talent") {
     ctx.save();
-    ctx.shadowColor = BRAND;
-    ctx.shadowBlur = 6;
+    ctx.shadowColor = priColor ?? BRAND;
+    ctx.shadowBlur = priColor ? 9 : 6;
   }
   ctx.beginPath();
   ctx.roundRect(x - r, y - r, side, side, cr);
-  ctx.fillStyle = n.type === "manager" ? BRAND_DEEP : BRAND;
+  ctx.fillStyle = n.type === "manager" ? BRAND_DEEP : priColor ?? BRAND;
   ctx.fill();
   if (n.type === "talent") ctx.restore();
   // Step-7 labels: managers + RMs always show their name BELOW the node (small,
@@ -154,6 +171,8 @@ export interface ForceGraphProps {
   onZoom?: () => void;
   // SPEC-042 Step-8: viewer role drives the RM-node workload tooltip extension (Exec/Admin only).
   viewerRole?: UserRole;
+  // Analysis-agent priority color per associate_id → colors the talent node glow.
+  talentColors?: Map<string, string>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fgRef?: MutableRefObject<any>;
 }
@@ -167,6 +186,7 @@ export function ForceGraph({
   onEngineTick,
   onZoom,
   viewerRole,
+  talentColors,
   fgRef,
 }: ForceGraphProps) {
   return (
@@ -177,7 +197,9 @@ export function ForceGraph({
       graphData={graph}
       nodeId="id"
       nodeLabel={(n: ConstellationNode) => nodeTooltip(n, viewerRole)}
-      nodeCanvasObject={(n: ConstellationNode, ctx: CanvasRenderingContext2D) => drawNode(n, ctx)}
+      nodeCanvasObject={(n: ConstellationNode, ctx: CanvasRenderingContext2D) =>
+        drawNode(n, ctx, talentColors)
+      }
       nodePointerAreaPaint={(n: ConstellationNode, color: string, ctx: CanvasRenderingContext2D) => {
         const x = (n as { x?: number }).x ?? 0;
         const y = (n as { y?: number }).y ?? 0;

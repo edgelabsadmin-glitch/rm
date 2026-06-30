@@ -54,6 +54,12 @@ async def account_matrices(_: Annotated[Caller, Depends(require_caller)]) -> lis
     return await store.latest_for_type("account")
 
 
+@router.get("/analysis/talent-matrices")
+async def talent_matrices(_: Annotated[Caller, Depends(require_caller)]) -> list[dict]:
+    """Latest matrix per talent — drives the constellation talent-node colors."""
+    return await store.latest_for_type("talent")
+
+
 @router.get("/accounts/{account_id}/matrix")
 async def account_matrix(
     account_id: str, _: Annotated[Caller, Depends(require_caller)]

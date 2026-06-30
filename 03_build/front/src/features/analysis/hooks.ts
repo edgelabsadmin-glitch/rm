@@ -40,6 +40,21 @@ export function useAccountMatrixHistory(accountId: string | null) {
   });
 }
 
+/** Latest priority_color per talent, keyed by associate_id — colors constellation nodes. */
+export function useTalentMatrixColors() {
+  const user = useUser();
+  return useQuery({
+    queryKey: [...ANALYSIS_KEY, "talent-matrices"],
+    queryFn: async () => {
+      const rows = await api.getTalentMatrices(user);
+      const map = new Map<string, string>();
+      for (const r of rows) map.set(r.entity_id, r.priority_color);
+      return map;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useTalentMatrix(talentId: string | null) {
   const user = useUser();
   return useQuery({

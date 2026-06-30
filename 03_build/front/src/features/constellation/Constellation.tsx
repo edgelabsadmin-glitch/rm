@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, useUser } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
+import { useTalentMatrixColors } from "@/features/analysis/hooks";
 import { ForceGraph } from "./ForceGraph";
 import {
   DEMO_ACCOUNTS,
@@ -95,6 +96,7 @@ export function Constellation({
   const user = useUser();
   const { accountScope: authScope } = useAuth();
   const effectiveScope = accountScope ?? authScope;
+  const { data: talentColors } = useTalentMatrixColors();
 
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [fps, setFps] = useState(0);
@@ -353,6 +355,7 @@ export function Constellation({
         onEngineTick={recomputeOverlays}
         onZoom={recomputeOverlays}
         viewerRole={user.role}
+        talentColors={talentColors}
       />
 
       {/* Floating canvas overlays — suppressed when the parent renders a sidebar instead. */}
