@@ -194,13 +194,19 @@ async def _active_entities() -> list[tuple[str, str]]:
 
 async def _data_version(entity_type: str, entity_id: str) -> str:
     """A stable hash of the entity's input freshness — changes iff its data moved."""
+    from psycopg.rows import tuple_row
+
     from core.db import get_pool
 
     pool = await get_pool()
     async with pool.connection() as conn:
+        # Pooled connections may carry a dict_row factory set by a prior caller
+        # (build_*_pack / _active_entities); pin a tuple_row cursor so positional
+        # access is correct regardless of the connection's ambient factory.
+        cur = conn.cursor(row_factory=tuple_row)
 
         async def scalar(sql: str, params: list) -> Any:
-            row = await (await conn.execute(sql, params)).fetchone()
+            row = await (await cur.execute(sql, params)).fetchone()
             return row[0] if row else None
 
         if entity_type == "talent":
