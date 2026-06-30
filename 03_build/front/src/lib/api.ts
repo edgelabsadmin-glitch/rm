@@ -336,4 +336,42 @@ export const api = {
 
   startSync: (caller: ApiCaller) =>
     request<SyncStatusDTO>("/admin/sync", caller, { method: "POST" }),
+
+  // Analysis agent — per-entity signal matrices + admin backfill.
+  getAccountMatrix: async (caller: ApiCaller, accountId: string) => {
+    type MatrixDTO = import("@/features/analysis/types").MatrixDTO;
+    try {
+      return await request<MatrixDTO | null>(`/accounts/${accountId}/matrix`, caller);
+    } catch {
+      return null;
+    }
+  },
+
+  getAccountMatrixHistory: async (caller: ApiCaller, accountId: string) => {
+    type MatrixHistoryPoint = import("@/features/analysis/types").MatrixHistoryPoint;
+    try {
+      return await request<MatrixHistoryPoint[]>(`/accounts/${accountId}/matrix/history`, caller);
+    } catch {
+      return [];
+    }
+  },
+
+  getTalentMatrix: async (caller: ApiCaller, talentId: string) => {
+    type MatrixDTO = import("@/features/analysis/types").MatrixDTO;
+    try {
+      return await request<MatrixDTO | null>(`/talent/${talentId}/matrix`, caller);
+    } catch {
+      return null;
+    }
+  },
+
+  getAnalysisStatus: (caller: ApiCaller) => {
+    type AnalysisStatusDTO = import("@/features/analysis/types").AnalysisStatusDTO;
+    return request<AnalysisStatusDTO>("/admin/analysis/status", caller);
+  },
+
+  startAnalysisBackfill: (caller: ApiCaller) => {
+    type AnalysisStatusDTO = import("@/features/analysis/types").AnalysisStatusDTO;
+    return request<AnalysisStatusDTO>("/admin/analysis/backfill", caller, { method: "POST" });
+  },
 };
