@@ -38,6 +38,8 @@ def shape_account_facts(row: dict, **derived: Any) -> dict:
         "inbound_now_30d": derived.get("inbound_now_30d"),
         "inbound_prior_30d": derived.get("inbound_prior_30d"),
         "distinct_engaged_contacts": derived.get("distinct_engaged_contacts"),
+        "days_since_last_meeting": derived.get("days_since_last_meeting"),
+        "meetings_60d": derived.get("meetings_60d"),
     }
     # explicit per-signal input bundles (also handed to the analyst prompt)
     facts["coverage_gap_input"] = {
@@ -160,6 +162,37 @@ async def _account_snippets(conn, account_id: str) -> list[dict]:
     return out
 
 
+async def _account_meetings(conn, account_id: str) -> tuple[list[dict], dict]:
+    """Recent Chorus/Zoom meetings for the account → snippets + derived facts."""
+    cur = conn.cursor(row_factory=dict_row)
+    rows = await (
+        await cur.execute(
+            "SELECT episode_id, source, subject, description, transcript, source_timestamp "
+            "FROM pulse.episodes "
+            "WHERE source IN ('chorus','zoom') AND candidate_entities @> %s::jsonb "
+            "ORDER BY source_timestamp DESC LIMIT %s",
+            [f'[{{"sfdc_id":"{account_id}"}}]', _SNIPPET_CAP],
+        )
+    ).fetchall()
+    snippets = []
+    for r in rows:
+        # Prefer the human summary; fall back to a transcript excerpt. Capped hard.
+        text = r["description"] or r["transcript"] or ""
+        snippets.append(
+            {
+                "id": f"meeting:{r['episode_id']}",
+                "source": f"{r['source']} meeting",
+                "date": r["source_timestamp"].isoformat() if r["source_timestamp"] else None,
+                "text": f"{r['subject'] or 'Meeting'} — {text[:400]}",
+            }
+        )
+    derived = {
+        "days_since_last_meeting": _days_since(rows[0]["source_timestamp"]) if rows else None,
+        "meetings_60d": sum(1 for r in rows if (_days_since(r["source_timestamp"]) or 999) <= 60),
+    }
+    return snippets, derived
+
+
 async def build_account_pack(account_id: str) -> dict | None:
     """Assemble the full Evidence Pack for one account."""
     pool = await get_pool()
@@ -179,8 +212,12 @@ async def build_account_pack(account_id: str) -> dict | None:
         derived["max_days_in_onboarding"] = None  # needs stage-entry history (sparse)
         derived["reply_latency_now_h"] = None  # populated once reply data accrues
         derived["reply_latency_prior_h"] = None
-        snippets = await _account_snippets(conn, account_id)
+        email_snippets = await _account_snippets(conn, account_id)
+        meeting_snippets, meeting_derived = await _account_meetings(conn, account_id)
+        derived.update(meeting_derived)
 
+    # Meetings first (richer context), then recent emails — both capped upstream.
+    snippets = meeting_snippets + email_snippets
     facts = shape_account_facts(dict(row), **derived)
     evidence_ids = set(facts["evidence_ids"]) | {s["id"] for s in snippets}
     return {

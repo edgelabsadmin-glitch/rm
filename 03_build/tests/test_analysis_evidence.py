@@ -113,3 +113,14 @@ def test_shape_account_facts_coverage_bundle_excluded_from_evidence():
 def test_shape_talent_facts_all_none_minimal_evidence():
     facts = shape_talent_facts({"associate_id": "T1"})
     assert facts["evidence_ids"] == {"fact:associate_id"}
+
+
+def test_shape_account_facts_includes_meeting_context():
+    facts = shape_account_facts(
+        {"account_id": "A1", "tier": "Strategic"},
+        days_since_last_meeting=12,
+        meetings_60d=3,
+    )
+    assert facts["days_since_last_meeting"] == 12
+    assert facts["meetings_60d"] == 3
+    assert "fact:days_since_last_meeting" in facts["evidence_ids"]
