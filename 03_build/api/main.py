@@ -442,9 +442,11 @@ async def lifespan(app: FastAPI):
     zoom_task = asyncio.create_task(_zoom_sync_loop())
     google_task = asyncio.create_task(_google_sync_loop())
     eis_task = asyncio.create_task(_expansion_intent_poll_loop())
+    from core.analysis.loop import analysis_loop
     from core.inbox.loop import inbox_sync_loop
 
     inbox_task = asyncio.create_task(inbox_sync_loop())
+    analysis_task = asyncio.create_task(analysis_loop())
     yield
     for task in (
         sf_task,
@@ -454,6 +456,7 @@ async def lifespan(app: FastAPI):
         google_task,
         eis_task,
         inbox_task,
+        analysis_task,
     ):
         task.cancel()
     for task in (
@@ -464,6 +467,7 @@ async def lifespan(app: FastAPI):
         google_task,
         eis_task,
         inbox_task,
+        analysis_task,
     ):
         try:
             await task
@@ -495,6 +499,7 @@ def create_app() -> FastAPI:
     from api.actions import router as actions_router
     from api.admin.kill_switch import router as kill_switch_router
     from api.admin.sync import router as admin_sync_router
+    from api.analysis import router as analysis_router
     from api.auth_google import router as auth_google_router
     from api.client_auth import router as client_auth_router
     from api.client_chat import router as client_chat_router
@@ -518,6 +523,7 @@ def create_app() -> FastAPI:
     app.include_router(webhooks_router)
     app.include_router(client_auth_router)
     app.include_router(client_chat_router)
+    app.include_router(analysis_router)
 
     return app
 
