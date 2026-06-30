@@ -174,16 +174,16 @@ async def _active_entities() -> list[tuple[str, str]]:
     pool = await get_pool()
     out: list[tuple[str, str]] = []
     async with pool.connection() as conn:
-        conn.row_factory = dict_row
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
         accs = await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT account_id FROM pulse.sf_accounts "
                 "WHERE COALESCE(active_talent, 0) > 0 ORDER BY account_id"
             )
         ).fetchall()
         out.extend(("account", r["account_id"]) for r in accs)
         tal = await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT associate_id FROM pulse.sf_associates "
                 "WHERE stage = 'Active' ORDER BY associate_id"
             )

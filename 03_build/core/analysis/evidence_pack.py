@@ -197,9 +197,11 @@ async def build_account_pack(account_id: str) -> dict | None:
     """Assemble the full Evidence Pack for one account."""
     pool = await get_pool()
     async with pool.connection() as conn:
-        conn.row_factory = dict_row
+        # Per-cursor row factory only — never mutate the pooled connection's factory
+        # (that leaks dict_row to the next checkout and breaks positional readers).
+        cur = conn.cursor(row_factory=dict_row)
         row = await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT account_id, name, tier, active_talent, churn_probability, "
                 "last_ebr, rm_name, owner_id FROM pulse.sf_accounts WHERE account_id=%s",
                 [account_id],
@@ -301,9 +303,9 @@ async def build_talent_pack(associate_id: str) -> dict | None:
     """Assemble the full Evidence Pack for one associate (talent)."""
     pool = await get_pool()
     async with pool.connection() as conn:
-        conn.row_factory = dict_row
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
         row = await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT a.associate_id, a.account_id, a.name, a.email, a.stage, "
                 "       acc.tier, acc.owner_id "
                 "FROM pulse.sf_associates a "

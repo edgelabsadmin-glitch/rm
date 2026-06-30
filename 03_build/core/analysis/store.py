@@ -56,9 +56,9 @@ async def save_snapshot(
 async def latest(entity_type: str, entity_id: str) -> dict | None:
     pool = await get_pool()
     async with pool.connection() as conn:
-        conn.row_factory = dict_row
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
         return await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT * FROM pulse.entity_matrices WHERE entity_type=%s AND entity_id=%s "
                 "ORDER BY analyzed_at DESC LIMIT 1",
                 [entity_type, entity_id],
@@ -69,9 +69,9 @@ async def latest(entity_type: str, entity_id: str) -> dict | None:
 async def history(entity_type: str, entity_id: str, limit: int = 30) -> list[dict]:
     pool = await get_pool()
     async with pool.connection() as conn:
-        conn.row_factory = dict_row
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
         rows = await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT analyzed_at, priority, priority_color, priority_score, state "
                 "FROM pulse.entity_matrices WHERE entity_type=%s AND entity_id=%s "
                 "ORDER BY analyzed_at DESC LIMIT %s",
@@ -85,9 +85,9 @@ async def latest_for_type(entity_type: str) -> list[dict]:
     """The latest matrix per entity of a type — compact fields for list coloring."""
     pool = await get_pool()
     async with pool.connection() as conn:
-        conn.row_factory = dict_row
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
         rows = await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT DISTINCT ON (entity_id) entity_id, priority, priority_color, "
                 "priority_score, state, analyzed_at "
                 "FROM pulse.entity_matrices WHERE entity_type=%s "
@@ -121,9 +121,9 @@ async def set_status(**fields: Any) -> None:
 async def get_status() -> dict:
     pool = await get_pool()
     async with pool.connection() as conn:
-        conn.row_factory = dict_row
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
         row = await (
-            await conn.execute(
+            await cur.execute(
                 "SELECT state, percent, phase, detail, started_at, finished_at "
                 "FROM pulse.analysis_status WHERE id = 1"
             )
