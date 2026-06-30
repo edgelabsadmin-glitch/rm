@@ -84,3 +84,40 @@ async def history(entity_type: str, entity_id: str, limit: int = 30) -> list[dic
 async def last_data_version(entity_type: str, entity_id: str) -> Any:
     row = await latest(entity_type, entity_id)
     return row["data_version"] if row else None
+
+
+# ── analysis_status (single-row progress, mirrors pulse.sync_status) ───────────
+
+
+async def set_status(**fields: Any) -> None:
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = %s" for k in fields)
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        await conn.execute(
+            f"UPDATE pulse.analysis_status SET {cols} WHERE id = 1", list(fields.values())
+        )
+        await conn.commit()
+
+
+async def get_status() -> dict:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        row = await (
+            await conn.execute(
+                "SELECT state, percent, phase, detail, started_at, finished_at "
+                "FROM pulse.analysis_status WHERE id = 1"
+            )
+        ).fetchone()
+    if not row:
+        return {"state": "idle", "percent": 0, "phase": None, "detail": None}
+    return {
+        "state": row["state"],
+        "percent": row["percent"],
+        "phase": row["phase"],
+        "detail": row["detail"],
+        "started_at": row["started_at"].isoformat() if row["started_at"] else None,
+        "finished_at": row["finished_at"].isoformat() if row["finished_at"] else None,
+    }

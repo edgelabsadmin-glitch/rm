@@ -177,3 +177,83 @@ async def test_high_signal_emits_action(monkeypatch):
 
     r = await G.analyze_entity("account", "A1")
     assert r["priority"] == "critical" and len(submitted) == 1
+
+
+# ── run modes: incremental + backfill ────────────────────────────────────────
+
+
+def _wire_runmode(monkeypatch, *, entities, version, last):
+    """Stub the DB seams; record analyze_entity calls. Returns the calls list."""
+    monkeypatch.setattr(G, "_active_entities", _aret(entities))
+
+    async def fake_version(et, eid):
+        return version.get((et, eid))
+
+    async def fake_last(et, eid):
+        return last.get((et, eid))
+
+    monkeypatch.setattr(G, "_data_version", fake_version)
+    monkeypatch.setattr(G, "_last_version", fake_last)
+    monkeypatch.setattr(G, "_status_set", _anoop)
+    calls = []
+
+    async def fake_analyze(et, eid, *, data_version=None):
+        calls.append((et, eid, data_version))
+        return {"state": "ok"}
+
+    monkeypatch.setattr(G, "analyze_entity", fake_analyze)
+    return calls
+
+
+async def test_incremental_skips_unchanged(monkeypatch):
+    calls = _wire_runmode(
+        monkeypatch,
+        entities=[("account", "A1")],
+        version={("account", "A1"): "v1"},
+        last={("account", "A1"): "v1"},
+    )
+    await G.run_incremental()
+    assert calls == []
+
+
+async def test_incremental_analyzes_changed(monkeypatch):
+    calls = _wire_runmode(
+        monkeypatch,
+        entities=[("account", "A1")],
+        version={("account", "A1"): "v2"},
+        last={("account", "A1"): "v1"},
+    )
+    await G.run_incremental()
+    assert calls == [("account", "A1", "v2")]
+
+
+async def test_backfill_skips_already_current(monkeypatch):
+    calls = _wire_runmode(
+        monkeypatch,
+        entities=[("account", "A1"), ("talent", "T1")],
+        version={("account", "A1"): "v1", ("talent", "T1"): "v9"},
+        last={("account", "A1"): "v1", ("talent", "T1"): "v0"},
+    )
+    await G.run_backfill()
+    # A1 already at current version → skipped; T1 changed → analyzed.
+    assert calls == [("talent", "T1", "v9")]
+
+
+async def test_backfill_per_entity_error_isolated(monkeypatch):
+    _wire_runmode(
+        monkeypatch,
+        entities=[("account", "A1"), ("account", "A2")],
+        version={("account", "A1"): "v1", ("account", "A2"): "v1"},
+        last={},
+    )
+    done = []
+
+    async def boom(et, eid, *, data_version=None):
+        if eid == "A1":
+            raise RuntimeError("kaboom")
+        done.append(eid)
+        return {"state": "ok"}
+
+    monkeypatch.setattr(G, "analyze_entity", boom)
+    await G.run_backfill()  # must not raise
+    assert done == ["A2"]
