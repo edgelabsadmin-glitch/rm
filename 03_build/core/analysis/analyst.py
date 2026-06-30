@@ -88,7 +88,7 @@ def _call_tool(model_id: str, prompt: str) -> dict:
         model=model_id,
         max_tokens=2048,
         temperature=0,
-        tools=[MATRIX_TOOL],
+        tools=[MATRIX_TOOL],  # type: ignore[list-item]
         tool_choice={"type": "tool", "name": "emit_matrix"},
         messages=[{"role": "user", "content": prompt}],
     )

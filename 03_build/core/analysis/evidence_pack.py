@@ -209,9 +209,11 @@ async def _talent_derived(conn, associate_id: str, email: str | None) -> dict:
     ).fetchall()
     days_in_current_stage = _days_since(hist[0]["observed_at"]) if hist else None
     onboarding_days = [
-        _days_since(h["observed_at"])
+        d
         for h in hist
-        if h["stage"] in _ONBOARDING_STAGES and _days_since(h["observed_at"]) is not None
+        if h["stage"] in _ONBOARDING_STAGES
+        for d in [_days_since(h["observed_at"])]
+        if d is not None
     ]
     max_days_in_onboarding = max(onboarding_days) if onboarding_days else None
     stage_changes_90d = sum(1 for h in hist if (_days_since(h["observed_at"]) or 999) <= 90)

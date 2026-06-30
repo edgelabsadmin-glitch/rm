@@ -8,7 +8,7 @@ _TIER = {"Strategic": 1.5, "Growth": 1.2, "Core": 1.0}
 
 def compute_priority(fired_signals: list[dict], *, tier: str | None) -> dict:
     tw = _TIER.get(tier or "Core", 1.0)
-    score = max((_SEV.get(s.get("severity"), 0) for s in fired_signals), default=0) * tw
+    score = max((_SEV.get(s.get("severity") or "", 0) for s in fired_signals), default=0) * tw
     if score >= 4:
         pri, color = "critical", "red"
     elif score >= 3:

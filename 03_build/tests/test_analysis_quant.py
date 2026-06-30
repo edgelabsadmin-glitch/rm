@@ -41,18 +41,14 @@ def test_attrition_velocity_cluster_high():
 def test_attrition_velocity_backfilled_not_fired():
     # 2 left but 2 onboarding to replace → net stable, don't false-fire
     assert (
-        attrition_velocity(
-            {"departures_30d": 2, "active_talent": 10, "onboarding_30d": 2}
-        ).fired
+        attrition_velocity({"departures_30d": 2, "active_talent": 10, "onboarding_30d": 2}).fired
         is False
     )
 
 
 def test_response_time_stable_not_fired():
     assert (
-        response_time_degradation(
-            {"reply_latency_now_h": 6, "reply_latency_prior_h": 5}
-        ).fired
+        response_time_degradation({"reply_latency_now_h": 6, "reply_latency_prior_h": 5}).fired
         is False
     )
 
@@ -64,9 +60,7 @@ def test_response_time_degraded_fired():
 
 def test_response_time_insufficient_history():
     assert (
-        response_time_degradation(
-            {"reply_latency_now_h": 50, "reply_latency_prior_h": None}
-        ).fired
+        response_time_degradation({"reply_latency_now_h": 50, "reply_latency_prior_h": None}).fired
         is False
     )
 
@@ -102,6 +96,4 @@ def test_inbound_drop_fired():
 
 
 def test_inbound_drop_insufficient():
-    assert (
-        inbound_volume_drop({"inbound_now_30d": 1, "inbound_prior_30d": 2}).fired is False
-    )
+    assert inbound_volume_drop({"inbound_now_30d": 1, "inbound_prior_30d": 2}).fired is False

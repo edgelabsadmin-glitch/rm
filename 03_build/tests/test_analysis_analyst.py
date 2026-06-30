@@ -20,7 +20,13 @@ async def test_run_analyst_returns_parsed(monkeypatch):
         captured["model_id"] = model_id
         return {
             "signals": [
-                {"signal_id": "a", "fired": False, "severity": None, "confidence": 0.9, "evidence": []}
+                {
+                    "signal_id": "a",
+                    "fired": False,
+                    "severity": None,
+                    "confidence": 0.9,
+                    "evidence": [],
+                }
             ],
             "narrative": "ok",
         }
