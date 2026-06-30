@@ -27,6 +27,35 @@ const ALLOWED = new Set<string>(["num", "bad", "good", "quote", "em"]);
 // Matches an opening or closing whitelist tag; everything else is literal text.
 const TAG_RE = /<(\/?)(num|bad|good|quote|em)>/g;
 
+// Lightweight markdown inside literal text runs: **bold** and `code`. The agent
+// narratives (analysis_agent) are markdown, not inline tags; this renders them
+// instead of showing literal asterisks, and breaks long `code` tokens so they
+// don't overflow their card. No HTML injection — text nodes are React-escaped.
+const MD_RE = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+
+function renderMarkdown(s: string): ReactNode[] {
+  return s.split(MD_RE).map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-semibold text-ink-primary">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      return (
+        <code
+          key={i}
+          className="break-all rounded bg-surface-track px-1 py-0.5 font-mono text-[0.85em] text-ink-primary"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return <Fragment key={i}>{part}</Fragment>;
+  });
+}
+
 interface Frame {
   tag: InlineTag | null; // null = root
   children: ReactNode[];
@@ -45,7 +74,7 @@ export function renderInlineTags(text: string | null | undefined): ReactNode[] {
   let pos = 0;
   let key = 0;
   const pushText = (s: string) => {
-    if (s) top().children.push(<Fragment key={key++}>{s}</Fragment>);
+    if (s) top().children.push(<Fragment key={key++}>{renderMarkdown(s)}</Fragment>);
   };
 
   let m: RegExpExecArray | null;

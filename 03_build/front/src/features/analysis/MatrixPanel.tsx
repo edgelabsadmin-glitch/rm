@@ -4,6 +4,7 @@
  * priority-score-over-time sparkline from the dated history. Read-only.
  */
 import { CollapsibleSection } from "@/features/account/CollapsibleSection";
+import { InlineTags } from "@/lib/inline_tags";
 import { useAccountMatrix, useAccountMatrixHistory } from "./hooks";
 import { PriorityDot } from "./PriorityDot";
 import type { FiredSignal, MatrixHistoryPoint } from "./types";
@@ -25,6 +26,9 @@ function SeverityTag({ severity }: { severity: FiredSignal["severity"] }) {
 
 function Sparkline({ points }: { points: MatrixHistoryPoint[] }) {
   if (points.length < 2) return null;
+  // Skip a flat line (every score equal) — it reads as a stray underline, not a trend.
+  const scores = points.map((p) => p.priority_score);
+  if (Math.min(...scores) === Math.max(...scores)) return null;
   // History comes newest-first; chart left→right oldest→newest.
   const series = [...points].reverse();
   const max = Math.max(...series.map((p) => p.priority_score), 1);
@@ -73,17 +77,21 @@ export function MatrixPanel({ accountId }: { accountId: string | null }) {
           <ul className="space-y-2">
             {fired.map((s) => (
               <li key={s.signal_id} className="flex items-start justify-between gap-2 text-sm">
-                <span className="text-ink-primary">{s.signal_id}</span>
-                <SeverityTag severity={s.severity} />
+                <span className="min-w-0 break-words font-mono text-xs text-ink-primary">
+                  {s.signal_id}
+                </span>
+                <div className="shrink-0">
+                  <SeverityTag severity={s.severity} />
+                </div>
               </li>
             ))}
           </ul>
         )}
 
         {matrix.narrative && (
-          <p className="border-t border-line-subtle pt-3 text-sm leading-relaxed text-ink-secondary">
-            {matrix.narrative}
-          </p>
+          <div className="overflow-hidden break-words border-t border-line-subtle pt-3 text-sm leading-relaxed text-ink-secondary">
+            <InlineTags text={matrix.narrative} />
+          </div>
         )}
       </div>
     </CollapsibleSection>

@@ -3,6 +3,7 @@
  * so the account meetings are shown as context). */
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { InlineTags } from "@/lib/inline_tags";
 import { PriorityDot } from "@/features/analysis/PriorityDot";
 import { useTalentMatrix } from "@/features/analysis/hooks";
 import { useMeetings } from "@/features/account/hooks";
@@ -76,8 +77,10 @@ export function TalentDetailDrawer({
             <ul className="space-y-2">
               {fired.map((s) => (
                 <li key={s.signal_id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-ink-primary">{s.signal_id}</span>
-                  <span className="rounded-full bg-surface-track px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-secondary">
+                  <span className="min-w-0 break-words font-mono text-xs text-ink-primary">
+                    {s.signal_id}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-surface-track px-2 py-0.5 text-[10px] font-semibold uppercase text-ink-secondary">
                     {s.severity ?? "—"}
                   </span>
                 </li>
@@ -85,7 +88,9 @@ export function TalentDetailDrawer({
             </ul>
           )}
           {matrix?.narrative && (
-            <p className="mt-3 text-sm leading-relaxed text-ink-secondary">{matrix.narrative}</p>
+            <div className="mt-3 overflow-hidden break-words text-sm leading-relaxed text-ink-secondary">
+              <InlineTags text={matrix.narrative} />
+            </div>
           )}
         </Section>
 

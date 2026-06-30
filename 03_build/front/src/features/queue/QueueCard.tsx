@@ -57,10 +57,12 @@ export function QueueCard({ action, isAdmin }: { action: ActionDTO; isAdmin: boo
           </div>
         </div>
 
-        <div className="text-sm font-semibold leading-5 text-ink-primary">
+        <div className="break-words text-sm font-semibold leading-5 text-ink-primary">
           {actionHeadline(action)}
         </div>
-        <p className="mt-2 text-xs leading-5 text-ink-secondary">{action.why_oneline}</p>
+        <p className="mt-2 break-words text-xs leading-5 text-ink-secondary">
+          {action.why_oneline}
+        </p>
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">

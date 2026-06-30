@@ -12,7 +12,7 @@ export function WhyDetailPanel({ action, isAdmin }: { action: ActionDTO; isAdmin
   return (
     <div className="mt-3 space-y-4 border-t border-line-subtle pt-3">
       {action.why_detail && (
-        <div className="text-sm leading-6 text-ink-primary">
+        <div className="overflow-hidden break-words text-sm leading-6 text-ink-primary">
           <InlineTags text={action.why_detail} />
         </div>
       )}
