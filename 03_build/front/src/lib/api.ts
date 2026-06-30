@@ -347,6 +347,15 @@ export const api = {
     }
   },
 
+  getAccountMatrices: async (caller: ApiCaller) => {
+    type MatrixSummary = import("@/features/analysis/types").MatrixSummary;
+    try {
+      return await request<MatrixSummary[]>("/analysis/account-matrices", caller);
+    } catch {
+      return [];
+    }
+  },
+
   getAccountMatrixHistory: async (caller: ApiCaller, accountId: string) => {
     type MatrixHistoryPoint = import("@/features/analysis/types").MatrixHistoryPoint;
     try {

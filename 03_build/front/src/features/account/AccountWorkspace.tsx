@@ -19,6 +19,7 @@ import { MeetingBriefPanel } from "./MeetingBriefPanel";
 import { RecentMeetingsPanel } from "./RecentMeetingsPanel";
 import { SignalVectorPanel } from "./SignalVectorPanel";
 import { VerifiedThemesPanel } from "./VerifiedThemesPanel";
+import { MatrixPanel } from "@/features/analysis/MatrixPanel";
 
 export function AccountWorkspace() {
   const { selectedAccountId, setSelectedAccountId } = useSelectedAccount();
@@ -43,6 +44,7 @@ export function AccountWorkspace() {
         <SituationalHero account={account} />
         <FadeLift motionKey={`panels-${selectedAccountId}`}>
           <div className="space-y-5">
+            <MatrixPanel accountId={selectedAccountId} />
             <SignalVectorPanel vector={account?.signal_vector ?? []} />
             <VerifiedThemesPanel themes={account?.themes ?? []} />
             <RecentMeetingsPanel />

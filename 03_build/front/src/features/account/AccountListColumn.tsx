@@ -12,6 +12,8 @@ import { useUser } from "@/lib/auth/AuthContext";
 import { useSelectedAccount } from "@/session/SelectedAccountProvider";
 import { cn } from "@/lib/utils";
 import { useAccounts } from "./hooks";
+import { useAccountMatrices } from "@/features/analysis/hooks";
+import { PriorityDot, priorityRank } from "@/features/analysis/PriorityDot";
 import type { AccountSummaryDTO } from "@/lib/api";
 
 type RiskLevel = AccountSummaryDTO["risk"] | "All";
@@ -56,16 +58,23 @@ export function AccountListColumn() {
   // RM → their own accounts; Manager → their accounts + team's; Exec/Admin → all.
   const { data, isLoading } = useAccounts(buildAccountFilter(user));
   const accounts = data?.accounts ?? [];
+  const { data: matrices } = useAccountMatrices();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return accounts.filter((a) => {
+    const rows = accounts.filter((a) => {
       if (q && !a.name.toLowerCase().includes(q)) return false;
       if (riskFilter !== "All" && a.risk !== riskFilter) return false;
       if (tierFilter !== "All" && a.tier !== tierFilter) return false;
       return true;
     });
-  }, [accounts, search, riskFilter, tierFilter]);
+    // Sort by analysis-agent priority (critical first); ties keep API order.
+    return [...rows].sort(
+      (a, b) =>
+        priorityRank(matrices?.get(a.account_id)?.priority) -
+        priorityRank(matrices?.get(b.account_id)?.priority),
+    );
+  }, [accounts, search, riskFilter, tierFilter, matrices]);
 
   const hasActiveFilter = search.trim() || riskFilter !== "All" || tierFilter !== "All";
 
@@ -154,6 +163,7 @@ export function AccountListColumn() {
         <div className="flex-1 space-y-3 overflow-y-auto" style={{ maxHeight: "calc(100vh - 20rem)" }}>
           {filtered.map((account) => {
             const active = account.account_id === selectedAccountId;
+            const matrix = matrices?.get(account.account_id);
             return (
               <button
                 key={account.account_id}
@@ -169,7 +179,10 @@ export function AccountListColumn() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="font-semibold tracking-tight text-ink-primary">
+                    <div className="flex items-center gap-2 font-semibold tracking-tight text-ink-primary">
+                      {matrix && (
+                        <PriorityDot color={matrix.priority_color} priority={matrix.priority} />
+                      )}
                       {account.name}
                     </div>
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-secondary">

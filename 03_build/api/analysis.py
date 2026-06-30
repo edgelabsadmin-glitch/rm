@@ -48,6 +48,12 @@ async def start_backfill(_: Annotated[Caller, Depends(require_admin_user)]) -> d
     return await store.get_status()
 
 
+@router.get("/analysis/account-matrices")
+async def account_matrices(_: Annotated[Caller, Depends(require_caller)]) -> list[dict]:
+    """Latest matrix per account — drives the account-list priority dots (one call)."""
+    return await store.latest_for_type("account")
+
+
 @router.get("/accounts/{account_id}/matrix")
 async def account_matrix(
     account_id: str, _: Annotated[Caller, Depends(require_caller)]

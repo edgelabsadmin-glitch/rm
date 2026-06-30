@@ -28,6 +28,15 @@ export interface MatrixDTO {
   state: "ok" | "needs_review";
 }
 
+export interface MatrixSummary {
+  entity_id: string;
+  priority: Priority;
+  priority_color: PriorityColor;
+  priority_score: number;
+  state: string;
+  analyzed_at: string;
+}
+
 export interface MatrixHistoryPoint {
   analyzed_at: string;
   priority: Priority;

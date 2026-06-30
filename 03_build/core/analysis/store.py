@@ -81,6 +81,23 @@ async def history(entity_type: str, entity_id: str, limit: int = 30) -> list[dic
     return list(rows)
 
 
+async def latest_for_type(entity_type: str) -> list[dict]:
+    """The latest matrix per entity of a type — compact fields for list coloring."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        rows = await (
+            await conn.execute(
+                "SELECT DISTINCT ON (entity_id) entity_id, priority, priority_color, "
+                "priority_score, state, analyzed_at "
+                "FROM pulse.entity_matrices WHERE entity_type=%s "
+                "ORDER BY entity_id, analyzed_at DESC",
+                [entity_type],
+            )
+        ).fetchall()
+    return list(rows)
+
+
 async def last_data_version(entity_type: str, entity_id: str) -> Any:
     row = await latest(entity_type, entity_id)
     return row["data_version"] if row else None
