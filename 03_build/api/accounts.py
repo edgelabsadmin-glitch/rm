@@ -255,3 +255,89 @@ async def list_account_meetings(
         )
         for r in rows
     ]
+
+
+class TalentItem(BaseModel):
+    associate_id: str
+    name: str | None
+    email: str | None
+    stage: str | None
+    priority: str | None
+    priority_color: str | None
+
+
+@router.get("/{account_id}/talent", response_model=list[TalentItem])
+async def list_account_talent(account_id: str) -> list[TalentItem]:
+    """Associates assigned to this account, each with its latest analysis priority color."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
+        rows = await (
+            await cur.execute(
+                """
+                SELECT a.associate_id, a.name, a.email, a.stage,
+                       m.priority, m.priority_color
+                FROM pulse.sf_associates a
+                LEFT JOIN LATERAL (
+                    SELECT priority, priority_color FROM pulse.entity_matrices
+                    WHERE entity_type = 'talent' AND entity_id = a.associate_id
+                    ORDER BY analyzed_at DESC LIMIT 1
+                ) m ON true
+                WHERE a.account_id = %s
+                ORDER BY (a.stage = 'Active') DESC, a.name
+                """,
+                [account_id],
+            )
+        ).fetchall()
+    return [
+        TalentItem(
+            associate_id=r["associate_id"],
+            name=r["name"],
+            email=r["email"],
+            stage=r["stage"],
+            priority=r["priority"],
+            priority_color=r["priority_color"],
+        )
+        for r in rows
+    ]
+
+
+class EmailItem(BaseModel):
+    email_id: str
+    from_email: str | None
+    from_name: str | None
+    subject: str | None
+    body: str | None
+    received_at: str | None
+    sender_kind: str | None
+
+
+@router.get("/{account_id}/emails", response_model=list[EmailItem])
+async def list_account_emails(
+    account_id: str,
+    limit: int = Query(25, ge=1, le=100),
+) -> list[EmailItem]:
+    """Inbound client + talent emails for this account (most recent first)."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        cur = conn.cursor(row_factory=dict_row)  # per-cursor only (no pooled-conn leak)
+        rows = await (
+            await cur.execute(
+                "SELECT email_id, from_email, from_name, subject, body, received_at, sender_kind "
+                "FROM pulse.inbox_emails WHERE account_id = %s "
+                "ORDER BY received_at DESC LIMIT %s",
+                [account_id, limit],
+            )
+        ).fetchall()
+    return [
+        EmailItem(
+            email_id=str(r["email_id"]),
+            from_email=r["from_email"],
+            from_name=r["from_name"],
+            subject=r["subject"],
+            body=r["body"],
+            received_at=r["received_at"].isoformat() if r["received_at"] else None,
+            sender_kind=r["sender_kind"],
+        )
+        for r in rows
+    ]

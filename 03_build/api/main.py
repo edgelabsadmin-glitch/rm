@@ -508,6 +508,7 @@ def create_app() -> FastAPI:
     from api.profiles import router as profiles_router
     from api.submit import router as submit_router
     from api.support import router as support_router
+    from api.talent import router as talent_router
     from api.webhooks import router as webhooks_router
 
     app.include_router(kill_switch_router)
@@ -524,6 +525,7 @@ def create_app() -> FastAPI:
     app.include_router(client_auth_router)
     app.include_router(client_chat_router)
     app.include_router(analysis_router)
+    app.include_router(talent_router)
 
     return app
 
