@@ -26,6 +26,13 @@ async def _anoop(*a, **k):
     return None
 
 
+def _saver(store):
+    async def _f(**kw):
+        store.update(kw)
+
+    return _f
+
+
 async def test_sonnet_pass_saves_no_opus(monkeypatch):
     monkeypatch.setattr(G, "_load_pack", _aret(_pack()))
     calls = []
@@ -257,3 +264,121 @@ async def test_backfill_per_entity_error_isolated(monkeypatch):
     monkeypatch.setattr(G, "analyze_entity", boom)
     await G.run_backfill()  # must not raise
     assert done == ["A2"]
+
+
+# ── pipeline: real quant merge + math override end-to-end (added round 2) ─────
+
+
+def _packf(facts, *, tier="Core", evidence_ids=None):
+    return {
+        "entity_type": "account",
+        "entity_id": "A1",
+        "tier": tier,
+        "rm_id": "O",
+        "facts": {"tier": tier, **facts},
+        "evidence_ids": evidence_ids or {"ev1"},
+        "snippets": [],
+    }
+
+
+async def test_quant_merge_adds_signal_llm_omitted(monkeypatch):
+    # Facts make ebr_overdue fire (high); the LLM omits it entirely → merged in.
+    monkeypatch.setattr(G, "_load_pack", _aret(_packf({"days_since_ebr": 400}, tier="Core")))
+
+    async def fake_run(pack, defs, *, model="sonnet"):
+        return ({"signals": [], "narrative": "n"}, model)
+
+    monkeypatch.setattr(G, "run_analyst", fake_run)
+    saved = {}
+    monkeypatch.setattr(G, "save_snapshot", _saver(saved))
+    monkeypatch.setattr(G, "_emit_actions", _anoop)
+
+    r = await G.analyze_entity("account", "A1")
+    fired = saved["fired_signals"]
+    ids = {s["signal_id"] for s in fired}
+    assert "ebr_overdue_v1" in ids
+    assert any(s["severity"] == "high" for s in fired if s["signal_id"] == "ebr_overdue_v1")
+    assert r["priority"] == "high"  # high on Core
+
+
+async def test_quant_override_corrects_llm_severity_in_pipeline(monkeypatch):
+    # LLM fires ebr_overdue as low; math says high → snapshot reflects high.
+    monkeypatch.setattr(G, "_load_pack", _aret(_packf({"days_since_ebr": 400}, tier="Core")))
+
+    async def fake_run(pack, defs, *, model="sonnet"):
+        return (
+            {
+                "signals": [
+                    {
+                        "signal_id": "ebr_overdue_v1",
+                        "fired": True,
+                        "severity": "low",
+                        "confidence": 0.9,
+                        "evidence": ["ev1"],
+                    }
+                ],
+                "narrative": "n",
+            },
+            model,
+        )
+
+    monkeypatch.setattr(G, "run_analyst", fake_run)
+    saved = {}
+    monkeypatch.setattr(G, "save_snapshot", _saver(saved))
+    monkeypatch.setattr(G, "_emit_actions", _anoop)
+
+    await G.analyze_entity("account", "A1")
+    ebr = next(s for s in saved["fired_signals"] if s["signal_id"] == "ebr_overdue_v1")
+    assert ebr["severity"] == "high"
+
+
+async def test_pack_none_returns_none_no_save(monkeypatch):
+    monkeypatch.setattr(G, "_load_pack", _aret(None))
+    saved = {}
+    monkeypatch.setattr(G, "save_snapshot", _saver(saved))
+    r = await G.analyze_entity("account", "MISSING")
+    assert r is None and saved == {}
+
+
+async def test_healthy_when_nothing_fires(monkeypatch):
+    monkeypatch.setattr(G, "_load_pack", _aret(_packf({"days_since_ebr": 5}, tier="Core")))
+
+    async def fake_run(pack, defs, *, model="sonnet"):
+        return ({"signals": [], "narrative": "all good"}, model)
+
+    monkeypatch.setattr(G, "run_analyst", fake_run)
+    saved = {}
+    monkeypatch.setattr(G, "save_snapshot", _saver(saved))
+    monkeypatch.setattr(G, "_emit_actions", _anoop)
+    r = await G.analyze_entity("account", "A1")
+    assert r["priority"] == "healthy" and saved["state"] == "ok"
+
+
+async def test_incremental_empty_scope(monkeypatch):
+    _wire_runmode(monkeypatch, entities=[], version={}, last={})
+    result = await G.run_incremental()
+    assert result == {"scanned": 0, "analyzed": 0}
+
+
+async def test_incremental_reports_counts(monkeypatch):
+    calls = _wire_runmode(
+        monkeypatch,
+        entities=[("account", "A1"), ("account", "A2"), ("talent", "T1")],
+        version={("account", "A1"): "v2", ("account", "A2"): "v1", ("talent", "T1"): "v2"},
+        last={("account", "A1"): "v1", ("account", "A2"): "v1", ("talent", "T1"): "v1"},
+    )
+    result = await G.run_incremental()
+    # A2 unchanged → skipped; A1 + T1 changed → analyzed
+    assert result == {"scanned": 3, "analyzed": 2}
+    assert ("account", "A2", "v1") not in calls
+
+
+async def test_backfill_reports_counts(monkeypatch):
+    _wire_runmode(
+        monkeypatch,
+        entities=[("account", "A1"), ("talent", "T1")],
+        version={("account", "A1"): "v2", ("talent", "T1"): "v2"},
+        last={},
+    )
+    result = await G.run_backfill()
+    assert result["total"] == 2 and result["analyzed"] == 2 and result["errors"] == 0

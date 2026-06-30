@@ -86,7 +86,8 @@ def coverage_gap(f: dict) -> QuantResult:
 def single_threaded(f: dict) -> QuantResult:
     sid = "single_threaded_account_v1"
     n = f.get("distinct_engaged_contacts")
-    if n is None or n > 1:
+    # Fires only at exactly one engaged contact. Zero is silence, not single-threading.
+    if n != 1:
         return QuantResult(sid, False)
     return QuantResult(sid, True, "medium", "only 1 engaged contact")
 
