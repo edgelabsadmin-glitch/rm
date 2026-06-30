@@ -10,13 +10,14 @@ gate can reject fabricated citations.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from psycopg.rows import dict_row
 
 from core.db import get_pool
 
+UTC = timezone.utc  # noqa: UP017 — datetime.UTC is 3.11+; keeps local 3.9 tests runnable
 _SNIPPET_CAP = 12  # max curated text snippets per entity
 
 
@@ -42,6 +43,24 @@ def shape_account_facts(row: dict, **derived: Any) -> dict:
     facts["coverage_gap_input"] = {
         "active_talent": facts["active_talent"],
         "talent_baseline": facts["talent_baseline"],
+    }
+    facts["evidence_ids"] = {
+        f"fact:{k}" for k, v in facts.items() if not isinstance(v, dict) and v is not None
+    }
+    return facts
+
+
+def shape_talent_facts(row: dict, **derived: Any) -> dict:
+    """Build the talent facts dict + the evidence-id set (pure)."""
+    facts: dict[str, Any] = {
+        "associate_id": row["associate_id"],
+        "account_id": row.get("account_id"),
+        "tier": row.get("tier"),
+        "stage": row.get("stage"),
+        "days_in_current_stage": derived.get("days_in_current_stage"),
+        "max_days_in_onboarding": derived.get("max_days_in_onboarding"),
+        "days_since_last_contact": derived.get("days_since_last_contact"),
+        "stage_changes_90d": derived.get("stage_changes_90d"),
     }
     facts["evidence_ids"] = {
         f"fact:{k}" for k, v in facts.items() if not isinstance(v, dict) and v is not None
@@ -167,6 +186,103 @@ async def build_account_pack(account_id: str) -> dict | None:
     return {
         "entity_type": "account",
         "entity_id": account_id,
+        "tier": row.get("tier"),
+        "rm_id": row.get("owner_id"),
+        "facts": facts,
+        "evidence_ids": evidence_ids,
+        "snippets": snippets,
+    }
+
+
+_ONBOARDING_STAGES = ("Onboarding", "Selected")
+
+
+async def _talent_derived(conn, associate_id: str, email: str | None) -> dict:
+    """Compute the deterministic derived inputs for one associate (DB)."""
+    cur = conn.cursor(row_factory=dict_row)
+    hist = await (
+        await cur.execute(
+            "SELECT stage, observed_at FROM pulse.associate_stage_history "
+            "WHERE associate_id=%s ORDER BY observed_at DESC",
+            [associate_id],
+        )
+    ).fetchall()
+    days_in_current_stage = _days_since(hist[0]["observed_at"]) if hist else None
+    onboarding_days = [
+        _days_since(h["observed_at"])
+        for h in hist
+        if h["stage"] in _ONBOARDING_STAGES and _days_since(h["observed_at"]) is not None
+    ]
+    max_days_in_onboarding = max(onboarding_days) if onboarding_days else None
+    stage_changes_90d = sum(1 for h in hist if (_days_since(h["observed_at"]) or 999) <= 90)
+
+    days_since_last_contact = None
+    if email:
+        row = await (
+            await cur.execute(
+                "SELECT max(received_at) m FROM pulse.inbox_emails "
+                "WHERE lower(from_email)=lower(%s)",
+                [email],
+            )
+        ).fetchone()
+        days_since_last_contact = _days_since(row["m"]) if row else None
+
+    return {
+        "days_in_current_stage": days_in_current_stage,
+        "max_days_in_onboarding": max_days_in_onboarding,
+        "stage_changes_90d": stage_changes_90d,
+        "days_since_last_contact": days_since_last_contact,
+    }
+
+
+async def _talent_snippets(conn, email: str | None) -> list[dict]:
+    """Recent emails authored by this associate (their own voice)."""
+    if not email:
+        return []
+    cur = conn.cursor(row_factory=dict_row)
+    rows = await (
+        await cur.execute(
+            "SELECT email_id, subject, body, received_at FROM pulse.inbox_emails "
+            "WHERE lower(from_email)=lower(%s) ORDER BY received_at DESC LIMIT %s",
+            [email, _SNIPPET_CAP],
+        )
+    ).fetchall()
+    return [
+        {
+            "id": f"email:{r['email_id']}",
+            "source": "talent email",
+            "date": r["received_at"].isoformat() if r["received_at"] else None,
+            "text": f"{r['subject'] or ''} — {(r['body'] or '')[:300]}",
+        }
+        for r in rows
+    ]
+
+
+async def build_talent_pack(associate_id: str) -> dict | None:
+    """Assemble the full Evidence Pack for one associate (talent)."""
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        conn.row_factory = dict_row
+        row = await (
+            await conn.execute(
+                "SELECT a.associate_id, a.account_id, a.name, a.email, a.stage, "
+                "       acc.tier, acc.owner_id "
+                "FROM pulse.sf_associates a "
+                "LEFT JOIN pulse.sf_accounts acc ON acc.account_id = a.account_id "
+                "WHERE a.associate_id=%s",
+                [associate_id],
+            )
+        ).fetchone()
+        if not row:
+            return None
+        derived = await _talent_derived(conn, associate_id, row.get("email"))
+        snippets = await _talent_snippets(conn, row.get("email"))
+
+    facts = shape_talent_facts(dict(row), **derived)
+    evidence_ids = set(facts["evidence_ids"]) | {s["id"] for s in snippets}
+    return {
+        "entity_type": "talent",
+        "entity_id": associate_id,
         "tier": row.get("tier"),
         "rm_id": row.get("owner_id"),
         "facts": facts,

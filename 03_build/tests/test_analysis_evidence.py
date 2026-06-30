@@ -1,6 +1,6 @@
 """Evidence-pack pure shaping — no IO."""
 
-from core.analysis.evidence_pack import shape_account_facts
+from core.analysis.evidence_pack import shape_account_facts, shape_talent_facts
 
 
 def test_shape_account_facts_computes_quant_inputs():
@@ -31,3 +31,20 @@ def test_shape_account_facts_computes_quant_inputs():
     assert "evidence_ids" in facts and isinstance(facts["evidence_ids"], set)
     # a present fact yields a stable evidence id; an absent one does not
     assert "fact:days_since_ebr" in facts["evidence_ids"]
+
+
+def test_shape_talent_facts():
+    row = {"associate_id": "T1", "account_id": "A1", "tier": "Growth", "stage": "Active"}
+    facts = shape_talent_facts(
+        row,
+        days_in_current_stage=120,
+        max_days_in_onboarding=None,
+        days_since_last_contact=40,
+        stage_changes_90d=2,
+    )
+    assert facts["associate_id"] == "T1"
+    assert facts["stage"] == "Active"
+    assert facts["days_in_current_stage"] == 120
+    assert "fact:days_since_last_contact" in facts["evidence_ids"]
+    # None-valued derived inputs do not produce evidence ids
+    assert "fact:max_days_in_onboarding" not in facts["evidence_ids"]
