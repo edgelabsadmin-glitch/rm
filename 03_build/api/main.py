@@ -391,6 +391,43 @@ async def _ensure_schema() -> None:
             "INSERT INTO pulse.sync_status (id, state) VALUES (1, 'idle') "
             "ON CONFLICT (id) DO NOTHING"
         )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.entity_matrices (
+                id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+                entity_type    TEXT        NOT NULL,
+                entity_id      TEXT        NOT NULL,
+                analyzed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                priority       TEXT        NOT NULL,
+                priority_color TEXT        NOT NULL,
+                priority_score NUMERIC     NOT NULL DEFAULT 0,
+                fired_signals  JSONB       NOT NULL DEFAULT '[]',
+                scores         JSONB       NOT NULL DEFAULT '{}',
+                narrative      TEXT,
+                model_used     TEXT,
+                data_version   TEXT,
+                state          TEXT        NOT NULL DEFAULT 'ok',
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entity_matrices_latest "
+            "ON pulse.entity_matrices (entity_type, entity_id, analyzed_at DESC);"
+        )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS pulse.analysis_status (
+                id           INT         PRIMARY KEY,
+                state        TEXT        NOT NULL DEFAULT 'idle',
+                percent      INT         NOT NULL DEFAULT 0,
+                phase        TEXT,
+                detail       TEXT,
+                started_at   TIMESTAMPTZ,
+                finished_at  TIMESTAMPTZ
+            )
+        """)
+        await conn.execute(
+            "INSERT INTO pulse.analysis_status (id, state) VALUES (1, 'idle') "
+            "ON CONFLICT (id) DO NOTHING"
+        )
         await conn.commit()
 
 
