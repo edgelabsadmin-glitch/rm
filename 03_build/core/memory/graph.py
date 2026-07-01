@@ -57,9 +57,31 @@ def make_graphiti(db_path: str = ":memory:") -> Graphiti:
     construction before the first ingestion (Graphiti contract; see Spike 3).
     """
     driver = PulseKuzuDriver(db=db_path)
-    llm_client = AnthropicClient(config=make_llm_config(ANTHROPIC_HAIKU))
+    llm_client = _build_graphiti_llm_client()
+    # Embeddings stay on OpenAI (Anthropic ships no embedding model); unchanged.
     embedder = OpenAIEmbedder(config=OpenAIEmbedderConfig(embedding_model=OPENAI_EMBEDDER))
     return Graphiti(graph_driver=driver, llm_client=llm_client, embedder=embedder)
+
+
+def _build_graphiti_llm_client() -> AnthropicClient:
+    """Graphiti's entity-extraction LLM (Haiku). Routes through Bedrock when
+    LLM_PROVIDER=bedrock (passing an AsyncAnthropicBedrock client + the Haiku
+    inference-profile ID); otherwise the direct Anthropic API. Graphiti's own
+    internal retry handles transient errors on this background path."""
+    from core.llm.config import llm_provider, resolve_model
+
+    cfg = make_llm_config(ANTHROPIC_HAIKU)
+    if llm_provider() == "bedrock":
+        from anthropic import AsyncAnthropicBedrock
+
+        from core.llm.config import aws_region
+
+        cfg.model = resolve_model(ANTHROPIC_HAIKU)
+        return AnthropicClient(
+            config=cfg,
+            client=AsyncAnthropicBedrock(aws_region=aws_region()),  # type: ignore[arg-type]
+        )
+    return AnthropicClient(config=cfg)
 
 
 async def add_pulse_episode(

@@ -33,7 +33,8 @@ async def test_run_analyst_returns_parsed(monkeypatch):
 
     monkeypatch.setattr(A, "_call_tool", fake_call)
     out, model = await A.run_analyst({"tier": "Core", "facts": {"x": 1}}, ["a: x"])
-    assert model == "sonnet" and out["narrative"] == "ok"
+    # Opus is now the default (primary) tier.
+    assert model == "opus" and out["narrative"] == "ok"
 
 
 async def test_run_analyst_opus_routing(monkeypatch):

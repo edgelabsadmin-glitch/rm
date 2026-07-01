@@ -24,12 +24,12 @@ _client: Any = None
 
 
 def _get_client() -> Any:
-    """Lazily build the AsyncAnthropic client (reads ANTHROPIC_API_KEY from env)."""
+    """Lazily build the async Anthropic client for the active provider (Bedrock or direct)."""
     global _client
     if _client is None:
-        from anthropic import AsyncAnthropic
+        from core.llm.provider import async_anthropic_client
 
-        _client = AsyncAnthropic()
+        _client = async_anthropic_client()
     return _client
 
 
@@ -51,18 +51,26 @@ async def complete(
     for a model known to accept it.
     """
     budget = _MODEL_DEFAULTS.get(model, {"max_tokens": 4096})["max_tokens"]
-    kwargs: dict = {
-        "model": model,
-        "max_tokens": max_tokens or budget,
-        "system": system,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-    if temperature is not None:
-        kwargs["temperature"] = temperature
-    resp = await asyncio.wait_for(
-        _get_client().messages.create(**kwargs), timeout=timeout_for(model)
-    )
-    return "".join(getattr(b, "text", "") for b in resp.content)
+
+    async def _once(model_id: str) -> str:
+        kwargs: dict = {
+            "model": model_id,
+            "max_tokens": max_tokens or budget,
+            "system": system,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        resp = await asyncio.wait_for(
+            _get_client().messages.create(**kwargs), timeout=timeout_for(model)
+        )
+        return "".join(getattr(b, "text", "") for b in resp.content)
+
+    # Caller's model is primary; fall back to Sonnet on failure. Model IDs are
+    # resolved for the active provider inside the wrapper.
+    from core.llm.fallback import acall_with_fallback
+
+    return await acall_with_fallback(_once, label="llm_complete", primary=model)
 
 
 def parse_json(text: str) -> dict:

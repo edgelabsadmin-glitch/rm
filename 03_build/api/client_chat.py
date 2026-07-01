@@ -15,7 +15,6 @@ import logging
 import os
 from typing import Annotated
 
-import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from psycopg.rows import dict_row
@@ -24,7 +23,6 @@ from pydantic import BaseModel
 from api.client_auth import require_client_session
 from core.client.otp import truncate_title
 from core.db import get_pool
-from core.llm.config import ANTHROPIC_SONNET
 from core.llm.rm_style import _DEFAULT_STYLE
 
 log = logging.getLogger(__name__)
@@ -261,12 +259,12 @@ class ChatRequest(BaseModel):
 
 @router.post("/chat")
 async def client_chat(body: ChatRequest, session: ClientSession) -> StreamingResponse:
-    from core.llm.config import load_env
+    from core.llm.config import llm_provider, load_env
 
     load_env()
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
+    # Bedrock uses IAM (no API key); only require the key on the direct-API provider.
+    if llm_provider() != "bedrock" and not os.environ.get("ANTHROPIC_API_KEY"):
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
     pool = await get_pool()
@@ -334,15 +332,20 @@ async def client_chat(body: ChatRequest, session: ClientSession) -> StreamingRes
         if is_first:
             yield f"data: {json.dumps({'type': 'title', 'title': title})}\n\n"
 
-        client = anthropic.Anthropic(api_key=api_key)
+        from core.llm.fallback import call_with_fallback
+        from core.llm.provider import anthropic_client
+
         final_text = ""
 
-        response = client.messages.create(
-            model=ANTHROPIC_SONNET,
-            max_tokens=1024,
-            system=system_prompt,
-            messages=messages,  # type: ignore[arg-type]
-        )
+        def _once(model_id: str):
+            return anthropic_client().messages.create(
+                model=model_id,
+                max_tokens=1024,
+                system=system_prompt,
+                messages=messages,  # type: ignore[arg-type]
+            )
+
+        response = call_with_fallback(_once, label="client_chat")  # Opus → Sonnet
 
         for block in response.content:
             if block.type == "text" and block.text:

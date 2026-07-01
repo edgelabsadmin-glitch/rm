@@ -33,11 +33,11 @@ def _saver(store):
     return _f
 
 
-async def test_sonnet_pass_saves_no_opus(monkeypatch):
+async def test_opus_pass_saves_no_sonnet(monkeypatch):
     monkeypatch.setattr(G, "_load_pack", _aret(_pack()))
     calls = []
 
-    async def fake_run(pack, defs, *, model="sonnet"):
+    async def fake_run(pack, defs, *, model="opus"):
         calls.append(model)
         return (
             {
@@ -65,16 +65,16 @@ async def test_sonnet_pass_saves_no_opus(monkeypatch):
     monkeypatch.setattr(G, "submit_action", _anoop)
 
     r = await G.analyze_entity("account", "A1")
-    assert r["state"] == "ok" and saved["model_used"] == "sonnet" and calls == ["sonnet"]
+    assert r["state"] == "ok" and saved["model_used"] == "opus" and calls == ["opus"]
 
 
-async def test_sonnet_fail_then_opus(monkeypatch):
+async def test_opus_fail_then_sonnet(monkeypatch):
     monkeypatch.setattr(G, "_load_pack", _aret(_pack()))
     seq = []
 
-    async def fake_run(pack, defs, *, model="sonnet"):
+    async def fake_run(pack, defs, *, model="opus"):
         seq.append(model)
-        if model == "sonnet":  # fabricated evidence → gate fails
+        if model == "opus":  # fabricated evidence → gate fails
             return (
                 {
                     "signals": [
@@ -88,7 +88,7 @@ async def test_sonnet_fail_then_opus(monkeypatch):
                     ],
                     "narrative": "x",
                 },
-                "sonnet",
+                "opus",
             )
         return (
             {
@@ -103,7 +103,7 @@ async def test_sonnet_fail_then_opus(monkeypatch):
                 ],
                 "narrative": "ok",
             },
-            "opus",
+            "sonnet",
         )
 
     monkeypatch.setattr(G, "run_analyst", fake_run)
@@ -116,7 +116,7 @@ async def test_sonnet_fail_then_opus(monkeypatch):
     monkeypatch.setattr(G, "submit_action", _anoop)
 
     await G.analyze_entity("account", "A1")
-    assert seq == ["sonnet", "opus"] and saved["model_used"] == "opus" and saved["state"] == "ok"
+    assert seq == ["opus", "sonnet"] and saved["model_used"] == "sonnet" and saved["state"] == "ok"
 
 
 async def test_both_fail_marks_needs_review(monkeypatch):

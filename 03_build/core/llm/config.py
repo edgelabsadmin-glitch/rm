@@ -14,6 +14,7 @@ This module is the single source of truth for which models Pulse calls. Model ro
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -45,6 +46,46 @@ ANTHROPIC_OPUS = "claude-opus-4-7"  # CEO View weekly composition; profile regen
 
 # Embedder — Anthropic ships no public embedding model; OpenAI per Spike 3 §C.
 OPENAI_EMBEDDER = "text-embedding-3-small"
+
+# ── Provider + Bedrock routing ──────────────────────────────────────────────
+# All Claude calls go through a provider factory (core.llm.provider). When
+# LLM_PROVIDER=bedrock the pinned model IDs are mapped to Bedrock inference-profile
+# IDs (base model IDs are NOT invokable on-demand). Default is `anthropic` (direct
+# API key) so CI's live harness + local dev keep working without AWS creds; prod
+# (App Runner) sets LLM_PROVIDER=bedrock explicitly. Verified invokable us-east-1
+# 2026-07-01 via `bedrock-runtime converse`.
+_BEDROCK_PROFILE: dict[str, str] = {
+    ANTHROPIC_HAIKU: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    ANTHROPIC_SONNET: "us.anthropic.claude-sonnet-4-6",
+    ANTHROPIC_OPUS: "us.anthropic.claude-opus-4-7",
+}
+
+# Model tiering: Opus is primary for every feature, Sonnet is the fallback.
+LLM_PRIMARY = ANTHROPIC_OPUS
+LLM_FALLBACK = ANTHROPIC_SONNET
+
+
+def llm_provider() -> str:
+    """'bedrock' or 'anthropic' (default). Prod App Runner sets 'bedrock'."""
+    load_env()
+    return os.environ.get("LLM_PROVIDER", "anthropic").strip().lower()
+
+
+def aws_region() -> str:
+    load_env()
+    return os.environ.get("AWS_REGION", "us-east-1")
+
+
+def resolve_model(model: str) -> str:
+    """Map a pinned Anthropic model ID to the ID the active provider expects.
+
+    Under Bedrock this returns the inference-profile ID; otherwise the model is
+    passed through unchanged (direct Anthropic API).
+    """
+    if llm_provider() == "bedrock":
+        return _BEDROCK_PROFILE.get(model, model)
+    return model
+
 
 # Per-model output-token + timeout budgets (ADR-001: per-LLM-call timeout).
 _MODEL_DEFAULTS: dict[str, dict[str, int]] = {

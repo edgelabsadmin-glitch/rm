@@ -7,12 +7,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 
 from psycopg.rows import dict_row
 
 from core.db import get_pool
-from core.llm.config import ANTHROPIC_HAIKU, load_env
 
 log = logging.getLogger(__name__)
 
@@ -31,22 +29,24 @@ _DEFAULT_STYLE = (
 
 
 def _call_claude(email_samples: str) -> str:
-    load_env()
-    import anthropic
+    from core.llm.fallback import call_with_fallback
+    from core.llm.provider import anthropic_client
 
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-    response = client.messages.create(
-        model=ANTHROPIC_HAIKU,
-        max_tokens=300,
-        messages=[
-            {
-                "role": "user",
-                "content": _STYLE_PROMPT_TEMPLATE.format(samples=email_samples),
-            }
-        ],
-    )
-    block = response.content[0]
-    return block.text.strip() if hasattr(block, "text") else ""  # type: ignore[union-attr]
+    def _once(model_id: str) -> str:
+        response = anthropic_client().messages.create(
+            model=model_id,
+            max_tokens=300,
+            messages=[
+                {
+                    "role": "user",
+                    "content": _STYLE_PROMPT_TEMPLATE.format(samples=email_samples),
+                }
+            ],
+        )
+        block = response.content[0]
+        return block.text.strip() if hasattr(block, "text") else ""  # type: ignore[union-attr]
+
+    return call_with_fallback(_once, label="rm_style")  # Opus → Sonnet
 
 
 async def analyze_rm_style(user_id: str) -> None:

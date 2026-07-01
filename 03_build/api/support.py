@@ -17,14 +17,13 @@ import os
 import re
 from typing import Annotated, Any
 
-import anthropic
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from psycopg.rows import dict_row
 from pydantic import BaseModel
 
 from core.db import get_pool
-from core.llm.config import ANTHROPIC_SONNET, load_env
+from core.llm.config import load_env
 from core.salesforce import SalesforceClient
 
 router = APIRouter(prefix="/support", tags=["support"])
@@ -263,8 +262,10 @@ async def chat(
     body: ChatRequest,
     user_id: Annotated[str, Depends(require_user_id)],
 ) -> StreamingResponse:
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
+    from core.llm.config import llm_provider
+
+    # Bedrock uses IAM (no API key); only require the key on the direct-API provider.
+    if llm_provider() != "bedrock" and not os.environ.get("ANTHROPIC_API_KEY"):
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
     pool = await get_pool()
@@ -329,18 +330,25 @@ async def chat(
         if is_first_message:
             yield f"data: {json.dumps({'type': 'title', 'title': title})}\n\n"
 
-        client = anthropic.Anthropic(api_key=api_key)
+        from core.llm.fallback import call_with_fallback
+        from core.llm.provider import anthropic_client
+
+        client = anthropic_client()
         final_text = ""
         collected_tool_calls: list[dict] = []
 
         while True:
-            response = client.messages.create(
-                model=ANTHROPIC_SONNET,
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                tools=[TOOL_DEF],  # type: ignore[list-item]
-                messages=messages,  # type: ignore[arg-type]
-            )
+
+            def _once(model_id: str):
+                return client.messages.create(
+                    model=model_id,
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT,
+                    tools=[TOOL_DEF],  # type: ignore[list-item]
+                    messages=messages,  # type: ignore[arg-type]
+                )
+
+            response = call_with_fallback(_once, label="support_chat")  # Opus → Sonnet
 
             for block in response.content:
                 if block.type == "text" and block.text:

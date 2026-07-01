@@ -8,10 +8,9 @@ failure (model routing lives here; the fallback orchestration is in agent.py).
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
-from core.llm.config import ANTHROPIC_OPUS, ANTHROPIC_SONNET, load_env
+from core.llm.config import ANTHROPIC_OPUS, ANTHROPIC_SONNET
 
 _MODELS = {"sonnet": ANTHROPIC_SONNET, "opus": ANTHROPIC_OPUS}
 
@@ -79,15 +78,16 @@ def build_analyst_prompt(pack: Any, signal_defs: list[str]) -> str:
 
 
 def _call_tool(model_id: str, prompt: str) -> dict:
-    """Blocking Anthropic call forcing the emit_matrix tool; returns its input dict."""
-    load_env()
-    import anthropic
+    """Blocking Anthropic/Bedrock call forcing the emit_matrix tool; returns its input."""
+    from core.llm.config import resolve_model
+    from core.llm.provider import anthropic_client
 
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    client = anthropic_client()
+    # `temperature` is omitted: Opus (primary) deprecates it and rejects the param on
+    # Bedrock; tool-forcing already constrains the output shape without it.
     resp = client.messages.create(
-        model=model_id,
+        model=resolve_model(model_id),
         max_tokens=2048,
-        temperature=0,
         tools=[MATRIX_TOOL],  # type: ignore[list-item]
         tool_choice={"type": "tool", "name": "emit_matrix"},
         messages=[{"role": "user", "content": prompt}],
@@ -99,9 +99,12 @@ def _call_tool(model_id: str, prompt: str) -> dict:
 
 
 async def run_analyst(
-    pack: Any, signal_defs: list[str], *, model: str = "sonnet"
+    pack: Any, signal_defs: list[str], *, model: str = "opus"
 ) -> tuple[dict, str]:
-    """Run the analyst with the named model; returns (raw_output, model_name)."""
+    """Run the analyst with the named model; returns (raw_output, model_name).
+
+    Opus is primary; agent.py re-runs with 'sonnet' on validation-gate failure.
+    """
     prompt = build_analyst_prompt(pack, signal_defs)
-    out = await asyncio.to_thread(_call_tool, _MODELS.get(model, ANTHROPIC_SONNET), prompt)
+    out = await asyncio.to_thread(_call_tool, _MODELS.get(model, ANTHROPIC_OPUS), prompt)
     return out, model

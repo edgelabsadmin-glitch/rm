@@ -99,11 +99,12 @@ async def analyze_entity(
     quant = {sid: fn(facts) for sid, fn in QUANT_SIGNALS.items()}
     defs = signal_defs_for(entity_type)
 
-    out, model = await run_analyst(pack, defs, model="sonnet")
+    # Opus is primary; fall back to Sonnet only if Opus fails the validation gate.
+    out, model = await run_analyst(pack, defs, model="opus")
     ok, cleaned, reasons = validate_matrix(out, pack, quant=quant)
     if not ok:
-        log.warning("analysis %s/%s sonnet failed gate: %s", entity_type, entity_id, reasons)
-        out, model = await run_analyst(pack, defs, model="opus")
+        log.warning("analysis %s/%s opus failed gate: %s", entity_type, entity_id, reasons)
+        out, model = await run_analyst(pack, defs, model="sonnet")
         ok, cleaned, reasons = validate_matrix(out, pack, quant=quant)
 
     if not ok:

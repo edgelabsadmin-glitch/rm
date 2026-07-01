@@ -11,10 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
-
-from core.llm.config import ANTHROPIC_SONNET, load_env
 
 log = logging.getLogger(__name__)
 
@@ -75,17 +72,19 @@ def parse_reply_response(raw: str) -> dict:
 
 
 def _call_claude(prompt: str) -> str:
-    load_env()
-    import anthropic
+    from core.llm.fallback import call_with_fallback
+    from core.llm.provider import anthropic_client
 
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-    response = client.messages.create(
-        model=ANTHROPIC_SONNET,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    block = response.content[0]
-    return block.text if hasattr(block, "text") else ""  # type: ignore[union-attr]
+    def _once(model_id: str) -> str:
+        response = anthropic_client().messages.create(
+            model=model_id,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        block = response.content[0]
+        return block.text if hasattr(block, "text") else ""  # type: ignore[union-attr]
+
+    return call_with_fallback(_once, label="inbox_reply")  # Opus → Sonnet
 
 
 async def generate_reply(
