@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/Markdown";
 import { clientApi, getClientSession, type ClientConversation } from "@/lib/client-api";
 import { useClientAuth } from "./ClientAuthContext";
 import {
@@ -19,16 +20,6 @@ import {
 } from "./hooks";
 
 const BASE = import.meta.env.VITE_API_BASE ?? "/api";
-
-function renderMarkdown(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    return <span key={i}>{part}</span>;
-  });
-}
 
 interface Message {
   id: string;
@@ -344,12 +335,16 @@ export function ClientChatPage() {
                             : "rounded-tl-sm bg-surface-sidebar text-ink-primary",
                         )}
                       >
-                        {m.text.split("\n").map((line, j, arr) => (
-                          <span key={j}>
-                            {m.role === "assistant" ? renderMarkdown(line) : line}
-                            {j < arr.length - 1 && <br />}
-                          </span>
-                        ))}
+                        {m.role === "assistant" ? (
+                          <Markdown text={m.text} />
+                        ) : (
+                          m.text.split("\n").map((line, j, arr) => (
+                            <span key={j}>
+                              {line}
+                              {j < arr.length - 1 && <br />}
+                            </span>
+                          ))
+                        )}
                       </div>
                     )}
                   </div>

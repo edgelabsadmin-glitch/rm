@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Bot, User, Database, Loader2, Sparkles, Plus, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/Markdown";
 import { api, authHeaders } from "@/lib/api";
 import { useUser } from "@/lib/auth/AuthContext";
 import {
@@ -124,12 +125,16 @@ function MessageBubble({ message }: { message: Message }) {
                     : "rounded-tl-sm bg-surface-sidebar text-ink-primary",
                 )}
               >
-                {part.text.split("\n").map((line, j) => (
-                  <span key={j}>
-                    {line}
-                    {j < part.text.split("\n").length - 1 && <br />}
-                  </span>
-                ))}
+                {isUser ? (
+                  part.text.split("\n").map((line, j) => (
+                    <span key={j}>
+                      {line}
+                      {j < part.text.split("\n").length - 1 && <br />}
+                    </span>
+                  ))
+                ) : (
+                  <Markdown text={part.text} />
+                )}
               </div>
             );
           })
