@@ -72,7 +72,7 @@ def _build_graphiti_llm_client() -> AnthropicClient:
 
     cfg = make_llm_config(ANTHROPIC_HAIKU)
     if llm_provider() == "bedrock":
-        from anthropic import AsyncAnthropicBedrock
+        from anthropic import AsyncAnthropicBedrock  # type: ignore[attr-defined]
 
         from core.llm.config import aws_region
 
