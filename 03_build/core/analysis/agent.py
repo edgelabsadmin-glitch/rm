@@ -194,7 +194,14 @@ async def _active_entities() -> list[tuple[str, str]]:
 
 
 async def _data_version(entity_type: str, entity_id: str) -> str:
-    """A stable hash of the entity's input freshness — changes iff its data moved."""
+    """A stable hash of the entity's *content* — changes iff its analysis inputs moved.
+
+    Deliberately excludes `synced_at`: the Salesforce sync bumps synced_at on every
+    run even when nothing changed, which would force a full re-analysis every sync
+    (expensive on Opus). We hash only the fields that actually feed the evidence pack
+    (account attributes, email/meeting/stage activity), so the incremental loop
+    re-analyzes an entity only when its real data moves.
+    """
     from psycopg.rows import tuple_row
 
     from core.db import get_pool
@@ -213,7 +220,7 @@ async def _data_version(entity_type: str, entity_id: str) -> str:
         if entity_type == "talent":
             parts = [
                 await scalar(
-                    "SELECT synced_at FROM pulse.sf_associates WHERE associate_id=%s",
+                    "SELECT stage FROM pulse.sf_associates WHERE associate_id=%s",
                     [entity_id],
                 ),
                 await scalar(
@@ -221,16 +228,30 @@ async def _data_version(entity_type: str, entity_id: str) -> str:
                     "WHERE associate_id=%s",
                     [entity_id],
                 ),
+                await scalar(
+                    "SELECT max(e.received_at) FROM pulse.inbox_emails e "
+                    "JOIN pulse.sf_associates a ON lower(a.email)=lower(e.from_email) "
+                    "WHERE a.associate_id=%s",
+                    [entity_id],
+                ),
             ]
         else:
             parts = [
+                # Account attributes that drive signals (NOT synced_at).
                 await scalar(
-                    "SELECT synced_at FROM pulse.sf_accounts WHERE account_id=%s",
+                    "SELECT COALESCE(active_talent,0)||'|'||COALESCE(churn_probability::text,'')"
+                    "||'|'||COALESCE(last_ebr,'') FROM pulse.sf_accounts WHERE account_id=%s",
                     [entity_id],
                 ),
                 await scalar(
-                    "SELECT max(received_at) FROM pulse.inbox_emails WHERE account_id=%s",
+                    "SELECT count(*)||'|'||COALESCE(max(received_at)::text,'') "
+                    "FROM pulse.inbox_emails WHERE account_id=%s",
                     [entity_id],
+                ),
+                await scalar(
+                    "SELECT max(source_timestamp) FROM pulse.episodes "
+                    "WHERE source IN ('chorus','zoom') AND candidate_entities @> %s::jsonb",
+                    [f'[{{"sfdc_id":"{entity_id}"}}]'],
                 ),
                 await scalar(
                     "SELECT max(observed_at) FROM pulse.associate_stage_history "

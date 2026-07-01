@@ -98,10 +98,15 @@ def _evaluate(
 async def _recent_rejection_count(skill_id: str) -> int:
     """Count action-rejected events for `skill_id` in the dampening window
     (computed from the event log — Design 04 stores no aggregations)."""
+    from psycopg.rows import tuple_row
+
     cutoff = datetime.now(UTC) - timedelta(days=REJECTION_WINDOW_DAYS)
     pool = await get_pool()
     async with pool.connection() as conn:
-        async with conn.cursor() as cur:
+        # Pin tuple_row: a pooled connection may carry a dict_row factory leaked by a
+        # prior caller (some read endpoints set conn.row_factory), which would break
+        # the positional row[0] below with KeyError.
+        async with conn.cursor(row_factory=tuple_row) as cur:
             await cur.execute(
                 "SELECT COUNT(*) FROM pulse.events "
                 "WHERE event_type = 'action-rejected' AND skill_id = %s AND occurred_at >= %s;",
